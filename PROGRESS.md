@@ -383,5 +383,12 @@
 - 生成 `docs/audit-2026-10-24/no-response-model-endpoints.md`：剩余 **101** 条数据端点按前缀分组，供后续按清单继续。
 - 后端全量测试：**1382 passed / 16 skipped**（新增 2 条契约测试）；ruff check/format 通过；mypy 与 `.mypy-baseline` 对比 42=42 无新增。
 - 期间 dev 后端 reload 退出，已重启并核验 `/health` 200（DB/Redis ok）。
+
+### BE-07 第二批：exams 响应契约
+
+- `/exams` 改为 `ExamPaperListResponse`（`PaginatedResponse[ExamPaperRow]` + `available_years`）；`/exams/wrong`、`/exams/attempts` 改为 `PaginatedResponse[...]`；`/exams/stats` 与 `/exams/attempts/{id}` 用具体模型。
+- 新增 schema：试卷行/分区、错题行、统计、作答行、作答详情行；日期字段用 `datetime`，由 FastAPI 统一输出 ISO。
+- `test_response_contract.py` 新增 exams 四条路径的 OpenAPI 断言；剩余无 schema 端点从 101 降到 **96**，清单已重新生成。
+- 后端全量测试与 mypy 复核见本轮提交；dev 后端因 `--reload` 在该 shell 下反复随文件变更退出，已改为不带 reload 的常驻进程，`/health` 200（DB/Redis ok）。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。

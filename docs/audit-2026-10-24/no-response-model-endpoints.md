@@ -3,7 +3,7 @@
 生成方式：加载 `create_app()` 后遍历 `APIRoute`，排除 `/health`、`/metrics`、`/media`、
 OpenAPI 文档与 Prometheus 路径，统计 `response_model is None` 的 JSON 数据端点。
 
-生成日期：2026-10-24。当前计数：101。
+生成日期：2026-10-24。当前计数：96。
 
 > 这是剩余工作清单，不代表这些端点会返回错误；它们只是没有 OpenAPI 字段契约。
 > 外部支付/转写回调（`/internal/transcription/callback`、`/payments/callback/*`、`/payments/jinshuju/webhook`）
@@ -61,14 +61,6 @@ OpenAPI 文档与 Prometheus 路径，统计 `response_model is None` 的 JSON �
 
 - `GET` `/api/v1/exam-pdfs`
 - `GET` `/api/v1/exam-pdfs/{slug}/file`
-
-## exams
-
-- `GET` `/api/v1/exams`
-- `GET` `/api/v1/exams/attempts`
-- `GET` `/api/v1/exams/attempts/{session_id}`
-- `GET` `/api/v1/exams/stats`
-- `GET` `/api/v1/exams/wrong`
 
 ## internal
 

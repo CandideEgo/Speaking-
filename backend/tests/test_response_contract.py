@@ -334,6 +334,13 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_exam_routes_have_typed_models(self):
+        """BE-07: exam paper/wrong/attempt lists and stats must be typed."""
+        assert self._schema("/api/v1/exams", "get")["$ref"].endswith("ExamPaperListResponse")
+        assert self._schema("/api/v1/exams/wrong", "get")["$ref"].endswith("PaginatedResponse_ExamWrongItem_")
+        assert self._schema("/api/v1/exams/attempts", "get")["$ref"].endswith("PaginatedResponse_ExamAttemptItem_")
+        assert self._schema("/api/v1/exams/attempts/{session_id}", "get")["$ref"].endswith("ExamAttemptDetailResponse")
+
     def test_listening_routes_have_typed_models(self):
         """The newest feature routes must appear in OpenAPI with concrete items."""
         assert self._schema("/api/v1/listening/videos", "get")["$ref"].endswith("PaginatedResponse_ListeningVideoCard_")

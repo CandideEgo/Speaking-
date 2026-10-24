@@ -30,13 +30,18 @@ from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.exam import (
     ExamAttemptCreateResponse,
+    ExamAttemptDetailResponse,
+    ExamAttemptItem,
     ExamPaperDetail,
+    ExamPaperListResponse,
     ExamQuestionPublic,
+    ExamStatsResponse,
     ExamSubmitRequest,
     ExamSubmitResponse,
+    ExamWrongItem,
     WrongRedoRequest,
 )
-from app.schemas.pagination import paginated
+from app.schemas.pagination import PaginatedResponse, paginated
 from app.services import exam_service
 
 router = APIRouter(prefix="/exams", tags=["exams"])
@@ -52,7 +57,7 @@ def _create_payload(session, questions: list) -> dict:
     }
 
 
-@router.get("")
+@router.get("", response_model=ExamPaperListResponse)
 @rate_limit("60/minute")
 async def list_exams(
     request: Request,
@@ -93,7 +98,7 @@ async def start_daily_check(
     return ExamAttemptCreateResponse(**_create_payload(session, questions))
 
 
-@router.get("/wrong")
+@router.get("/wrong", response_model=PaginatedResponse[ExamWrongItem])
 @rate_limit("60/minute")
 async def list_wrong_questions(
     request: Request,
@@ -123,7 +128,7 @@ async def redo_wrong_questions(
     return ExamAttemptCreateResponse(**_create_payload(session, questions))
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=ExamStatsResponse)
 @rate_limit("60/minute")
 async def get_exam_stats(
     request: Request,
@@ -134,7 +139,7 @@ async def get_exam_stats(
     return await exam_service.exam_stats(db, current_user.id)
 
 
-@router.get("/attempts")
+@router.get("/attempts", response_model=PaginatedResponse[ExamAttemptItem])
 @rate_limit("60/minute")
 async def list_attempts(
     request: Request,
@@ -148,7 +153,7 @@ async def list_attempts(
     return paginated(items=items, total=total, page=page, page_size=page_size)
 
 
-@router.get("/attempts/{session_id}")
+@router.get("/attempts/{session_id}", response_model=ExamAttemptDetailResponse)
 @rate_limit("60/minute")
 async def get_attempt(
     request: Request,
