@@ -334,6 +334,34 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_listening_routes_have_typed_models(self):
+        """The newest feature routes must appear in OpenAPI with concrete items."""
+        assert self._schema("/api/v1/listening/videos", "get")["$ref"].endswith("PaginatedResponse_ListeningVideoCard_")
+        assert self._schema("/api/v1/listening/sessions", "get")["$ref"].endswith(
+            "PaginatedResponse_ListeningSessionSummary_"
+        )
+        for method in ("post",):
+            assert self._schema("/api/v1/listening/sessions", method)["$ref"].endswith("ListeningSessionResponse")
+
+    def test_all_paginated_responses_have_typed_items(self):
+        """Every ``PaginatedResponse[...]`` in the OpenAPI must type its items.
+
+        Regression for BE-07: four admin/catalog lists (and
+        ``/videos/{id}/vocabulary``) used bare or ``dict`` item types, so the
+        OpenAPI showed ``items: {}`` and generated clients could not see fields.
+        """
+        from app.main import create_app
+
+        schemas = create_app().openapi()["components"]["schemas"]
+        assert "PaginatedResponse" not in schemas, "bare PaginatedResponse leaked into OpenAPI"
+        paginated = {name: schema for name, schema in schemas.items() if name.startswith("PaginatedResponse_")}
+        assert paginated, "expected at least one typed paginated response"
+        for name, schema in paginated.items():
+            items = schema["properties"]["items"]
+            assert items.get("type") == "array", name
+            assert items.get("items"), f"{name} has untyped items"
+            assert items["items"].get("$ref") != "#/components/schemas/dict", f"{name} still uses dict items"
+
     def test_notification_preferences_are_typed(self):
         for method in ("get", "put"):
             ref = self._schema("/api/v1/notifications/preferences", method)["$ref"]

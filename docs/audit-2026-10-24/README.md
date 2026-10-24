@@ -14,7 +14,7 @@
   - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **已修（功能漂移）**：新增 `p7q8r9s0t1u2` 对齐迁移（只补不删、先查重复/孤儿；唯一约束、FK、dedup 索引、vocabulary 索引重命名、列注释、模型 nullability/Text 对齐），并新增 `scripts/check_schema_drift.py` 门禁（剩 7 条退役表相关差异，逐条带原因；新漂移即失败）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
 - **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
-- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 30 条 + 1 条契约补充（`has_password`）；BE-07（约 100 个数据端点缺 `response_model`）保留为后续契约工作。
+- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 30 条 + 1 条契约补充（`has_password`）；BE-07 已完成第一批（裸 `PaginatedResponse`、`/videos/{id}/vocabulary`、listening 6 条），剩余 101 条数据端点清单见 [`no-response-model-endpoints.md`](no-response-model-endpoints.md)。
 
 ## 2. 本轮已落地的修复
 
@@ -121,7 +121,7 @@
 - **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **BE-07**：约 100 个数据端点仍缺 `response_model`，保留为后续契约工作（本轮未动）。
+- **BE-07**：第一批已修——4 处裸 `PaginatedResponse` 改为具体模型、`/videos/{id}/vocabulary` 去掉 `dict`、listening 6 条补 `response_model`，并在 `test_response_contract.py` 增加遍历 OpenAPI 的断言；剩余 101 条数据端点（含 exams/discovery/channels 等）列入 [`no-response-model-endpoints.md`](no-response-model-endpoints.md)，后续按清单继续。
 - **对存量库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库就有 58 + 49 条）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。
 - **前端剩余结构性缺口**：视觉审计 30 条均已处置——27 条修复并验证；V-25 侧栏折叠、V-27 桌面词卡浮动锚定、V-29 accent hover（为满足白字 AA 使用更深的 `#0066cc`）保留为有意的产品/可访问性差异，逐条见 `frontend-visual.md`。功能/可访问性审计的 P2 已全部修复。
 

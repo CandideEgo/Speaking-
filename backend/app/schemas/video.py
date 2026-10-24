@@ -449,6 +449,22 @@ class SubtitleSnippet(BaseModel):
     end_time: float
 
 
+class VideoVocabularyItem(BaseModel):
+    """One saved vocabulary row for a single video (BE-07: typed paginated item)."""
+
+    id: str
+    word: str
+    definition: str | None = None
+    translation: str | None = None
+    mastery_level: str
+    context_sentence: str | None = None
+    video_id: str | None = None
+    subtitle_id: str | None = None
+    review_count: int = 0
+    next_review_at: str | None = None
+    created_at: str
+
+
 class SubtitleSearchResult(BaseModel):
     """A video with matching subtitle snippets from subtitle search."""
 

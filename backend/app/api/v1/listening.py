@@ -11,7 +11,13 @@ from app.core.errors import UnprocessableEntityError
 from app.core.limiter import rate_limit
 from app.models.listening import ListeningSession
 from app.models.user import User
-from app.schemas.pagination import paginated
+from app.schemas.listening import (
+    ListeningDraftResponse,
+    ListeningSessionResponse,
+    ListeningSessionSummary,
+    ListeningVideoCard,
+)
+from app.schemas.pagination import PaginatedResponse, paginated
 from app.services import listening_service as service
 
 router = APIRouter(prefix="/listening", tags=["listening"])
@@ -28,7 +34,7 @@ class Draft(BaseModel):
     current_index: int = Field(default=0, ge=0, le=9)
 
 
-@router.get("/videos")
+@router.get("/videos", response_model=PaginatedResponse[ListeningVideoCard])
 @rate_limit("60/minute")
 async def videos(
     request: Request,
@@ -40,7 +46,7 @@ async def videos(
     return await service.catalog(db, page, page_size)
 
 
-@router.get("/sessions")
+@router.get("/sessions", response_model=PaginatedResponse[ListeningSessionSummary])
 @rate_limit("60/minute")
 async def sessions(
     request: Request,
@@ -78,7 +84,7 @@ async def sessions(
     return paginated(items, page=page, page_size=page_size, total=total)
 
 
-@router.post("/sessions")
+@router.post("/sessions", response_model=ListeningSessionResponse, response_model_exclude_unset=True)
 @rate_limit("20/minute")
 async def start(
     request: Request, body: Start, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -88,7 +94,7 @@ async def start(
     return await service.payload(db, session, user)
 
 
-@router.get("/sessions/{session_id}")
+@router.get("/sessions/{session_id}", response_model=ListeningSessionResponse, response_model_exclude_unset=True)
 @rate_limit("60/minute")
 async def detail(
     request: Request, session_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -96,7 +102,7 @@ async def detail(
     return await service.payload(db, await service.owned_session(db, session_id, user.id), user)
 
 
-@router.put("/sessions/{session_id}")
+@router.put("/sessions/{session_id}", response_model=ListeningDraftResponse)
 @rate_limit("60/minute")
 async def draft(
     request: Request,
@@ -113,7 +119,9 @@ async def draft(
     return {"saved": True, "updated_at": session.updated_at.isoformat()}
 
 
-@router.post("/sessions/{session_id}/submit")
+@router.post(
+    "/sessions/{session_id}/submit", response_model=ListeningSessionResponse, response_model_exclude_unset=True
+)
 @rate_limit("20/minute")
 async def submit(
     request: Request, session_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)

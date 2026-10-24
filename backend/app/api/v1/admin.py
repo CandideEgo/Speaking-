@@ -17,10 +17,13 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.admin import (
+    AdminOrderRow,
+    AdminRedemptionRow,
     AdminSettingsUpdate,
     AdminUserBanRequest,
     AdminUserPlanRequest,
     AdminUserRoleRequest,
+    AdminUserRow,
 )
 from app.schemas.pagination import PaginatedResponse
 from app.services import admin_service
@@ -68,7 +71,7 @@ async def get_admin_stats(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/users", response_model=PaginatedResponse)
+@router.get("/users", response_model=PaginatedResponse[AdminUserRow])
 @rate_limit("30/minute")
 async def list_admin_users(
     request: Request,
@@ -143,7 +146,7 @@ async def change_user_plan(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/orders", response_model=PaginatedResponse)
+@router.get("/orders", response_model=PaginatedResponse[AdminOrderRow])
 @rate_limit("30/minute")
 async def list_admin_orders(
     request: Request,
@@ -161,7 +164,7 @@ async def list_admin_orders(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/redemptions", response_model=PaginatedResponse)
+@router.get("/redemptions", response_model=PaginatedResponse[AdminRedemptionRow])
 @rate_limit("30/minute")
 async def list_admin_redemptions(
     request: Request,

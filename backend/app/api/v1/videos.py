@@ -33,6 +33,7 @@ from app.schemas.video import (
     VideoDetailResponse,
     VideoResponse,
     VideoStatusResponse,
+    VideoVocabularyItem,
     WordLevelsUpdate,
 )
 from app.services.search_service import (
@@ -961,7 +962,7 @@ async def list_related_videos(
 
 # Phase 1 B0 — list the current user's vocabulary for a single video, used by
 # the EndScreen "复习本视频生词" entry on the watch page.
-@router.get("/{video_id}/vocabulary", response_model=PaginatedResponse[dict])
+@router.get("/{video_id}/vocabulary", response_model=PaginatedResponse[VideoVocabularyItem])
 @rate_limit("30/minute")
 async def list_video_vocabulary(
     request: Request,

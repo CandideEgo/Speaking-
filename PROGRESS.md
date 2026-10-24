@@ -373,5 +373,15 @@
 - 主 CTA 已是「从这句话开始」并带 `?t=`，次 CTA「看频道」保留。
 - `home-editorial.spec.ts` 的 hero 用例改为断言不再出现「原片发布 / 次播放」、且出现「点赞 / 收藏」；该 spec **8 passed**。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
+
+### BE-07 第一批：分页/会话响应契约 + 无 schema 端点清单
+
+- 4 处裸 `PaginatedResponse` 改为具体 item 模型：admin users/orders/redemptions、catalog（新增 `AdminUserRow` / `AdminOrderRow` / `AdminRedemptionRow`）。
+- `/videos/{id}/vocabulary` 从 `PaginatedResponse[dict]` 改为 `PaginatedResponse[VideoVocabularyItem]`。
+- listening 6 条路由全部补 `response_model`：目录/会话列表用 `PaginatedResponse[...]`，创建/详情/交卷用 `ListeningSessionResponse`（`response_model_exclude_unset=True` 保留未提交会话不返回原文的既有契约），草稿用 `ListeningDraftResponse`。
+- `test_response_contract.py` 新增两条断言：OpenAPI 不得出现裸 `PaginatedResponse`；所有 `PaginatedResponse_*` 的 `items` 必须有 `$ref`（不能再是 `dict`）。listening 类型单独钉住。
+- 生成 `docs/audit-2026-10-24/no-response-model-endpoints.md`：剩余 **101** 条数据端点按前缀分组，供后续按清单继续。
+- 后端全量测试：**1382 passed / 16 skipped**（新增 2 条契约测试）；ruff check/format 通过；mypy 与 `.mypy-baseline` 对比 42=42 无新增。
+- 期间 dev 后端 reload 退出，已重启并核验 `/health` 200（DB/Redis ok）。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。

@@ -24,7 +24,7 @@ from app.services import catalog_service
 router = APIRouter(prefix="/admin/catalog", tags=["admin-catalog"])
 
 
-@router.get("", response_model=PaginatedResponse)
+@router.get("", response_model=PaginatedResponse[CatalogItemResponse])
 @rate_limit("60/minute")
 async def list_catalog(
     request: Request,

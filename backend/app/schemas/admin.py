@@ -45,3 +45,52 @@ class AdminSettingsUpdate(BaseModel):
     download_timeout_sec: int | None = Field(default=None, ge=60, le=86400)
     download_auto_retry_enabled: bool | None = None
     watchdog_enabled: bool | None = None
+
+
+# ---------------------------------------------------------------------------
+# Response schemas (BE-07: admin lists must not degrade to untyped items)
+# ---------------------------------------------------------------------------
+
+
+class AdminUserRow(BaseModel):
+    id: str
+    phone: str | None = None
+    name: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
+    gender: str | None = None
+    level: str | None = None
+    plan: str
+    plan_expires_at: str | None = None
+    timezone: str | None = None
+    role: str
+    is_banned: bool = False
+    created_at: str | None = None
+    last_active_at: str | None = None
+    videos_watched: int = 0
+    learned_words: int = 0
+
+
+class AdminOrderRow(BaseModel):
+    id: str
+    order_number: str
+    user_id: str | None = None
+    user_phone: str | None = None
+    plan: str | None = None
+    amount: int | None = None
+    status: str
+    paid_at: str | None = None
+    created_at: str | None = None
+
+
+class AdminRedemptionRow(BaseModel):
+    id: str
+    code: str
+    user_id: str | None = None
+    user_phone: str | None = None
+    plan: str
+    duration_days: int | None = None
+    status: str
+    revoked_reason: str | None = None
+    used_at: str | None = None
+    created_at: str | None = None
