@@ -360,5 +360,11 @@
 - 把原先挤在两栏里的「购买说明」卡移出网格，作为设计里的整段「常见问题」，并补「会自动续费吗」等真实口径（不自动续费、到期保留收藏与记录）。
 - 新增 `user-information.spec.ts` 会员页用例：断言深色状态卡、图标权益、常见问题标题与续费问答；整份 spec **13 passed**。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
+
+### 频道目录改封面卡与两列网格（V-14）
+
+- `ChannelCard` 顶部改为设计中的 8:5 封面图（无频道图时退回最新视频缩略图，再退回首字母），名称/简介移到封面下方；保留学习方向、事实行、最近收录与订阅按钮。
+- 频道目录与加载骨架从 3 列改为设计的两列网格；页头补「已订阅 N」与「去发现」。
+- `design-rollout.spec` 的频道订阅用例 **1 passed**；`npm run check` 通过；`npm run test:unit` 332 passed。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。

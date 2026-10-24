@@ -84,10 +84,8 @@ export function ChannelCard({
   }
 
   const latest = channel.latest_video;
-  // 服务端的 cover_url 在没有真实频道图时会回退成最新视频缩略图；那种图套进
-  // 圆形头像就是视频画面被裁一刀，还和下面的缩略图重复。没有独立头像时用首字母。
-  const avatarUrl =
-    channel.cover_url && channel.cover_url !== latest?.thumbnail_url ? channel.cover_url : null;
+  // 设计频道卡以封面图开场；没有独立频道图时退回最新视频缩略图，再退回首字母。
+  const coverUrl = channel.cover_url || latest?.thumbnail_url || null;
   const intro = channel.positioning_zh || channel.description;
   const directions = directionLabels(channel.learning_directions);
   const difficulty = formatDifficultyRange(channel.difficulty_range);
@@ -112,21 +110,21 @@ export function ChannelCard({
       padding={0}
       className="group flex h-full min-w-0 flex-col overflow-hidden transition-colors hover:border-hairline-strong"
     >
+      <Link
+        href={`/channels/${channel.slug}`}
+        tabIndex={-1}
+        aria-hidden
+        className="relative block aspect-[8/5] w-full overflow-hidden bg-surface-card"
+      >
+        {coverUrl ? (
+          <Image src={coverUrl} alt="" sizes="(max-width: 768px) 100vw, 480px" />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center bg-surface-soft text-title font-bold text-muted">
+            {userInitial(channel.name)}
+          </span>
+        )}
+      </Link>
       <div className="flex min-w-0 items-start gap-3 p-4">
-        <Link
-          href={`/channels/${channel.slug}`}
-          tabIndex={-1}
-          aria-hidden
-          className="relative h-11 w-11 shrink-0 overflow-hidden rounded-pill border border-hairline bg-surface-card"
-        >
-          {avatarUrl ? (
-            <Image src={avatarUrl} alt="" sizes="44px" />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-copy font-bold text-muted">
-              {userInitial(channel.name)}
-            </span>
-          )}
-        </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h2 className="min-w-0 text-copy-lg font-bold leading-snug text-ink">

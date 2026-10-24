@@ -202,7 +202,21 @@ export default function ChannelsPage() {
   return (
     <PageTransition>
       <div className="user-page">
-        <PageHeader crumb="频道" title="全部频道" variant="eyebrow" />
+        <PageHeader
+          crumb="频道"
+          title="全部频道"
+          variant="eyebrow"
+          actions={
+            <div className="flex items-center gap-2">
+              {subscriptionStatus === "ready" && subscriptions.length > 0 && (
+                <span className="text-caption text-muted">已订阅 {subscriptions.length}</span>
+              )}
+              <LinkButton href="/" variant="outline" size="sm">
+                去发现
+              </LinkButton>
+            </div>
+          }
+        />
 
         {/* 一行事实：加载完成前用占位条，不闪「0 个频道」 */}
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta tabular-nums text-muted">
@@ -294,23 +308,14 @@ export default function ChannelsPage() {
           {error && <ErrorState title={error} onRetry={() => load(1, false)} className="py-8" />}
 
           {!error && loading && channels.length === 0 && (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-hidden>
+            <div className="mt-5 grid gap-4 md:grid-cols-2" aria-hidden>
               {Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i} padding={0} className="animate-pulse overflow-hidden">
-                  <div className="flex items-start gap-3 p-4">
-                    <div className="h-11 w-11 shrink-0 rounded-pill bg-surface-card" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="h-4 w-2/3 rounded-sm bg-surface-card" />
-                      <div className="h-3 w-full rounded-sm bg-surface-card" />
-                    </div>
-                  </div>
-                  <div className="mt-2 flex gap-1.5 px-4">
-                    <div className="h-6 w-16 rounded-pill bg-surface-card" />
-                    <div className="h-6 w-14 rounded-pill bg-surface-card" />
-                  </div>
-                  <div className="mt-3 space-y-2 px-4 pb-4">
+                  <div className="aspect-[8/5] w-full bg-surface-card" />
+                  <div className="space-y-2 p-4">
+                    <div className="h-4 w-2/3 rounded-sm bg-surface-card" />
+                    <div className="h-3 w-full rounded-sm bg-surface-card" />
                     <div className="h-3 w-1/2 rounded-sm bg-surface-card" />
-                    <div className="h-3 w-2/3 rounded-sm bg-surface-card" />
                   </div>
                 </Card>
               ))}
@@ -331,7 +336,7 @@ export default function ChannelsPage() {
           )}
 
           {!error && visibleChannels.length > 0 && (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
               {visibleChannels.map((channel) => (
                 <ChannelCard
                   key={channel.id}
