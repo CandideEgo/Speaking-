@@ -177,3 +177,4 @@
 - 后端媒体/PDF 鉴权收敛（BE-04）：新增 `dependencies.resolve_token_user()`，媒体 `?token=`、shadowing 录制与原卷 PDF 全部走与 API 相同的链（黑名单 / 改密 / 封禁）；补 3 条测试（封禁 owner、改密后旧 token、封禁 shadowing owner），media + PDF 47 项通过。
 - WebSocket 鉴权收敛（BE-15）：通知 WS 握手改用同一条 `resolve_token_user()` 链，补「改密后旧 token 被拒」用例，notifications 35 项通过。
 - 短信固定码改为显式 opt-in（BE-06）：新增 `SMS_DEV_FAKE_ENABLED`（默认 false，production 启动即拒绝），`verify_code` 必须读到 Redis 已发码；本地 `.env`、`.env.example`、CI 两处 env 显式开启，测试补「未显式开启不生效」「未发码不接受」「production 拒绝」；SMS/配置相关 61 项通过，dev API 实测发码后 1234 可登录、未发码 400。
+- 迁移漂移门禁（BE-03 部分）：新增 `backend/scripts/check_schema_drift.py`，对已迁移库跑 `compare_metadata`，29 条已知债务逐条带原因；CI e2e job 在 `alembic upgrade head` 后执行，新漂移即失败。dev 库实测 `29 known entries, 0 new`；「只补不删」迁移本身仍未生成（先查重复/孤儿数据再建约束）。

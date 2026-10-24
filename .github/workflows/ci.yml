@@ -232,6 +232,11 @@ jobs:
       - name: Run database migrations
         working-directory: backend
         run: alembic upgrade head
+      - name: Check model/migration drift
+        # The known backlog is allowlisted with reasons in the script; this
+        # fails only when *new* drift appears against the migrated schema.
+        working-directory: backend
+        run: python scripts/check_schema_drift.py
       - name: Seed e2e data
         # The watch-page e2e tests skip() when the home page has no video;
         # seeding one official ready video makes them execute for real.
