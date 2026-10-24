@@ -322,5 +322,13 @@
 - 偏好读取与 tab 计数请求一并移除：进页面从 1 次未读计数 + 1 次列表请求减为 2 个请求，不再额外拉 preferences/page_size=100。
 - `user-information.spec.ts` 新增通知页用例：断言页头两个操作、列表内容存在，且类型 tab/最近通知/未读统计均不再出现；该 spec **12 passed**。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
+
+### e2e 全量复跑（chromium，testing 后端）
+
+- 停 dev 后端，用 `ENV=testing` + `DATABASE_URL=...seeword_e2e_full` + 强 `JWT_SECRET` + `SMS_DEV_FAKE_ENABLED=true` 起 :8000；`alembic upgrade head` 到 `q8r9s0t1u2v3`、`seed_e2e.py` 播种后执行 `npx playwright test --project=chromium`。
+- 结果：**203 项 → 130 passed / 10 failed / 63 skipped**（上一轮基线 132/6/63）。
+- 6 条失败仍是已知 fixture 数据不足：home-feed 真实数据配比、library-persistence、listening ×2、ui-review 239 词队列、vocabulary-exam 46 题长卷。
+- 另 4 条（avatar、design-rollout 的搜索/周报/注册）单独复跑均通过：`design-rollout.spec` 单跑 11 passed / 1 skipped，`avatar.spec` 1 passed，判定为全量并发下的环境抖动，不是本轮前端改动的回归。
+- 随后已停 testing 后端、恢复 dev 后端（`:8000`，environment=development）并还原 e2e 改写的截图；本轮未改任何门禁或基线。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。
