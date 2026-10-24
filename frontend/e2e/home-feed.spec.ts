@@ -27,6 +27,10 @@ async function openHome(page: Page) {
   await loginViaToken(page, token);
   await page.goto("/");
   await expect(page.locator("#feed-sort")).toBeVisible({ timeout: 15000 });
+  // 设计工具条只有分类 chips + 难度 + 排序 + 条数（V-10）。
+  await expect(page.locator("#feed-duration")).toHaveCount(0);
+  // 设计应用壳只有 sidebar/topbar/main，登录后不再渲染协议页脚（V-08）。
+  await expect(page.locator("footer").filter({ hasText: "用户协议" })).toHaveCount(0);
 }
 
 test.describe("首页下滑流 · 筛选", () => {

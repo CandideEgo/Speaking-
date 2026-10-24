@@ -285,3 +285,10 @@
 - 视频详情缓存写入前显式要求 `access.remaining_this_month is None`；免费额度恢复后该字段若变成 per-user，详情直接不缓存，避免共享 key 跨用户泄漏。
 - 模型补 `ix_user_favorites_created_at`、`ix_behavior_events_server_ts_type`、`ix_videos_public`；新增 `q8r9s0t1u2v3` 条件迁移（downgrade 可逆）。
 - scratch 库 `alembic upgrade head` 后漂移门 7 known / 0 new；`downgrade -1` 再 upgrade 仍 0；`test_config_env_guard` 24 项、`test_live_video_metadata` 3 项、`test_behavior_api` 13 项通过；全量后端 1380 passed / 16 skipped。
+
+### 应用壳去掉协议页脚、首页工具条去掉时长筛选（V-08 / V-10）
+
+- MainLayoutInner 登录后的应用壳不再渲染 SiteFooter（设计 index.html:90-113 的壳只有 sidebar/topbar/main）；未登录白名单页仍保留协议入口。
+- 首页 feed 工具条移除「时长」下拉，只留分类 chips + 难度 + 排序 + 条数；HomeFeed 同步删掉 DURATION_OPTIONS / durationLabel / 已选筛选里的时长项，筛选状态与请求参数能力保留在 hook 内。
+- `npm run check` 通过（design-system 9 条 + session-writes + tsc + eslint + prettier）；`npm run test:unit` 332 passed。
+- e2e `home-feed.spec.ts` 新增两条契约断言（无 `#feed-duration`、无协议页脚）；在 `localhost:3000` 下 **7 passed**。中途用 `127.0.0.1` 覆盖 `PLAYWRIGHT_BASE_URL` 时 dev server 的 HMR/水合不工作，改用配置默认的 localhost 后通过（不是本轮改动回归）。

@@ -79,6 +79,8 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
 
   // D0 登录墙：受保护路由已被 middleware 302 到 /login；能走到这里的未登录访问
   // 只剩白名单页（/redeem、/upgrade 等），直接渲染页面内容（不带应用 shell）。
+  // 设计应用壳（index.html:90-113）只有 sidebar/topbar/main：登录后的页面不再
+  // 渲染 SiteFooter；未登录白名单页保留协议入口。
   if (!isAuthenticated) {
     return (
       <div className="user-ui min-h-dvh bg-canvas">
@@ -121,10 +123,7 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
           {/* DEC-075：容器归壳层所有 —— 全站唯一 .container-page 在这里渲染一次，
             页面不再自带容器类。h-full 让页面根的 min-h-full（练习 / 考试 / 搜索等
             满屏流）仍以滚动容器的高度为基准，几何与「页面自己写容器」时一致。 */}
-          <div className="container-page h-full">
-            {children}
-            {!isWatch && <SiteFooter />}
-          </div>
+          <div className="container-page h-full">{children}</div>
         </main>
         <MobileTabBar />
       </div>

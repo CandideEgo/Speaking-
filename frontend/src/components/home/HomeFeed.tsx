@@ -11,12 +11,7 @@ import { VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { HomeFeedCard } from "@/components/home/HomeFeedCard";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
-import {
-  FEED_SORT_OPTIONS,
-  usePlatformFeed,
-  type DurationFilter,
-  type FeedSort,
-} from "@/hooks/usePlatformFeed";
+import { FEED_SORT_OPTIONS, usePlatformFeed, type FeedSort } from "@/hooks/usePlatformFeed";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { SCROLL_CONTAINER_ID, saveScroll, scrollKey } from "@/lib/scrollMemory";
 import { CEFR_LEVELS, cefrWithExamHint } from "@/lib/cefrLevels";
@@ -34,13 +29,6 @@ const DIFFICULTY_OPTIONS = [
   ...CEFR_LEVELS.map((level) => ({ id: level, label: cefrWithExamHint(level) })),
 ];
 
-const DURATION_OPTIONS: { id: DurationFilter; label: string }[] = [
-  { id: "all", label: "全部时长" },
-  { id: "short", label: "5 分钟以内" },
-  { id: "medium", label: "5–15 分钟" },
-  { id: "long", label: "15 分钟以上" },
-];
-
 export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -50,8 +38,6 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
     setActiveCategory,
     activeLevel,
     setActiveLevel,
-    activeDuration,
-    setDuration,
     setSort,
     effectiveSort,
     clearFilters,
@@ -89,12 +75,9 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
   const categoryLabel =
     categories.find((category) => category.id === activeCategory)?.label ?? activeCategory;
   const levelLabel = activeLevel === "all" ? "全部档位" : cefrWithExamHint(activeLevel);
-  const durationLabel =
-    DURATION_OPTIONS.find((option) => option.id === activeDuration)?.label ?? "全部时长";
   const activeFilters = [
     activeCategory !== "all" ? `分类「${categoryLabel}」` : null,
     activeLevel !== "all" ? `难度「${levelLabel}」` : null,
-    activeDuration !== "all" ? `时长「${durationLabel}」` : null,
   ].filter(Boolean);
   const remaining = Math.max(0, total - uniqueVideos.length);
 
@@ -122,24 +105,6 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
               className="h-8 w-[5.7rem] rounded-pill border-hairline-strong py-0 pl-2.5 pr-7 text-caption"
             >
               {DIFFICULTY_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label
-            htmlFor="feed-duration"
-            className="flex items-center gap-1.5 text-caption text-muted"
-          >
-            时长
-            <Select
-              id="feed-duration"
-              value={activeDuration}
-              onChange={(event) => setDuration(event.target.value as DurationFilter)}
-              className="h-8 w-[5.2rem] rounded-pill border-hairline-strong py-0 pl-2.5 pr-7 text-caption"
-            >
-              {DURATION_OPTIONS.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
                 </option>
