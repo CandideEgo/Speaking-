@@ -216,3 +216,10 @@
 - 锁 TTL 从固定 60 min 改为 `sum(step_timeouts) + 10min`（最低 60min），覆盖 translating 30 + annotating 5 + prewarm 30 + classifying 10 + downloading 60 + transcoding 30 的预算；`run_steps` 在每个步骤边界 `refresh_lock` 续期，Redis 故障仅告警不阻断。
 - `_run_translating` 在调用 LLM 前先写 `processing_step=translating` 并 `touch_step_started_at`，长翻译不再被 watchdog 按转录开始时间误判；翻译结束不再重置时间戳。
 - 新增 `test_pipeline_lock_ttl.py` 5 项（TTL 覆盖、60min 下限、refresh、Redis 故障不阻断、翻译前打点）与既有 `test_pipeline_steps.py` 6 项通过；全量后端 1363 passed / 16 skipped。
+
+### 浏览缓存按影响面精准失效（BE-13）
+
+- 点赞/收藏/播放完成的榜单快照失效改为精准模式：点赞不动榜单；收藏只删 `rankings:snapshot:*:weekly_favorites`；播放完成只删 `rankings:snapshot:*:weekly_views`。
+- feed/featured 仍全族删除：缓存卡片负载本身带 `like_count`/`favorite_count`/`view_count`，既有 `test_live_video_metadata.py` 要求暖缓存下收藏/点赞/播放后卡片计数立即更新；不靠改测试来换性能。
+- 发布/下架/处理完成等结构性变更仍走 `invalidate_browse_cache()` 全量失效。
+- 新增 `test_video_cache_invalidation.py` 4 项逐族断言，`test_live_video_metadata.py` 2 项通过；交互路径不再清空全部 `rankings:snapshot:*`；全量后端 1367 passed / 16 skipped。

@@ -14,7 +14,7 @@
   - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **已修（功能漂移）**：新增 `p7q8r9s0t1u2` 对齐迁移（只补不删、先查重复/孤儿；唯一约束、FK、dedup 索引、vocabulary 索引重命名、列注释、模型 nullability/Text 对齐），并新增 `scripts/check_schema_drift.py` 门禁（剩 7 条退役表相关差异，逐条带原因；新漂移即失败）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
 - **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
-- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 15 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
+- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 16 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
 
 ## 2. 本轮已落地的修复
 
@@ -36,6 +36,7 @@
 | BE-08 | 学习档案计数无锁读-改-写；周统计用累计 `LearningRecord.time_spent_seconds` 按 `last_accessed_at` 切片，历史时长整块搬到最后一次访问日 | 计数/streak/目标达成改为条件 `UPDATE` 原子操作（SQL 自增；streak 只在日期仍为「昨天/空/更早」时翻转；goal 用 `today_goal_met=false` 条件 UPDATE 抢一次 meta-event）；`/learning/stats/weekly` 与 `daily_minutes` 改用 `behavior_events.watch_time` 的 `delta_s` 按 `server_ts` 分日聚合；`LearningRecord.time_spent_seconds` 注释明确为累计值不可切片 | 新增 `test_learning_weekly_stats.py` 3 项：跨周分钟归属、同日两次事件只加一次 streak、goal meta-event 只发一次；全量见下 |
 | BE-11 | GPU 转录任务忽略回调投递失败；429 等可重试 4xx 被当永久失败丢弃 | 回调对 408/425/429 与 5xx 一起重试，其余 4xx 仍永久失败；`transcribe_video_gpu` 检查返回值，False 时 `raise self.retry(countdown=60)`，不再“转录成功但云端永远 processing” | 新增 `test_callback_delivery.py` 5 项：429→200 重试成功、401 不重试、5xx 重试耗尽返回 False、投递失败任务 retry、投递成功不 retry；全量见下 |
 | BE-12 | 管线锁 TTL 固定 60 min，短于各步骤 watchdog 预算之和（150+ min）；translating 直到全部翻译完才 `touch_step_started_at`，长翻译会被 watchdog 误判超时 | 锁 TTL 改为 `sum(step_timeouts) + 10min`（最少 60min）；`run_steps` 每个步骤边界 `refresh_lock`；`_run_translating` 在 LLM 调用**前**就写入 `processing_step=translating` 并 `touch_step_started_at` | 新增 `test_pipeline_lock_ttl.py` 5 项：TTL 覆盖全部预算、60min 下限、refresh 续期、Redis 故障不阻断、translating 在翻译前 stamp；`test_pipeline_steps.py` 6 项通过；全量见下 |
+| BE-13 | 点赞/收藏/播放完成都 `invalidate_browse_cache()`，用 `SCAN` 清空所有 feed/featured/ranking 组合；48h 榜单快照几乎永远不存在 | 榜单快照改为按影响面精准失效：点赞不动榜单；收藏只删 `weekly_favorites`；播放完成只删 `weekly_views`；feed/featured 仍全族删除，因为缓存卡片负载本身带 `like_count`/`favorite_count`/`view_count`（集成测试要求暖缓存下的卡片计数立即更新）。结构性变更（发布/下架/处理完成）仍全量失效 | 新增 `test_video_cache_invalidation.py` 4 项 + 既有 `test_live_video_metadata.py` 2 项通过；交互路径不再清空全部 `rankings:snapshot:*` |
 | BE-26 | 未启用金数据时 compose 仍强制要求 `JINSHUJU_PURCHASE_TOKEN_SECRET` | `docker-compose.prod.yml` 改为 `${VAR:-}`，必填判断留在 `config.py`（已实现） | 配置读码；`docker compose config` 未执行 |
 | F4 契约 | 前端无法知道账号是否已设密码，已设密码用户进 `/set-password` 必然 400 | `User.has_password` 模型属性 + `UserResponse.has_password`（只增字段） | `test_auth.py` 断言 `has_password is True` |
 
@@ -106,7 +107,7 @@
 - **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **BE-13/14/16/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
+- **BE-14/16/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
 - **对存量库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库就有 58 + 49 条）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。
 - **前端剩余结构性缺口**：收藏页 3 类 tab + 内联笔记的密度、通知页的精简列表、应用壳页脚（设计无、但保留协议/隐私/反馈入口）、侧栏折叠与其余打磨项；首页继续观看、频道 hero、会员状态卡、学习记录统计卡已在本轮补齐。
 

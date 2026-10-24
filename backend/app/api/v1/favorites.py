@@ -16,7 +16,7 @@ from app.core.limiter import rate_limit
 from app.models.favorite import UserFavorite, UserNote
 from app.models.user import User
 from app.models.video import Video
-from app.services.video_cache import invalidate_browse_cache
+from app.services.video_cache import invalidate_favorite_caches
 
 router = APIRouter(prefix="/videos", tags=["favorites"])
 
@@ -117,7 +117,7 @@ async def add_favorite(
             video.is_featured = True
         try:
             await db.commit()
-            await invalidate_browse_cache()
+            await invalidate_favorite_caches(video_id)
         except IntegrityError:
             # Duplicate favorite from a race — treat as already favorited
             await db.rollback()
@@ -156,7 +156,7 @@ async def remove_favorite(
             video.favorite_count = max(0, video.favorite_count - 1)
         await db.delete(existing)
         await db.commit()
-        await invalidate_browse_cache()
+        await invalidate_favorite_caches(video_id)
     return FavoriteStatus(is_favorited=False)
 
 
