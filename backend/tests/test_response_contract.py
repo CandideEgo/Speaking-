@@ -341,6 +341,14 @@ class TestOpenApiResponseModels:
         assert self._schema("/api/v1/exams/attempts", "get")["$ref"].endswith("PaginatedResponse_ExamAttemptItem_")
         assert self._schema("/api/v1/exams/attempts/{session_id}", "get")["$ref"].endswith("ExamAttemptDetailResponse")
 
+    def test_learning_stats_and_continue_routes_are_typed(self):
+        """BE-07: continue/progress/weekly stats used to return bare dicts."""
+        assert self._schema("/api/v1/learning/continue", "get")["$ref"].endswith("ContinueLearningResponse")
+        assert self._schema("/api/v1/learning/progress/{video_id}", "get")["$ref"].endswith("WatchProgressResponse")
+        assert self._schema("/api/v1/learning/stats/weekly", "get")["$ref"].endswith("WeeklyStatsResponse")
+        dist = self._schema("/api/v1/learning/stats/event-distribution", "get")
+        assert dist["type"] == "array"
+
     def test_discovery_subscription_and_favorite_routes_are_typed(self):
         """BE-07: discovery subscription/favorite routes used untyped dicts."""
         assert self._schema("/api/v1/discovery/subscriptions", "get")["type"] == "array"

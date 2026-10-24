@@ -399,3 +399,10 @@
 - discovery 7 条：`/subscriptions`（list）、`PUT/DELETE /subscriptions/{slug}`（`SubscriptionState`）、`/sentence-favorites`（分页 `SentenceFavoriteItem`）、`GET/PUT/DELETE /sentence-favorites/{id}`（`SentenceFavoriteStatus`）。
 - `test_response_contract.py` 新增 channels 2 条与 discovery 订阅/收藏断言；剩余无 schema 端点从 96 降到 **87**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第四批：learning 继续观看/进度/统计契约
+
+- `/learning/continue` 改 `ContinueLearningResponse`（video 卡片 + 进度/剩余 + 最近访问），`/learning/progress/{video_id}` 改 `WatchProgressResponse`，`/learning/stats/weekly` 改 `WeeklyStatsResponse`，`/learning/stats/event-distribution` 改 `list[EventDistributionItem]`。
+- 新增 schema：继续观看项/响应、观看进度、每日分钟、周统计、事件分布；`last_accessed_at` 用 `datetime`。
+- `test_response_contract.py` 新增 learning 4 条路径断言；无 schema 数据端点从 87 降到 **80**（并明确排除固定 410 的 heatmap/weekly-reports 兼容壳）。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

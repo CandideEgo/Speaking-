@@ -16,9 +16,13 @@ from app.models.user import User
 from app.models.video import Video
 from app.schemas.common import VideoBrief
 from app.schemas.learning import (
+    ContinueLearningResponse,
+    EventDistributionItem,
     LearningRecordResponse,
     SaveProgressRequest,
     SaveProgressResponse,
+    WatchProgressResponse,
+    WeeklyStatsResponse,
 )
 from app.schemas.pagination import PaginatedResponse, paginated
 
@@ -81,7 +85,7 @@ async def list_learning_records(
     return paginated(records, page=page, page_size=page_size, total=total)
 
 
-@router.get("/continue")
+@router.get("/continue", response_model=ContinueLearningResponse)
 @rate_limit("30/minute")
 async def continue_learning(
     request: Request,
@@ -204,7 +208,7 @@ async def save_watch_progress(
     )
 
 
-@router.get("/progress/{video_id}")
+@router.get("/progress/{video_id}", response_model=WatchProgressResponse)
 @rate_limit("30/minute")
 async def get_watch_progress(
     request: Request,
@@ -251,7 +255,7 @@ def _week_bounds(now: datetime | None = None) -> tuple[datetime, datetime, datet
     return this_monday, last_monday, this_monday
 
 
-@router.get("/stats/weekly")
+@router.get("/stats/weekly", response_model=WeeklyStatsResponse)
 @rate_limit("30/minute")
 async def stats_weekly(
     request: Request,
@@ -340,7 +344,7 @@ async def stats_weekly(
     }
 
 
-@router.get("/stats/event-distribution")
+@router.get("/stats/event-distribution", response_model=list[EventDistributionItem])
 @rate_limit("30/minute")
 async def stats_event_distribution(
     request: Request,
