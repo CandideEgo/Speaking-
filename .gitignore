@@ -157,3 +157,14 @@ designs/
 # 一次性词表调试产物（ECDICT 查词探查）
 backend/tmp_defs.txt
 backend/tmp_exact.txt
+
+# 2026-10-24 审计的一次性探针/会话文件：报告与截图入库，脚本与 token 会话不入库。
+# `_session.json` 存的是临时账号 token，绝不能进历史。
+docs/audit-2026-10-24/*.mjs
+docs/audit-2026-10-24/*.cjs
+docs/audit-2026-10-24/*.js
+docs/audit-2026-10-24/*.py
+docs/audit-2026-10-24/_session.json
+# 原始巡检 JSON 里有临时账号的 JWT / 手机号，只留在本机，报告与截图入库。
+docs/audit-2026-10-24/_*.json
+docs/audit-2026-10-24/_next-dev.log

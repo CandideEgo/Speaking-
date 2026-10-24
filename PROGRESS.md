@@ -149,3 +149,14 @@
 ## 后续优化（2026-10-24）
 
 - [x] 页面标题辅助文案清理：清除 17 个公开路由中的隐藏 PageHeader 导语，删除历年真题的“听力暂未接入”旧文案；PageHeader API 现在只接受标题和真实元数据，频道简介迁到 meta，词单模板型说明移除。保留空状态的帮助操作说明。TypeScript、ESLint、Prettier、设计系统/会话写入门禁及 332 项单测全部通过；本轮浏览器复查因上述 Docker 阻塞未重跑，改动不改变已渲染布局。
+
+## 全面审计与优化（2026-10-24 第二轮）
+
+工作区先提交快照（`.raven/`、`designs/`、一次性词表 dump 入 gitignore；审计截图/report 另提交），随后按设计导出做前端视觉 + 前端功能/可访问性 + 后端架构三路并行只读审计，再定向修复。
+
+- 审计报告：`docs/audit-2026-10-24/README.md`（总览与验证记录）、`frontend-visual.md`（57 张截图、114 次溢出测量 0px）、`frontend-functional.md`（25 桌面 + 12 移动路由）、`backend-architecture.md`（31 条发现）。
+- 视觉修复：首页眉标/右栏白卡/已订阅频道整段/主推 CTA「从这句话开始」+ 句数；断点改为设计契约（≤1024 收侧栏 + 底栏、≥1025 显示侧栏），顶栏/底栏/账号菜单/观看页内部断点同步；移除页头装饰线、补回移动端品牌字、搜索空态文案、hover token。
+- 功能/可访问性修复：通知浮层 StrictMode 永久 loading、TabPills 选中态 ARIA、skip link 成为第一个 Tab 停靠点、已设密码账号的 `/set-password` 引导（后端新增只读 `has_password`）、对比度 token 提到 AA、移动端触控目标 44px、通知浮层 dialog 语义、404 h1、history 标题层级、频道清空搜索、个人页 tab 换行。
+- 后端修复：JWT 密钥强度 + 算法白名单（BE-01）、`complete` 行为事件 Redis 幂等且只在真正写副作用时失效缓存（BE-02）、交卷列表答对数改用 `ExamAnswer` 聚合（BE-18）、字幕搜索按方言分流（BE-24）、nginx 鉴权限流指向真实路径（BE-05）、compose 金数据密钥改按需必填（BE-26）。
+- 验证：前端 `npm run check` 通过、332 项单测通过；后端 `ruff` 通过、全量 1343 passed / 16 skipped（需独立 PG_TEST_URL 的 integration 默认跳过）；e2e 断点用例已按新契约更新并通过，另 8 条定点通过；4 条 e2e 因 dev 后端 429 未执行（需 `ENV=testing` 测试后端，已记入报告）。未新增迁移、未放宽门禁/基线。
+- 未修：BE-03 迁移漂移、BE-04/15 媒体与 WS 鉴权收敛、BE-06 dev 固定码门、BE-08/09/11/12/13 等；前端词汇/练习/我的页的结构性设计缺口。均已列入 `README.md` 第 5 节。
