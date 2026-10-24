@@ -8,13 +8,13 @@
 ## 1. 结论摘要
 
 - **P0：0 条**。没有未授权即可利用的 RCE / 越权读写 / 数据泄漏路径。
-- **P1（后端）：3 条** → 修 2 条：
+- **P1（后端）：3 条 → 全部修复**：
   - BE-01 生产 `JWT_SECRET` 无强度门（1 字符也能启动）→ **已修**；
   - BE-02 `complete` 行为事件无幂等、重复打冷全站缓存 → **已修**；
-  - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **部分修复**：新增 `scripts/check_schema_drift.py` 漂移门禁（29 条已知债务逐条带原因，新漂移即失败，CI 在 `alembic upgrade head` 后执行）；「只补不删」迁移仍未生成（需先做重复/孤儿数据校验，见遗留）。
+  - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **已修（功能漂移）**：新增 `p7q8r9s0t1u2` 对齐迁移（只补不删、先查重复/孤儿；唯一约束、FK、dedup 索引、vocabulary 索引重命名、列注释、模型 nullability/Text 对齐），并新增 `scripts/check_schema_drift.py` 门禁（剩 7 条退役表相关差异，逐条带原因；新漂移即失败）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
 - **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
-- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 9 条 + 1 条契约补充（`has_password`）；唯一未修 P1 是 BE-03 迁移漂移，其余按优先级留在报告。
+- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 10 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
 
 ## 2. 本轮已落地的修复
 
@@ -29,6 +29,8 @@
 | BE-05 | nginx 限流 location 指向不存在的 `/auth/login|register`，真实入口完全无限流 | `nginx.conf` / `nginx.ssl.conf` 改为 `sms/login`、`phone-login`、`sms/register`、`sms/reset-password`、`sms/send-code` 的精确 location | 配置 grep 核对；未在真实 nginx 上 reload（本机无生产） |
 | BE-04 | 媒体/PDF 的 `?token=` 是第二份更弱的校验：不查黑名单、改密、封禁 | `dependencies.resolve_token_user()` 成为字符串 token 的唯一入口；`media._viewer_id_from_request`、shadowing 校验与 `exam_pdfs` 全部走同一条链 | `test_media_access.py` 新增被封禁 owner、改密后旧 token、被封禁 shadowing owner 三条用例；media + PDF 47 passed |
 | BE-06 | `ENV` 漏配（默认 development）时固定验证码 `1234` 可登录任意手机号，且不校验是否发过码 | 新增 `SMS_DEV_FAKE_ENABLED` 显式开关（默认 false，production 直接拒绝启动）；`verify_code` 必须读到 Redis 里的已发码；CI/本地 `.env` 显式开启 | `test_sms_security.py` / `test_auth_sms.py` / `test_config_env_guard.py` 共 61 passed；dev API 实测发码后 1234 可登录、未发码 400、错误码 400 |
+| BE-15 | 通知 WebSocket 握手自己复制了一份更弱的校验，改密后的旧 token 仍可连接 | 握手改走 `dependencies.resolve_token_user()`（类型 / 黑名单 / 改密 / 封禁） | `test_notifications.py` 新增改密后旧 token 用例；35 passed |
+| BE-03 | 模型与迁移长期漂移（29 条），`alembic check` 无法作为门禁 | 新增 `p7q8r9s0t1u2` 对齐迁移：条件式补唯一约束 / cascade FK / dedup 索引，重命名 vocabulary 索引，同步列注释，模型 `user_answer` 改 `Text`、两处时间列按 DB nullable 对齐；迁移先做重复 / 孤儿检查，脏数据即中止并给出清理提示；`scripts/check_schema_drift.py` 冻结剩余 7 条退役表差异，CI 在迁移后执行 | 全新 scratch 库 `alembic upgrade head` 后漂移 29 → **7**，`Schema drift gate OK: 7 known entries, 0 new`；downgrade/upgrade 往返可重复；人为造重复行时迁移按预期中止 |
 | BE-26 | 未启用金数据时 compose 仍强制要求 `JINSHUJU_PURCHASE_TOKEN_SECRET` | `docker-compose.prod.yml` 改为 `${VAR:-}`，必填判断留在 `config.py`（已实现） | 配置读码；`docker compose config` 未执行 |
 | F4 契约 | 前端无法知道账号是否已设密码，已设密码用户进 `/set-password` 必然 400 | `User.has_password` 模型属性 + `UserResponse.has_password`（只增字段） | `test_auth.py` 断言 `has_password is True` |
 
@@ -89,15 +91,16 @@
 | 视觉审计 | 13 路由 × 1440/390 全页 + 暗色 + 1024/820 定点共 57 张；114 次溢出测量 0px |
 | 第二轮结构补齐复核 | 词汇页真实账号（14 词 + 2 个词单）出现到期卡/四项统计/词单网格；练习页出现 3 列试卷与已选条；我的页出现深色会员卡/账户卡；12 条列表路由 h1 实测 `12px / uppercase`、无横向溢出；移动端眉标左对齐（h1 x=16） |
 | 第二轮 P2 复核 | 首页右栏无「查看学习记录」额外卡；频道详情封面实测 378px 宽；会员页出现「当前状态」深色卡；学习记录 4 个统计位于 1px 描边卡内；四页横向溢出 0 |
-| 迁移漂移门禁 | `python scripts/check_schema_drift.py`：**29 known entries, 0 new**（dev 库已迁移到 head；CI e2e job 在迁移后执行） |
-| Alembic | 未新增/修改迁移；`current == heads == o6p7q8r9s0t1`（审计时结论，本轮未动迁移） |
+| 迁移 / 漂移 | 新建 scratch 库跑 `alembic upgrade head`：29 条差异降到 **7 条**（均为退役表的表/索引/FK，有意保留）；`python scripts/check_schema_drift.py` → **7 known entries, 0 new**；`downgrade -1` / `upgrade head` 往返后仍为 7；人为插入重复行时迁移按预期中止并提示清理 |
+| Alembic | 新增迁移 `p7q8r9s0t1u2_align_model_schema_drift`（`down_revision=o6p7q8r9s0t1`）；**本机 `seeword` 开发库未升级**：库里有 58 条 `exam_sentence_words` 重复行与 49 条 `videos.reviewed_by` 孤儿，迁移会按设计中止，需要先清理再升级；生产库同样要先跑迁移前检查 |
 
 ### 未执行（如实标注）
 
 - **全量 e2e / 四浏览器**：dev 后端会 429，需按 `frontend/CLAUDE.md` 用 `ENV=testing` 的测试后端 + `seed_e2e.py` 重跑；本轮只跑了定点用例。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **BE-03 的「只补不删」迁移、BE-08 周统计、BE-09 无界查询、BE-11 回调重试、BE-12 管线锁、BE-13/14/16/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`（BE-03 已有漂移门禁，迁移本身待补）。
+- **BE-08 周统计、BE-09 无界查询、BE-11 回调重试、BE-12 管线锁、BE-13/14/16/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
+- **对存量库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库就有 58 + 49 条）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。
 - **前端剩余结构性缺口**：收藏页 3 类 tab + 内联笔记的密度、通知页的精简列表、应用壳页脚（设计无、但保留协议/隐私/反馈入口）、侧栏折叠与其余打磨项；首页继续观看、频道 hero、会员状态卡、学习记录统计卡已在本轮补齐。
 
 ## 4. 证据索引
@@ -109,8 +112,9 @@
 
 ## 5. 遗留优先级建议
 
-1. **BE-03 迁移漂移**：漂移门禁已入库（29 条已知债务）；下一步补一条只增不删的迁移（先查重复/孤儿再建唯一约束与 FK），然后逐条消账、把 allowlist 降下来。这是下一次 `autogenerate` 最可能造成数据损失的地方。
-2. **前端剩余结构缺口**：收藏页 3 类 tab + 内联笔记、通知页精简列表、首页继续观看占位——按设计稿逐块补，先做只读展示再接交互。
+1. **存量库升级准备**：上线 `p7q8r9s0t1u2` 前先清重复 / 孤儿数据（本机 dev 库已查出 58 条重复 join 行、49 条孤儿 reviewer）；清完再跑迁移与漂移门禁。
+2. **退役表清理**：`rubric_criteria` / `speaking_rubrics` / `speaking_attempt_scores` / `video_practice_questions` 及 `speaking_attempts.rubric_id` 仍保留给历史导出与注销清理；确认无消费方后再单独做删除迁移（需产品/合规签字）。
+3. **前端剩余结构缺口**：收藏页 3 类 tab + 内联笔记、通知页精简列表、首页继续观看占位——按设计稿逐块补，先做只读展示再接交互。
 3. **其余后端 P2/P3**：BE-08 周统计、BE-09 无界查询、BE-11 回调重试、BE-12 管线锁等，按 `backend-architecture.md` 的优先级继续。
 5. **F7**：频道订阅乐观更新；**F5 剩余**：把 `--hairline-strong` 用作正文色的少数点位收掉。
 6. **e2e 全量**：用 `ENV=testing` 后端 + `seed_e2e.py` 跑 `--project=chromium` 与 mobile projects，把本次未执行项补齐。

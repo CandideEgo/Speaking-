@@ -14,7 +14,7 @@ the paper-detail payload.
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -79,6 +79,12 @@ class ExamSession(Base):
     """One exam attempt (paper exam / daily check / wrong redo)."""
 
     __tablename__ = "exam_sessions"
+    __table_args__ = (
+        # Legacy indexes kept in the DB by an older migration; declaring them
+        # here prevents autogenerate from proposing to drop them.
+        Index("ix_exam_sessions_mode", "mode"),
+        Index("ix_exam_sessions_video_id", "video_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(
@@ -121,7 +127,7 @@ class ExamAnswer(Base):
     # stays consistent even if the bank changes later.
     question: Mapped[dict] = mapped_column(JSON, nullable=False)
     # Raw user choice (letter key), null when unanswered.
-    user_answer: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    user_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

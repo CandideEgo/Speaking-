@@ -40,6 +40,7 @@ from app.core.database import Base
 KNOWN_DRIFT: dict[str, str] = {
     # Retired speaking/quiz features: tables were removed from the models but
     # never dropped (history export + account deletion still reference them).
+    # The 2026-10 alignment migration (p7q8r9s0t1u2) fixed everything else.
     "remove_table:rubric_criteria": "retired speaking rubric feature; table kept for history export",
     "remove_table:speaking_attempt_scores": "retired speaking feature; table kept for history export",
     "remove_table:speaking_rubrics": "retired speaking feature; table kept for history export",
@@ -47,36 +48,6 @@ KNOWN_DRIFT: dict[str, str] = {
     "remove_index:speaking_attempt_scores:ix_speaking_attempt_scores_speaking_attempt_id": "index on a retired table",
     "remove_index:video_practice_questions:ix_video_practice_questions_video_id": "index on a retired table",
     "remove_fk:speaking_attempts:rubric_id": "FK to a retired table kept in the DB",
-    # Comment text drifted after model comments changed (cosmetic metadata).
-    "modify_comment:admin_settings.wechat_shop_url": "comment-only metadata drift",
-    "modify_comment:admin_settings.payments_enabled": "comment-only metadata drift",
-    "modify_comment:admin_settings.quality_block_threshold": "comment-only metadata drift",
-    "modify_comment:admin_settings.quality_warn_threshold": "comment-only metadata drift",
-    "modify_comment:jinshuju_payments.tier_name": "comment-only metadata drift",
-    "modify_comment:jinshuju_payments.amount_fen": "comment-only metadata drift",
-    # Model says NOT NULL, DB column is nullable; backfill decision pending.
-    "modify_nullable:subtitle_resegment_snapshots.applied_at:True->False": "DB nullable vs model NOT NULL; backfill decision pending",
-    "modify_nullable:video_quality_reports.created_at:True->False": "DB nullable vs model NOT NULL; backfill decision pending",
-    # Model narrowed the answer column to String(10), DB is TEXT (the safer one).
-    "modify_type:exam_answers.user_answer": "model String(10) vs DB TEXT; align the model to TEXT in a follow-up",
-    # Missing constraints/indexes/FKs the schema never got. A migration must
-    # pre-check duplicates / nulls before adding them, so it is deferred.
-    "add_constraint:exam_sentence_words:uq_exam_sentence_word": "missing unique(sentence_id, word); migration needs duplicate pre-check",
-    "add_fk:exam_sentence_words:sentence_id": "missing cascade FK; migration needs orphan pre-check",
-    "add_constraint:exam_word_freq:uq_exam_word_freq_word_level": "missing unique(word, level); migration needs duplicate pre-check",
-    "add_index:notifications:ix_notifications_dedup": "missing dedup index (performance-only)",
-    "add_fk:videos:reviewed_by": "missing ON DELETE SET NULL FK; migration needs orphan pre-check",
-    # subtitles.video_id FK needs ON DELETE CASCADE; replace in a migration.
-    "remove_fk:subtitles:video_id": "old FK without CASCADE; replacement migration deferred",
-    "add_fk:subtitles:video_id": "new cascade FK; replacement migration deferred",
-    # Stale indexes left by older migrations (models dropped them).
-    "remove_index:exam_sessions:ix_exam_sessions_mode": "legacy index kept in DB; harmless",
-    "remove_index:exam_sessions:ix_exam_sessions_video_id": "legacy index kept in DB; harmless",
-    "remove_index:user_video_unlocks:ix_user_video_unlocks_user_unlocked_at": "legacy index kept in DB; harmless",
-    "remove_index:videos:ix_videos_source_url": "legacy index kept in DB; harmless",
-    # vocabulary index was renamed in the model but not in the DB.
-    "remove_index:vocabulary:ix_vocab_video_id": "old index name; rename migration deferred",
-    "add_index:vocabulary:ix_vocabulary_video_id": "new index name; rename migration deferred",
 }
 
 

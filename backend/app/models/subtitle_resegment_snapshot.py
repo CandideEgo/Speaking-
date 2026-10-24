@@ -32,7 +32,12 @@ class SubtitleResegmentSnapshot(Base):
     # Count before the re-cut, for the review UI ("12 → 18 segments").
     before_count: Mapped[int] = mapped_column(default=0)
     after_count: Mapped[int] = mapped_column(default=0)
-    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    # DB column is nullable (created by an older migration); keep the model in
+    # sync so autogenerate does not propose a NOT NULL change. Writers always
+    # set it via the default.
+    applied_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=lambda: datetime.now(UTC)
+    )
     applied_by: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
