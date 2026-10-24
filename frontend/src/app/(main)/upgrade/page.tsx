@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Copy, Crown, RefreshCw } from "lucide-react";
+import { BookOpen, Copy, Crown, GraduationCap, Layers, Play, RefreshCw } from "lucide-react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
 import { api, ApiError, isProUser } from "@/lib/api";
@@ -33,10 +33,26 @@ interface BrowserKind {
 }
 
 const BENEFITS = [
-  "逐词点读：字幕里点词即查，释义、音标、真题例句当场看到",
-  "智能复习：生词按遗忘曲线自动排期，到点回炉",
-  "词单与真题：四六级真题、视频词单随学随练",
-  "多端同步：手机、电脑接着学，同步进度与收藏",
+  {
+    icon: Play,
+    title: "逐词点读",
+    desc: "字幕里点词即查，释义、音标、真题例句当场看到。",
+  },
+  {
+    icon: BookOpen,
+    title: "智能复习",
+    desc: "生词按遗忘曲线自动排期，到点回炉。",
+  },
+  {
+    icon: GraduationCap,
+    title: "词单与真题",
+    desc: "四六级真题、视频词单随学随练。",
+  },
+  {
+    icon: Layers,
+    title: "多端同步",
+    desc: "手机、电脑接着学，同步进度与收藏。",
+  },
 ];
 
 const QR_SIZE = 240;
@@ -254,18 +270,27 @@ export default function UpgradePage() {
                   <Crown size={18} />
                 </span>
                 <div>
-                  <p className="text-copy font-semibold text-ink">会员能做什么</p>
+                  <h2 className="text-copy font-semibold text-ink">会员能做什么</h2>
                   <p className="mt-0.5 text-meta text-muted">
                     所有已接入视频与逐句字幕，配合词汇和真题练习。
                   </p>
                 </div>
               </div>
 
-              <ul className="mt-5 space-y-2.5">
+              <ul className="mt-5 space-y-3">
                 {BENEFITS.map((benefit) => (
-                  <li key={benefit} className="flex gap-2 text-copy text-body">
-                    <Check size={16} className="mt-0.5 shrink-0 text-brand-500" />
-                    <span>{benefit}</span>
+                  <li key={benefit.title} className="flex gap-3">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-sm bg-surface-soft text-muted">
+                      <benefit.icon size={16} aria-hidden />
+                    </span>
+                    <span className="min-w-0">
+                      <strong className="block text-copy font-semibold text-ink">
+                        {benefit.title}
+                      </strong>
+                      <span className="mt-0.5 block text-meta leading-relaxed text-body">
+                        {benefit.desc}
+                      </span>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -382,10 +407,14 @@ export default function UpgradePage() {
               </p>
             )}
           </Card>
+        </div>
 
-          {/* 宽屏时落在左栏第二行，补上权益卡下方的空白；手机按 DOM 顺序排在付款卡之后。 */}
-          <Card padding={5} className="lg:col-start-1 lg:row-start-2">
-            <p className="text-copy font-semibold text-ink">购买说明</p>
+        {/* 设计在会员两栏之下还有一整段「常见问题」（V-21）；购买说明即 FAQ。 */}
+        <section className="mt-6" aria-labelledby="faq-title">
+          <Card padding={5}>
+            <h2 id="faq-title" className="text-copy font-semibold text-ink">
+              常见问题
+            </h2>
             <dl className="mt-4 space-y-3">
               {[
                 {
@@ -397,8 +426,12 @@ export default function UpgradePage() {
                   detail: "付款成功后按支付记录自动同步到当前账号，通常几分钟内生效。",
                 },
                 {
+                  term: "会自动续费吗",
+                  detail: "不会。每次购买只延长所选天数，到期后自动回到免费版。",
+                },
+                {
                   term: "到期之后",
-                  detail: "自动回到免费版；已保存的收藏、词库与学习记录都会保留。",
+                  detail: "已保存的收藏、词库与学习记录都会保留，只是不再解锁会员内容。",
                 },
               ].map((item) => (
                 <div key={item.term}>
@@ -408,7 +441,7 @@ export default function UpgradePage() {
               ))}
             </dl>
           </Card>
-        </div>
+        </section>
       </div>
     </PageTransition>
   );

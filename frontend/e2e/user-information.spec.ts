@@ -384,6 +384,28 @@ test("通知页是单列列表，页头提供设置与全部已读", async ({ pa
   await expect(page.getByText("未读统计")).toHaveCount(0);
 });
 
+test("会员页展示深色状态卡、图标权益与常见问题", async ({ page }) => {
+  await mockContent(page);
+  await page.route("**/api/v1/payments/jinshuju/purchase-link", (route) =>
+    route.fulfill({
+      json: {
+        url: "https://example.com/pay",
+        expires_in_seconds: 3600,
+        tiers: [{ name: "月卡", days: 30, price_fen: 1000 }],
+      },
+    })
+  );
+
+  await page.goto("/upgrade");
+  await expect(page.getByText("当前状态", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "会员能做什么" })).toBeVisible();
+  // 权益改为图标 + 标题 + 说明（V-21）。
+  await expect(page.getByText("逐词点读", { exact: true })).toBeVisible();
+  await expect(page.getByText("多端同步", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "常见问题", exact: true })).toBeVisible();
+  await expect(page.getByText("会自动续费吗", { exact: true })).toBeVisible();
+});
+
 test("收藏保留笔记与日期，历史保留观看进度和来源信息", async ({ page }) => {
   await mockContent(page);
   await page.route("**/api/v1/videos/favorites?**", (route) =>
