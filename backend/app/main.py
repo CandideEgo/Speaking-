@@ -129,6 +129,38 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
     )
 
 
+def _security_headers() -> dict[str, str]:
+    """Headers every response should carry, including error responses.
+
+    The middleware only decorates responses that travel back through it; a
+    response produced by the catch-all exception handler bypasses ``call_next``
+    and used to miss them.
+    """
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    }
+    if settings.env == "production":
+        headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        connect_src = f"'self' {settings.csp_connect_domains}" if settings.csp_connect_domains else "'self'"
+        headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            # YouTube IFrame player (no-local-file fallback) needs its own
+            # script + frame + connect sources.
+            "script-src 'self' https://www.youtube.com https://s.ytimg.com; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "media-src 'self' https:; "
+            "frame-src https://www.youtube.com https://www.youtube-nocookie.com; "
+            f"connect-src {connect_src} https://www.youtube.com; "
+            "object-src 'none'; "
+            "base-uri 'self'"
+        )
+    return headers
+
+
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """兜底：任何没被上面 5 个 handler 接住的异常 -> 500 + INTERNAL_ERROR。
 
@@ -157,6 +189,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
     return JSONResponse(
         status_code=500,
         content={"code": ErrorCode.INTERNAL_ERROR, "message": "服务器内部错误，请稍后重试"},
+        headers=_security_headers(),
     )
 
 
@@ -282,26 +315,7 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def add_security_headers(request: Request, call_next):
         response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        if settings.env == "production":
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
-            connect_src = f"'self' {settings.csp_connect_domains}" if settings.csp_connect_domains else "'self'"
-            response.headers["Content-Security-Policy"] = (
-                "default-src 'self'; "
-                # YouTube IFrame player (no-local-file fallback) needs its own
-                # script + frame + connect sources.
-                "script-src 'self' https://www.youtube.com https://s.ytimg.com; "
-                "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: https:; "
-                "media-src 'self' https:; "
-                "frame-src https://www.youtube.com https://www.youtube-nocookie.com; "
-                f"connect-src {connect_src} https://www.youtube.com; "
-                "object-src 'none'; "
-                "base-uri 'self'"
-            )
+        response.headers.update(_security_headers())
         return response
 
     allowed_origins = (

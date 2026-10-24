@@ -19,6 +19,14 @@ class TestUserProfile:
         # HTTP semantics: a 401 challenge must advertise the scheme.
         assert resp.headers.get("www-authenticate") == "Bearer"
 
+    def test_decode_token_with_empty_key_returns_none_instead_of_raising(self, monkeypatch):
+        """PyJWT raises InvalidKeyError (not InvalidTokenError) for an empty key."""
+        from app.core import security
+
+        token = security.create_token("some-user-id")
+        monkeypatch.setattr(security.settings, "jwt_secret", "")
+        assert security.decode_token(token) is None
+
     async def test_update_me_level(self, client: AsyncClient, auth_headers: dict):
         resp = await client.patch(
             "/api/v1/users/me",

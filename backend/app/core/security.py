@@ -53,10 +53,14 @@ def create_token(user_id: str, token_type: str = "access") -> str:
 
 def decode_token(token: str) -> dict | None:
     """Decode a JWT and return the full payload dict, or None if invalid/expired."""
+    from jwt import InvalidKeyError
+
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         return payload
-    except InvalidTokenError:
+    except (InvalidTokenError, InvalidKeyError):
+        # InvalidKeyError is a sibling of InvalidTokenError (both PyJWTError),
+        # not a subclass; an empty/弱 key must not escape as a 500.
         return None
 
 

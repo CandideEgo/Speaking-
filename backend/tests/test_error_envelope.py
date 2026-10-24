@@ -147,6 +147,11 @@ class TestUnhandledExceptionsBecomeAnEnvelope:
         body = resp.json()
         assert body["code"] == ErrorCode.INTERNAL_ERROR
         assert sorted(body.keys()) == ["code", "message"]
+        # The catch-all response bypasses the security-header middleware; it
+        # must still carry the baseline headers.
+        assert resp.headers["x-content-type-options"] == "nosniff"
+        assert resp.headers["x-frame-options"] == "DENY"
+        assert resp.headers["referrer-policy"] == "strict-origin-when-cross-origin"
 
     async def test_the_raw_message_is_logged_not_returned(self):
         """The original text can name internal details, so it stays server-side."""

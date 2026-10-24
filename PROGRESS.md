@@ -264,3 +264,10 @@
 - 删除无调用点的 `require_pro_user` 与 `_weekly_report_payload`（含 `WeeklyReport` 导入）；`redeem_tasks` 注释不再引用已删依赖；`shadowing_service` 在前几轮已无引用。
 - lifespan 启动阶段用 `asyncio.to_thread(ecdict.get_index)` 预热 ECDICT 索引，避免首个词卡/搜索请求在事件循环里同步构建 ~0.7s（DB 不存在时跳过）。
 - `ruff check` 通过；`test_auth`、`test_auth_flows`、`test_learning_weekly_stats`、`test_openapi_contract`、`test_exposure` 共 23 项通过；真实生产启动耗时未执行；全量后端 1374 passed / 16 skipped。
+
+### enrich 缓存按语境隔离、500 补安全头（BE-25 / BE-31）
+
+- `AIService.enrich_vocabulary_word` 的缓存键加入归一化 word + context 的 sha256（无 context 用 `no-context` 档），不再让同一词在不同视频里互相串释义；`_cache_set` 显式 `ttl=7*86400` 与 docstring 对齐。
+- `_security_headers()` 抽成模块级函数，安全头中间件与 `_unhandled_exception_handler` 共用：500 响应也带 `X-Content-Type-Options` / `X-Frame-Options` / `Referrer-Policy` / `Permissions-Policy`（生产再加 HSTS/CSP）。
+- `decode_token` 同时 catch `InvalidKeyError`（PyJWT 2.13 中与 `InvalidTokenError` 是兄弟类），空 key 不再变成 500。
+- 重写 `test_ai_cache.py` 3 项（同语境缓存 + TTL≈7 天、不同语境两个 key、失败仍抛错）；`test_error_envelope` 断言 500 安全头；`test_auth` 新增空 key decode 断言；共 16 项通过；全量后端 1376 passed / 16 skipped。
