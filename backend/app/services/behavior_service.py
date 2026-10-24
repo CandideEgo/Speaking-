@@ -25,10 +25,20 @@ from app.models.video import Video
 EVENT_WATCH_TIME = "watch_time"
 EVENT_COMPLETE = "complete"
 
+# One play-completion per user/video/playback-session. The frontend can emit
+# the same `complete` twice (retry, double flush, two tabs) and each repeat
+# used to bump Video.view_count and emit another completed_video learning
+# event; it also ran the full browse-cache invalidation on every repeat, which
+# made the cache trivially easy to cold-start on purpose. Redis is a cache
+# here, so a Redis outage fails open (analytics must never break playback).
+COMPLETE_DEDUP_TTL_SECONDS = 6 * 60 * 60
 
-async def ingest_event(db: AsyncSession, event: dict, user_id: str | None) -> None:
+
+async def ingest_event(db: AsyncSession, event: dict, user_id: str | None) -> bool:
     """Ingest one event: append to behavior_events + mirror side-effects.
 
+    Returns True when a LearningRecord/Video side-effect was actually applied
+    (callers use it to decide whether browse caches must be invalidated).
     Does not commit — the caller (batch endpoint or single endpoint) commits.
     """
     video_id = event.get("video_id")
@@ -48,15 +58,45 @@ async def ingest_event(db: AsyncSession, event: dict, user_id: str | None) -> No
 
     # Side-effects only for logged-in users on a video-scoped event.
     if user_id and video_id:
-        await _mirror_to_learning_record(db, user_id, video_id, event_type, payload)
+        return await _mirror_to_learning_record(db, user_id, video_id, event_type, payload, event.get("session_id"))
+    return False
 
 
-async def ingest_batch(db: AsyncSession, events: list[dict], user_id: str | None) -> int:
-    """Ingest a batch of events (frontend flush). Returns count ingested."""
+async def ingest_batch(db: AsyncSession, events: list[dict], user_id: str | None) -> tuple[int, bool]:
+    """Ingest a batch of events (frontend flush).
+
+    Returns ``(ingested_count, complete_side_effect_applied)``. The second flag
+    stays False for a replayed `complete`, so the endpoint does not needlessly
+    cold-start the browse/rankings caches.
+    """
+    complete_applied = False
     for ev in events:
-        await ingest_event(db, ev, user_id)
+        if await ingest_event(db, ev, user_id) and ev.get("event_type") == EVENT_COMPLETE:
+            complete_applied = True
     await db.commit()
-    return len(events)
+    return len(events), complete_applied
+
+
+async def _complete_already_counted(user_id: str, video_id: str, session_id: str | None) -> bool:
+    """Claim one play-completion; True means "already counted".
+
+    Best-effort rather than strictly atomic (EXISTS + SETEX): a duplicate pair
+    racing in the same millisecond may both pass, which is acceptable for a
+    plays counter. Redis is a cache here, so an outage fails open (returns
+    False): the analytics path must never break playback. The TTL bounds the
+    claim to one playback session, not forever.
+    """
+    try:
+        from app.core.redis import get_redis
+
+        redis = get_redis()
+        key = f"behavior:complete:{user_id}:{video_id}:{session_id or 'no-session'}"
+        if await redis.exists(key):
+            return True
+        await redis.setex(key, COMPLETE_DEDUP_TTL_SECONDS, "1")
+    except Exception:  # pragma: no cover - Redis outage
+        return False
+    return False
 
 
 async def drop_unknown_video_ids(db: AsyncSession, events: list[dict]) -> list[dict]:
@@ -88,20 +128,22 @@ async def _mirror_to_learning_record(
     video_id: str,
     event_type: str,
     payload: dict,
-) -> None:
+    session_id: str | None,
+) -> bool:
     """Update LearningRecord.time_spent_seconds / completed + Video.view_count.
 
     The LearningRecord row is created by video_service on first video open;
     we only update it if it exists (no upsert here — avoids a second creation
-    path racing the unique constraint).
+    path racing the unique constraint). Returns True only when a side-effect
+    was actually applied.
     """
     if event_type == EVENT_WATCH_TIME:
         try:
             delta = float(payload.get("delta_s", 0) or 0)
         except (TypeError, ValueError, OverflowError):
-            return
+            return False
         if not math.isfinite(delta) or delta <= 0:
-            return
+            return False
         result = await db.execute(
             select(LearningRecord).where(
                 LearningRecord.user_id == user_id,
@@ -112,6 +154,8 @@ async def _mirror_to_learning_record(
         if record:
             record.time_spent_seconds = (record.time_spent_seconds or 0) + int(delta)
             record.last_accessed_at = datetime.now(UTC)
+            return True
+        return False
 
     elif event_type == EVENT_COMPLETE:
         result = await db.execute(
@@ -121,22 +165,30 @@ async def _mirror_to_learning_record(
             )
         )
         record = result.scalar_one_or_none()
-        if record:
-            record.completed = True
-            record.progress_percentage = 100.0
-            # view_count increments per play-completion (not per unique user) —
-            # matches the ADR's "播放完成次数" semantics. Inside `if record:` on
-            # purpose: without the open-video marker any client could POST a bare
-            # `complete` event and inflate the counter.
-            await db.execute(update(Video).where(Video.id == video_id).values(view_count=Video.view_count + 1))
+        if not record:
+            return False
+        # Idempotency: a replayed `complete` (retry / duplicate flush / two
+        # tabs) must not bump view_count, emit a second completed_video event,
+        # or force another browse-cache invalidation.
+        if await _complete_already_counted(user_id, video_id, session_id):
+            return False
+        record.completed = True
+        record.progress_percentage = 100.0
+        # view_count increments per play-completion (not per unique user) —
+        # matches the ADR's "播放完成次数" semantics. Inside `if record:` on
+        # purpose: without the open-video marker any client could POST a bare
+        # `complete` event and inflate the counter.
+        await db.execute(update(Video).where(Video.id == video_id).values(view_count=Video.view_count + 1))
 
-            # Emit learning event (ADR-0012 learning plan integration). Gated on
-            # `record` like the counter above: a bare `complete` event from a user
-            # who never opened the video must not manufacture a completed_video
-            # event (and the daily counters / streak / milestone awards it drives).
-            try:
-                from app.services.learning_event_service import EVENT_COMPLETED_VIDEO, emit_event
+        # Emit learning event (ADR-0012 learning plan integration). Gated on
+        # `record` like the counter above: a bare `complete` event from a user
+        # who never opened the video must not manufacture a completed_video
+        # event (and the daily counters / streak / milestone awards it drives).
+        try:
+            from app.services.learning_event_service import EVENT_COMPLETED_VIDEO, emit_event
 
-                await emit_event(db, user_id, EVENT_COMPLETED_VIDEO, 1, video_id=video_id)
-            except Exception:
-                pass  # Non-blocking — event emission must not disrupt behavior ingestion
+            await emit_event(db, user_id, EVENT_COMPLETED_VIDEO, 1, video_id=video_id)
+        except Exception:
+            pass  # Non-blocking — event emission must not disrupt behavior ingestion
+        return True
+    return False

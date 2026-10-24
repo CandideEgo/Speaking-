@@ -9,6 +9,9 @@ class TestUserProfile:
         assert resp.status_code == 200
         data = resp.json()
         assert data["phone"]
+        # /set-password uses this to distinguish first setup from "already set"
+        # (otherwise an existing-password account hits a 400 dead end).
+        assert data["has_password"] is True
 
     async def test_get_me_without_token_returns_401(self, client: AsyncClient):
         resp = await client.get("/api/v1/users/me")

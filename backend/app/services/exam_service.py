@@ -673,6 +673,22 @@ async def list_attempts(
         rows = (await db.execute(select(ExamPaper.id, ExamPaper.title).where(ExamPaper.id.in_(paper_ids)))).all()
         titles = {r[0]: r[1] for r in rows}
 
+    # Count correct answers from the frozen answer rows instead of reverse-
+    # engineering them from ``score``: score is rounded to 4 decimals, so
+    # int(score * question_count) truncates (1/3 → 0, 7/30 → 6) and the attempt
+    # list disagrees with the result page for the very same attempt.
+    submitted_ids = [s.id for s in sessions if s.submitted_at]
+    correct_counts: dict[str, int] = {}
+    if submitted_ids:
+        correct_rows = (
+            await db.execute(
+                select(ExamAnswer.session_id, func.count())
+                .where(ExamAnswer.session_id.in_(submitted_ids), ExamAnswer.correct.is_(True))
+                .group_by(ExamAnswer.session_id)
+            )
+        ).all()
+        correct_counts = {session_id: int(count) for session_id, count in correct_rows}
+
     items: list[dict] = []
     for s in sessions:
         duration = 0
@@ -687,7 +703,7 @@ async def list_attempts(
                 "paper_title": titles.get(s.paper_id or "") if s.paper_id else None,
                 "question_count": s.question_count,
                 "score": s.score,
-                "correct_count": int((s.score or 0) * s.question_count) if s.submitted_at else None,
+                "correct_count": correct_counts.get(s.id, 0) if s.submitted_at else None,
                 "duration_sec": duration,
                 "started_at": s.started_at,
                 "submitted_at": s.submitted_at,

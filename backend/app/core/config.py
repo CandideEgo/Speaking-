@@ -14,6 +14,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _ENV_ALIASES = {"prod": "production"}
 _ENV_VALUES = ("development", "testing", "production")
 
+# Only HMAC algorithms are supported: ``create_token``/``decode_token`` sign with
+# a shared secret, so an env value of e.g. ``"none"`` or an asymmetric algorithm
+# name must not be accepted just because PyJWT would parse it.
+_JWT_ALGORITHMS = ("HS256", "HS384", "HS512")
+
+# HS256 keys shorter than the hash output (32 bytes) are cheap to brute-force.
+# production/testing must provide at least this many characters.
+_MIN_JWT_SECRET_LENGTH = 32
+_DEV_JWT_SECRET = "dev_secret_change_in_production"
+
 
 class Settings(BaseSettings):
     app_name: str = "SeeWord"
@@ -369,13 +379,23 @@ class Settings(BaseSettings):
         # comparison (logging, HSTS/CSP, CORS, limiter) sees the same string.
         object.__setattr__(self, "env", env)
 
+        # The signing algorithm is an attack surface, not a preference: a typo
+        # or an injected value must fail at boot, not at the first token check.
+        algorithm = self.jwt_algorithm.strip().upper()
+        if algorithm not in _JWT_ALGORITHMS:
+            raise RuntimeError(
+                f"JWT_ALGORITHM={self.jwt_algorithm!r} is not supported "
+                f"({', '.join(_JWT_ALGORITHMS)} are the only accepted HMAC algorithms)"
+            )
+        object.__setattr__(self, "jwt_algorithm", algorithm)
+
         if env == "development":
             if not self.database_url:
                 object.__setattr__(
                     self, "database_url", "postgresql+asyncpg://seeword:seeword_dev@localhost:5432/seeword"
                 )
             if not self.jwt_secret:
-                object.__setattr__(self, "jwt_secret", "dev_secret_change_in_production")
+                object.__setattr__(self, "jwt_secret", _DEV_JWT_SECRET)
             return
 
         # Every other env has no localhost fallback, so an empty secret must
@@ -383,6 +403,14 @@ class Settings(BaseSettings):
         # "production" branch so `ENV=testing` cannot become a way around it.
         if not self.jwt_secret:
             raise RuntimeError(f"JWT_SECRET must be set when ENV={env!r} (development is the only env with a fallback)")
+        # Non-empty is not enough: a 1-character key makes HS256 forgeable by
+        # brute force (anyone can mint an access token for any user, admins
+        # included). Testing is covered too so CI cannot grow a weak-secret habit.
+        if self.jwt_secret == _DEV_JWT_SECRET or len(self.jwt_secret) < _MIN_JWT_SECRET_LENGTH:
+            raise RuntimeError(
+                f"JWT_SECRET must be at least {_MIN_JWT_SECRET_LENGTH} characters and must not be the "
+                f"development default when ENV={env!r}. Generate one with: openssl rand -hex 32"
+            )
         if not self.database_url:
             raise RuntimeError(
                 f"DATABASE_URL must be set when ENV={env!r} (development is the only env with a fallback)"

@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 
 
@@ -210,3 +211,48 @@ async def test_search_records_hot_only_when_it_returns_results(client, db_sessio
     assert miss.json() == []
 
     assert fake_redis.zset == {"Listen": 1.0}
+
+
+# ── subtitle search ──────────────────────────────────────────────────────
+#
+# Regression: ``plainto_tsquery`` was applied unconditionally, so this endpoint
+# raised "no such function" on the default in-memory SQLite test engine and had
+# zero coverage. It is also user-visible: sentence search on the search page.
+
+
+async def _add_subtitle(db, video: Video, *, text_en: str, index: int) -> Subtitle:
+    sub = Subtitle(
+        video_id=video.id,
+        start_time=float(index * 2),
+        end_time=float(index * 2 + 2),
+        text_en=text_en,
+        sentence_index=index,
+    )
+    db.add(sub)
+    await db.commit()
+    return sub
+
+
+async def test_subtitle_search_returns_matching_sentences(client, db_session):
+    video = await _make_video(db_session, title="Subtitle Search Demo")
+    await _add_subtitle(db_session, video, text_en="The quick brown fox jumps.", index=0)
+    await _add_subtitle(db_session, video, text_en="An unrelated sentence.", index=1)
+
+    resp = await client.get("/api/v1/videos/search/subtitles", params={"q": "quick brown"})
+    assert resp.status_code == 200
+    results = resp.json()
+    assert len(results) == 1
+    assert results[0]["video"]["id"] == video.id
+    assert [s["text_en"] for s in results[0]["matching_subtitles"]] == ["The quick brown fox jumps."]
+
+
+async def test_subtitle_search_excludes_unpublished_and_non_official(client, db_session):
+    visible = await _make_video(db_session, title="Visible Subtitle Source")
+    hidden = await _make_video(db_session, title="Hidden Subtitle Source", published=False)
+    await _add_subtitle(db_session, visible, text_en="Needle sentence for visible video.", index=0)
+    await _add_subtitle(db_session, hidden, text_en="Needle sentence for hidden video.", index=0)
+
+    resp = await client.get("/api/v1/videos/search/subtitles", params={"q": "Needle"})
+    assert resp.status_code == 200
+    ids = [item["video"]["id"] for item in resp.json()]
+    assert ids == [visible.id]

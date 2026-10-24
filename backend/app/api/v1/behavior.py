@@ -33,9 +33,11 @@ async def post_event(
 ):
     """Ingest a single behavior event."""
     events = await drop_unknown_video_ids(db, [body.model_dump()])
-    await ingest_event(db, events[0], current_user.id if current_user else None)
+    applied = await ingest_event(db, events[0], current_user.id if current_user else None)
     await db.commit()
-    if current_user and body.event_type == "complete":
+    # Only a *new* completion changes the hot/weekly counters; a replayed
+    # complete must not delete every browse/rankings cache key again.
+    if current_user and applied and body.event_type == "complete":
         await invalidate_browse_cache()
     return BehaviorIngestResponse(ingested=1)
 
@@ -50,11 +52,11 @@ async def post_batch(
 ):
     """Ingest a batch of behavior events (frontend analytics flush)."""
     events = await drop_unknown_video_ids(db, [e.model_dump() for e in body.events])
-    count = await ingest_batch(
+    count, complete_applied = await ingest_batch(
         db,
         events,
         current_user.id if current_user else None,
     )
-    if current_user and any(event["event_type"] == "complete" for event in events):
+    if current_user and complete_applied:
         await invalidate_browse_cache()
     return BehaviorIngestResponse(ingested=count)

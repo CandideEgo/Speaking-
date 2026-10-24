@@ -219,7 +219,14 @@ async def search_subtitles(
     q = query.strip()
     escaped_q = q.replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{escaped_q}%"
-    ts_query = func.plainto_tsquery("english", q)
+
+    # plainto_tsquery is Postgres-only; the default test engine is in-memory
+    # SQLite (backend/CLAUDE.md), where it raises "no such function". Keep the
+    # ILIKE path universal and add FTS only on Postgres — same dialect split as
+    # search_videos above.
+    match_conditions = [Subtitle.text_en.ilike(pattern, escape="\\")]
+    if db.get_bind().dialect.name == "postgresql":
+        match_conditions.append(Subtitle.text_en.op("@@")(func.plainto_tsquery("english", q)))
 
     # Find subtitles matching the query, join to video for access control
     access_filter = and_(Video.is_official == True, Video.is_published == True)
@@ -231,10 +238,7 @@ async def search_subtitles(
         .where(
             Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
             access_filter,
-            or_(
-                Subtitle.text_en.ilike(pattern, escape="\\"),
-                Subtitle.text_en.op("@@")(ts_query),
-            ),
+            or_(*match_conditions),
         )
         .order_by(Video.created_at.desc())
         .limit(limit * 5)  # over-fetch to deduplicate videos

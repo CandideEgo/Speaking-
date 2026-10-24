@@ -82,3 +82,14 @@ class User(Base):
     learning_profile = relationship("UserLearningProfile", back_populates="user", uselist=False)
     learning_events = relationship("LearningEvent", back_populates="user", cascade="all, delete-orphan")
     video_unlocks = relationship("UserVideoUnlock", back_populates="user", cascade="all, delete-orphan")
+
+    @property
+    def has_password(self) -> bool:
+        """Whether a login password has been set (phone-only accounts don't).
+
+        Additive read-only field for the API contract: the set-password page
+        uses it to tell "first setup" (no current password needed) from
+        "change password" (current password required) before the user types
+        anything and hits a 400.
+        """
+        return bool(self.hashed_password)
