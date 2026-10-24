@@ -410,9 +410,9 @@ test.describe("已发布编排：完整视频发现", () => {
     await expect(card).toContainText(LEAD_SLOT.video.title_zh!);
     await expect(card).not.toContainText(LEAD_CONTENT.dek);
     await expect(card).toContainText("12:34");
-    await expect(card.getByRole("link", { name: "观看完整视频", exact: true })).toHaveAttribute(
+    await expect(card.getByRole("link", { name: "从这句话开始", exact: true })).toHaveAttribute(
       "href",
-      "/watch/video-lead?from=home"
+      /^\/watch\/video-lead\?from=home&t=12$/
     );
     await expect(
       card.locator('[aria-label^="点赞数"], [aria-label^="播放量"], [aria-label^="收藏数"]')
@@ -450,9 +450,9 @@ test.describe("已发布编排：完整视频发现", () => {
     const card = page.getByRole("article", { name: "精选视频", exact: true });
     await expect(card).not.toContainText("What happens when we compare real and generated images.");
     await expect(card.getByRole("heading")).toHaveText("Original English video");
-    await expect(card.getByRole("link", { name: "观看完整视频", exact: true })).toHaveAttribute(
+    await expect(card.getByRole("link", { name: "从这句话开始", exact: true })).toHaveAttribute(
       "href",
-      "/watch/video-lead?from=home"
+      /^\/watch\/video-lead\?from=home&t=12$/
     );
     await expect(card).not.toContainText("待评估");
   });
@@ -530,7 +530,7 @@ test.describe("已发布编排：完整视频发现", () => {
         const card = page.getByRole("article", { name: "精选视频", exact: true });
         await expect(card).toContainText(LEAD_SLOT.video.title);
         await expect(card).not.toContainText(LEAD_CONTENT.dek);
-        const action = card.getByRole("link", { name: "观看完整视频", exact: true });
+        const action = card.getByRole("link", { name: "从这句话开始", exact: true });
         await action.scrollIntoViewIfNeeded();
         await expect(action).toBeInViewport();
         const geometry = await page

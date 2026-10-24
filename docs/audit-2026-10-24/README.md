@@ -14,7 +14,7 @@
   - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **已修（功能漂移）**：新增 `p7q8r9s0t1u2` 对齐迁移（只补不删、先查重复/孤儿；唯一约束、FK、dedup 索引、vocabulary 索引重命名、列注释、模型 nullability/Text 对齐），并新增 `scripts/check_schema_drift.py` 门禁（剩 7 条退役表相关差异，逐条带原因；新漂移即失败）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
 - **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
-- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 10 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
+- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 11 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
 
 ## 2. 本轮已落地的修复
 
@@ -31,6 +31,7 @@
 | BE-06 | `ENV` 漏配（默认 development）时固定验证码 `1234` 可登录任意手机号，且不校验是否发过码 | 新增 `SMS_DEV_FAKE_ENABLED` 显式开关（默认 false，production 直接拒绝启动）；`verify_code` 必须读到 Redis 里的已发码；CI/本地 `.env` 显式开启 | `test_sms_security.py` / `test_auth_sms.py` / `test_config_env_guard.py` 共 61 passed；dev API 实测发码后 1234 可登录、未发码 400、错误码 400 |
 | BE-15 | 通知 WebSocket 握手自己复制了一份更弱的校验，改密后的旧 token 仍可连接 | 握手改走 `dependencies.resolve_token_user()`（类型 / 黑名单 / 改密 / 封禁） | `test_notifications.py` 新增改密后旧 token 用例；35 passed |
 | BE-03 | 模型与迁移长期漂移（29 条），`alembic check` 无法作为门禁 | 新增 `p7q8r9s0t1u2` 对齐迁移：条件式补唯一约束 / cascade FK / dedup 索引，重命名 vocabulary 索引，同步列注释，模型 `user_answer` 改 `Text`、两处时间列按 DB nullable 对齐；迁移先做重复 / 孤儿检查，脏数据即中止并给出清理提示；`scripts/check_schema_drift.py` 冻结剩余 7 条退役表差异，CI 在迁移后执行 | 全新 scratch 库 `alembic upgrade head` 后漂移 29 → **7**，`Schema drift gate OK: 7 known entries, 0 new`；downgrade/upgrade 往返可重复；人为造重复行时迁移按预期中止 |
+| BE-10 | GPU 回调去重锁每次调用都新建同步 redis 客户端（阻塞事件循环、泄漏连接池） | 改用 `app.core.redis.get_redis()` 异步单例，`await r.set(nx, ex)` / `await r.delete`；删除同步 `from_url` 分支 | `test_internal_callback.py` 的锁替身改为 async，10 passed；全量 1350 passed |
 | BE-26 | 未启用金数据时 compose 仍强制要求 `JINSHUJU_PURCHASE_TOKEN_SECRET` | `docker-compose.prod.yml` 改为 `${VAR:-}`，必填判断留在 `config.py`（已实现） | 配置读码；`docker compose config` 未执行 |
 | F4 契约 | 前端无法知道账号是否已设密码，已设密码用户进 `/set-password` 必然 400 | `User.has_password` 模型属性 + `UserResponse.has_password`（只增字段） | `test_auth.py` 断言 `has_password is True` |
 
@@ -87,7 +88,7 @@
 | 后端全量 `pytest tests/ -q` | **1350 passed, 16 skipped**（16 条需独立 `PG_TEST_URL` 的 integration 默认跳过） |
 | 本轮针对性后端测试 | config 23、exams 21、search 16、behavior 13、auth 4、media + PDF 47、notifications 35、SMS/配置 61 全绿 |
 | e2e 定点 | 断点用例**通过**；`design-rollout` + `public-layout` 共 8 条通过 |
-| e2e 全量（chromium） | 用 `ENV=testing` 后端 + 全新 `seeword_e2e_full` 库（`alembic upgrade head` + `seed_e2e.py`）实际执行：**201 项 → 120 passed / 16 failed / 63 skipped / 2 did not run**。修复 4 条明确回归后复跑通过：`auth.spec`（改密用户不应再看到跳过入口）、`avatar.spec`（性别在「个人资料」tab）、`viewport-height.spec`（底栏选择器改为 `data-testid`）、`ui-review` hover 对比度（`#0077ed` 仅 4.32:1，恢复 `#0066cc`）。剩余 16 条为 fixture 数据不足或旧契约：home-editorial CTA/编排、listening 音频、频道/收藏数据、239 词与 46 题语料、practice「这一版包含」、watch「视频信息」默认展开、2560 网格等；未改测试来凑绿 |
+| e2e 全量（chromium） | 用 `ENV=testing` 后端 + 全新 `seeword_e2e_full` 库（`alembic upgrade head` + `seed_e2e.py`）实际执行：**201 项 → 132 passed / 6 failed / 63 skipped**（首跑 120/16，修复 10 条后复跑）。已修：`auth.spec` 跳过设密改用 passwordless 账号、`avatar.spec` 先点「个人资料」tab、`viewport-height` 底栏选择器、hover 对比度 `#0077ed` 4.32:1 → `#0066cc` 5.57:1、practice「题库概览」、续看错误重试作用域、editorial 引文 CTA「从这句话开始」+ `t=12`、watch「视频信息」默认展开、首页 4 列 wide 断点（`min-[1680px]:!grid-cols-4`）与 `data-testid`、home-feed 卡片选择器。剩余 6 条全部是 fixture 数据不足：home-feed 真实数据配比、频道/收藏、listening 音频 ×2、239 词复习队列、46 题长卷；未删/跳过用例来凑绿 |
 | 浏览器复核（Playwright，1440/390） | 首个 Tab = 「跳到正文」；`aria-pressed` 存在；通知浮层 `dialog` + 空态、无 spinner；`/channels` 清空按钮存在；404 h1 = 「页面不存在」；已设密码账号出现引导、首设密码账号出现表单；触控 `search 44×44 / chip 52×44 / tab 78×60`；断点 1024/820/768/600/390 无侧栏且有底栏、1920/1440 反之；横向溢出 0 |
 | 视觉审计 | 13 路由 × 1440/390 全页 + 暗色 + 1024/820 定点共 57 张；114 次溢出测量 0px |
 | 第二轮结构补齐复核 | 词汇页真实账号（14 词 + 2 个词单）出现到期卡/四项统计/词单网格；练习页出现 3 列试卷与已选条；我的页出现深色会员卡/账户卡；12 条列表路由 h1 实测 `12px / uppercase`、无横向溢出；移动端眉标左对齐（h1 x=16） |
@@ -97,7 +98,7 @@
 
 ### 未执行（如实标注）
 
-- **全量 e2e 的 16 条剩余失败**：已在 `ENV=testing` 后端 + 全新库上实测；失败集中在 fixture 数据不足（editorial / listening 音频 / 频道收藏 / 239 词 / 46 题）与页面重构后的旧选择器（practice「这一版包含」、watch「视频信息」默认展开、editorial CTA、2560 网格）。未删除或跳过这些用例，留待下一轮按产品决策逐条对齐。
+- **全量 e2e 的 6 条剩余失败**：已在 `ENV=testing` 后端 + 全新库上实测；失败全部是 fixture 数据不足（home-feed 真实数据配比、频道/收藏、listening 音频 ×2、239 词复习队列、46 题长卷）。未删除或跳过这些用例，留待下一轮补种子数据。
 - **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。

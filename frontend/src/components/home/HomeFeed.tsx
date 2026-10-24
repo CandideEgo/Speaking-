@@ -176,7 +176,8 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
 
       {uniqueVideos.length > 0 && (
         <div
-          className="mt-5 grid min-w-0 grid-cols-1 gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3 min-[2100px]:grid-cols-4"
+          data-testid="home-feed-grid"
+          className="mt-5 grid min-w-0 grid-cols-1 gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3 min-[1680px]:!grid-cols-4"
           onClickCapture={() => {
             const container = document.getElementById(SCROLL_CONTAINER_ID);
             if (container)

@@ -274,7 +274,10 @@ test.describe("首页续看入口", () => {
         },
       })
     );
-    await page.getByRole("button", { name: "重试", exact: true }).click();
+    // The rail error and the sidebar overview error can both render a 重试
+    // button; scope this click to the continue-learning error message.
+    const continueError = page.getByRole("status").filter({ hasText: "观看记录暂时未能加载" });
+    await continueError.getByRole("button", { name: "重试", exact: true }).click();
     await expect(page.getByTestId("continue-learning-rail")).toContainText("进行中课程 A");
   });
 

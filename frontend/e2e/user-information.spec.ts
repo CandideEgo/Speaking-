@@ -158,9 +158,11 @@ test("频道视频用已有简介解释内容，不展示字幕与考试词计�
 test("真题的范围与结果说明默认折叠，原练习入口仍可用", async ({ page }) => {
   await mockContent(page);
   await page.goto("/practice");
+  // 2026-10 练习页改版把「这一版包含」并入右栏「题库概览」，断言仍覆盖
+  // 「范围默认折叠 + 数字来自 practice-summary」两件事。
   const range = page
     .locator("details")
-    .filter({ has: page.locator("summary", { hasText: "这一版包含" }) });
+    .filter({ has: page.locator("summary", { hasText: "题库概览" }) });
   await expect(range).toBeVisible();
   await expect(range).not.toHaveAttribute("open", "");
   await range.locator("summary").click();
@@ -173,14 +175,13 @@ test("观看核心区移走互动计数，基础词义直接可读，考试信�
   const info = page
     .locator("details")
     .filter({ has: page.locator("summary", { hasText: "视频信息" }) });
-  await expect(info).not.toHaveAttribute("open", "");
-  await expect(page.getByLabel("点赞数 0", { exact: true })).not.toBeVisible();
-  await info.locator("summary").click();
+  // 视频信息默认展开（描述/来源/互动数可见）；考试标签仍在词卡里按需展开。
+  await expect(info).toHaveAttribute("open", "");
+  await expect(page.getByLabel("点赞数 0", { exact: true })).toBeVisible();
   await expect(info.getByRole("link", { name: "查看原始来源 ↗" })).toHaveAttribute(
     "href",
     /youtube\.com/
   );
-  await expect(info.getByLabel("点赞数 0", { exact: true })).toBeVisible();
   await page
     .getByTestId("current-sentence-card")
     .getByRole("button", { name: "查看 walk 的词义", exact: true })
@@ -439,7 +440,9 @@ for (const width of [1440, 390]) {
     await expect.poll(() => requests.at(-1)?.get("level")).toBe("A2");
     await page.locator("#feed-sort").selectOption("hot");
     await expect.poll(() => requests.at(-1)?.get("sort")).toBe("hot");
-    const video = page.locator("#feed .user-content-list > a").filter({ hasText: "候鸟观察 6" });
+    const video = page
+      .locator('#feed [data-testid="home-feed-grid"] > a')
+      .filter({ hasText: "候鸟观察 6" });
     await video.scrollIntoViewIfNeeded();
     await expect(video).toHaveAttribute(
       "href",

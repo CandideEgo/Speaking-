@@ -179,9 +179,14 @@
 - 短信固定码改为显式 opt-in（BE-06）：新增 `SMS_DEV_FAKE_ENABLED`（默认 false，production 启动即拒绝），`verify_code` 必须读到 Redis 已发码；本地 `.env`、`.env.example`、CI 两处 env 显式开启，测试补「未显式开启不生效」「未发码不接受」「production 拒绝」；SMS/配置相关 61 项通过，dev API 实测发码后 1234 可登录、未发码 400。
 - 迁移漂移彻底对齐（BE-03）：新增 `p7q8r9s0t1u2_align_model_schema_drift`，条件式补 `uq_exam_sentence_word`、`uq_exam_word_freq_word_level`、`ix_notifications_dedup`、`exam_sentence_words.sentence_id` / `videos.reviewed_by` / `subtitles.video_id` 三条 FK，重命名 vocabulary 索引并同步列注释；模型侧 `user_answer` 改 `Text`、两处时间列按 DB nullable 对齐。迁移先查重复/孤儿，脏数据即中止并提示清理（本机 dev 库 58 + 49 条，未升级）。新建 scratch 库实测：29 条漂移 → 7 条（均为退役表），`scripts/check_schema_drift.py` 报 `7 known entries, 0 new`；downgrade/upgrade 往返可重复；人为重复行时按预期中止。
 
-### 全量 e2e 首跑（testing 后端）
+### 全量 e2e（testing 后端）
 
-- 按 `frontend/CLAUDE.md` 用 `ENV=testing` 后端 + 全新 `seeword_e2e_full` 库（迁移到 head + `seed_e2e.py`）实际执行 chromium 全量：**201 项 → 120 passed / 16 failed / 63 skipped / 2 did not run**（首跑 102/20，修复后复跑）。
-- 修复 4 条明确回归：`auth.spec` 跳过设密入口改用真正的 passwordless 账号；`avatar.spec` 先点「个人资料」tab 再改性别；`viewport-height.spec` 底栏选择器从 `nav.md:hidden` 换成 `[data-testid="mobile-tab-bar"]`；hover 主按钮 `#0077ed` 对白字仅 4.32:1，恢复 `#0066cc`（5.57:1），设计稿的亮悬停让位于 AA。
-- 剩余 16 条失败已逐类归因：fixture 数据不足（home-editorial / listening 音频 / 频道收藏 / 239 词 / 46 题）与页面重构后的旧选择器（practice「这一版包含」、watch「视频信息」默认展开、editorial CTA、2560 网格），未删/跳过用例来凑绿，留待下一轮按产品决策对齐。
-- 本地 dev 后端已恢复（:8000 development），e2e 用测试库 `seeword_e2e_full` 与 testing 后端已停止；前端 `npm run check`、332 项单测通过。
+- 按 `frontend/CLAUDE.md` 用 `ENV=testing` 后端 + 全新 `seeword_e2e_full` 库（迁移到 head + `seed_e2e.py`）实际执行 chromium 全量：首跑 **120 passed / 16 failed / 63 skipped**，修复 10 条后 **132 passed / 6 failed / 63 skipped**（201 项）。
+- 已修：`auth.spec` 改用真正 passwordless 账号 + 移除未用 SHARED_TOKEN；`avatar.spec` 先点「个人资料」tab；`viewport-height` 底栏选择器改 `data-testid`；主按钮 hover `#0077ed` 对白字仅 4.32:1，恢复 `#0066cc`（5.57:1）；practice 断言改为「题库概览」；续看错误重试限定作用域；editorial 引文 CTA「从这句话开始」+ `t=12`；watch「视频信息」默认展开；首页 4 列宽屏断点改为 `min-[1680px]:!grid-cols-4`（设计 1680 档）并加 `data-testid="home-feed-grid"`；home-feed 卡片选择器同步。
+- 剩余 6 条全部是 fixture 数据不足：home-feed 真实数据配比、频道/收藏、listening 音频 ×2、239 词复习队列、46 题长卷；未删/跳过用例来凑绿，留待补种子数据。
+- 本地 dev 后端已恢复（:8000 development）；e2e 测试库 `seeword_e2e_full` 与 testing 后端已停止；前端 `npm run check`、332 项单测通过。
+
+### 后端回调锁复用异步 Redis（BE-10）
+
+- `internal._acquire_callback_lock` / `_release_callback_lock` 改为 `await app.core.redis.get_redis()`，`await r.set(nx=True, ex=TTL)` / `await r.delete`；删除每次调用新建同步 `redis.from_url` 客户端、事件循环内阻塞与连接池泄漏。
+- `test_internal_callback.py` 的锁替身改为 async Redis，10 项通过；全量后端 **1350 passed / 16 skipped**。

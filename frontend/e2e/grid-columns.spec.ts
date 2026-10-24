@@ -4,9 +4,9 @@ import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
 /**
  * 方案 S6（网格列数自适应）：视频网格的列数由容器宽度决定。
  *
- * 原来这条 spec 对比「首页」与「/browse」两个页面的轨道数；`/browse` 已并入
- * 首页，两处网格收敛成一处，断言保留三档视口的轨道数与首轨下界——这才是
- * `repeat(auto-fill, minmax(min(260px,100%),1fr))` 最容易回归的点。
+ * 列数跟随设计导出：默认 3 列、`md` 2 列、宽屏（≥2100px）4 列、手机 1 列。
+ * `/browse` 已并入首页，锚点用首页 feed 网格的 `data-testid`（不再依赖旧的
+ * `.user-content-list`）。
  *
  * 读数走 computed `grid-template-columns` 的实际轨道数，不用卡片数量：
  * `auto-fill` 的轨道数与内容无关（空轨道保留，方案已接受该代价），所以库空 /
@@ -17,12 +17,11 @@ import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
  */
 
 /**
- * 主网格加了任意值类 `grid-cols-[repeat(auto-fill,...)]`，用它做锚点定位。
- * 限定 `#main-scroll`（外壳的滚动容器）是为了排除 auth 初始化期 ShellSkeleton 的闪现——
- * 那时外壳根本没渲染，滚动容器与它内部的 `.container-page` 都不存在，而骨架自己的
- * 占位网格读数与本断言不同。
+ * 主网格加了 `data-testid="home-feed-grid"`，用它做锚点定位。限定
+ * `#main-scroll`（外壳的滚动容器）是为了排除 auth 初始化期 ShellSkeleton 的闪现——
+ * 那时外壳根本没渲染，滚动容器与它内部的网格都不存在。
  */
-const GRID_SELECTOR = "#main-scroll .user-content-list";
+const GRID_SELECTOR = "#main-scroll [data-testid='home-feed-grid']";
 
 /**
  * 读实际轨道数与首轨宽度（px）。元素可见性无关紧要：空网格高度为 0 也算数。
@@ -50,7 +49,8 @@ async function readTracks(page: Page): Promise<{ count: number; first: number }>
 }
 
 const VIEWPORTS = [
-  { width: 2560, height: 1440, columns: 2 },
+  // 设计导出：wide（≥1680）4 列；xl（≥1280）3 列；md 2 列；手机 1 列。
+  { width: 2560, height: 1440, columns: 4 },
   { width: 1275, height: 900, columns: 2 },
   { width: 375, height: 812, columns: 1 },
 ];
