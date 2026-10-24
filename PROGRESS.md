@@ -392,3 +392,10 @@
 - 后端全量测试与 mypy 复核见本轮提交；dev 后端因 `--reload` 在该 shell 下反复随文件变更退出，已改为不带 reload 的常驻进程，`/health` 200（DB/Redis ok）。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。
+
+### BE-07 第三批：channels 与 discovery 订阅/收藏契约
+
+- `/channels` 改 `PaginatedResponse[ChannelCard]`，`/channels/{slug}` 改 `ChannelDetailResponse`（含频道头、推荐起步视频、分页视频）；新增 `app/schemas/channel.py`，字段与 `_channel_public` + `channel_facts` 一一对应。
+- discovery 7 条：`/subscriptions`（list）、`PUT/DELETE /subscriptions/{slug}`（`SubscriptionState`）、`/sentence-favorites`（分页 `SentenceFavoriteItem`）、`GET/PUT/DELETE /sentence-favorites/{id}`（`SentenceFavoriteStatus`）。
+- `test_response_contract.py` 新增 channels 2 条与 discovery 订阅/收藏断言；剩余无 schema 端点从 96 降到 **87**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

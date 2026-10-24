@@ -25,6 +25,8 @@ from app.core.limiter import rate_limit
 from app.models.channel import Channel
 from app.models.user import User
 from app.models.video import Video
+from app.schemas.channel import ChannelCard, ChannelDetailResponse
+from app.schemas.pagination import PaginatedResponse
 from app.services import channel_service
 
 router = APIRouter(prefix="/channels", tags=["channels"])
@@ -35,7 +37,7 @@ router = APIRouter(prefix="/channels", tags=["channels"])
 # ---------------------------------------------------------------------------
 
 
-@router.get("")
+@router.get("", response_model=PaginatedResponse[ChannelCard])
 @rate_limit("30/minute")
 async def list_channels(
     request: Request,
@@ -52,7 +54,7 @@ async def list_channels(
     )
 
 
-@router.get("/{slug}")
+@router.get("/{slug}", response_model=ChannelDetailResponse)
 @rate_limit("30/minute")
 async def channel_detail(
     request: Request,

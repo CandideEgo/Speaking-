@@ -3,7 +3,7 @@
 生成方式：加载 `create_app()` 后遍历 `APIRoute`，排除 `/health`、`/metrics`、`/media`、
 OpenAPI 文档与 Prometheus 路径，统计 `response_model is None` 的 JSON 数据端点。
 
-生成日期：2026-10-24。当前计数：96。
+生成日期：2026-10-24。当前计数：87。
 
 > 这是剩余工作清单，不代表这些端点会返回错误；它们只是没有 OpenAPI 字段契约。
 > 外部支付/转写回调（`/internal/transcription/callback`、`/payments/callback/*`、`/payments/jinshuju/webhook`）
@@ -28,13 +28,11 @@ OpenAPI 文档与 Prometheus 路径，统计 `response_model is None` 的 JSON �
 
 ## channels
 
-- `GET` `/api/v1/channels`
 - `POST` `/api/v1/channels/admin`
 - `GET` `/api/v1/channels/admin/all`
 - `PATCH` `/api/v1/channels/admin/{channel_id}`
 - `DELETE` `/api/v1/channels/admin/{channel_id}`
 - `POST` `/api/v1/channels/admin/{channel_id}/videos`
-- `GET` `/api/v1/channels/{slug}`
 
 ## discovery
 
@@ -44,18 +42,11 @@ OpenAPI 文档与 Prometheus 路径，统计 `response_model is None` 的 JSON �
 - `GET` `/api/v1/discovery/learning-metadata`
 - `GET` `/api/v1/discovery/practice-summary`
 - `GET` `/api/v1/discovery/search`
-- `GET` `/api/v1/discovery/sentence-favorites`
-- `GET` `/api/v1/discovery/sentence-favorites/{subtitle_id}`
-- `PUT` `/api/v1/discovery/sentence-favorites/{subtitle_id}`
-- `DELETE` `/api/v1/discovery/sentence-favorites/{subtitle_id}`
 - `POST` `/api/v1/discovery/sets`
 - `PATCH` `/api/v1/discovery/sets/{set_id}`
 - `DELETE` `/api/v1/discovery/sets/{set_id}`
 - `POST` `/api/v1/discovery/sets/{set_id}/words`
 - `DELETE` `/api/v1/discovery/sets/{set_id}/words/{set_word_id}`
-- `GET` `/api/v1/discovery/subscriptions`
-- `PUT` `/api/v1/discovery/subscriptions/{slug}`
-- `DELETE` `/api/v1/discovery/subscriptions/{slug}`
 
 ## exam-pdfs
 

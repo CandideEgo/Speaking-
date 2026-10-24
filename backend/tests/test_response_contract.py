@@ -341,6 +341,22 @@ class TestOpenApiResponseModels:
         assert self._schema("/api/v1/exams/attempts", "get")["$ref"].endswith("PaginatedResponse_ExamAttemptItem_")
         assert self._schema("/api/v1/exams/attempts/{session_id}", "get")["$ref"].endswith("ExamAttemptDetailResponse")
 
+    def test_discovery_subscription_and_favorite_routes_are_typed(self):
+        """BE-07: discovery subscription/favorite routes used untyped dicts."""
+        assert self._schema("/api/v1/discovery/subscriptions", "get")["type"] == "array"
+        assert self._schema("/api/v1/discovery/subscriptions/{slug}", "put")["$ref"].endswith("SubscriptionState")
+        assert self._schema("/api/v1/discovery/sentence-favorites", "get")["$ref"].endswith(
+            "PaginatedResponse_SentenceFavoriteItem_"
+        )
+        assert self._schema("/api/v1/discovery/sentence-favorites/{subtitle_id}", "put")["$ref"].endswith(
+            "SentenceFavoriteStatus"
+        )
+
+    def test_channel_routes_have_typed_models(self):
+        """BE-07: channel directory and detail used to return untyped dicts."""
+        assert self._schema("/api/v1/channels", "get")["$ref"].endswith("PaginatedResponse_ChannelCard_")
+        assert self._schema("/api/v1/channels/{slug}", "get")["$ref"].endswith("ChannelDetailResponse")
+
     def test_listening_routes_have_typed_models(self):
         """The newest feature routes must appear in OpenAPI with concrete items."""
         assert self._schema("/api/v1/listening/videos", "get")["$ref"].endswith("PaginatedResponse_ListeningVideoCard_")
