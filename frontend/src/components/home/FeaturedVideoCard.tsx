@@ -19,7 +19,6 @@ import type { VideoCard } from "@/types";
  */
 export function FeaturedVideoCard({
   video,
-  dek,
   content,
 }: {
   video: VideoCard;
@@ -28,7 +27,7 @@ export function FeaturedVideoCard({
 }) {
   const href = watchHref(video.id, { from: "home" });
   const quote = content?.expressions.find((expression) => expression.sentence)?.sentence ?? null;
-  const headline = content?.headline?.trim();
+
   const channelHref = video.channel_slug ? `/channels/${video.channel_slug}` : null;
 
   return (
@@ -80,9 +79,9 @@ export function FeaturedVideoCard({
           >
             {video.title}
           </h2>
-          {(headline || video.title_zh) && (
+          {video.title_zh && (
             <p className="line-clamp-1 text-meta font-medium text-muted">
-              {headline || video.title_zh}
+              {video.title_zh}
               {video.channel_name ? ` · ${video.channel_name}` : ""}
             </p>
           )}
@@ -98,9 +97,7 @@ export function FeaturedVideoCard({
                 </span>
               )}
             </blockquote>
-          ) : (
-            dek && <p className="line-clamp-2 text-copy leading-relaxed text-body">{dek}</p>
-          )}
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-meta text-muted">
             {video.channel_name &&

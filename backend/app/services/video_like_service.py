@@ -13,6 +13,7 @@ from app.core.database import commit_refresh
 from app.core.errors import NotFoundError
 from app.models.engagement import VideoLike
 from app.models.video import Video
+from app.services.video_cache import invalidate_browse_cache
 
 # Videos whose like_count OR favorite_count >= this threshold are auto-featured.
 FEATURE_THRESHOLD = 10
@@ -37,6 +38,7 @@ async def toggle_video_like(db: AsyncSession, user_id: str, video_id: str) -> di
         await db.delete(existing)
         video.like_count = max(0, video.like_count - 1)
         await db.commit()
+        await invalidate_browse_cache()
         return {"liked": False}
     else:
         like = VideoLike(user_id=user_id, video_id=video_id)
@@ -52,6 +54,7 @@ async def toggle_video_like(db: AsyncSession, user_id: str, video_id: str) -> di
             if "uq_video_like" in str(exc):
                 return {"liked": True}
             raise
+        await invalidate_browse_cache()
         return {"liked": True}
 
 

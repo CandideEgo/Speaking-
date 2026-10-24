@@ -9,6 +9,7 @@ import { catalogReturnHref } from "@/lib/examPresentation";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import ExamRunner, { ExamQuestionPublic, ExamSubmitResponse } from "@/components/exam/ExamRunner";
 
 interface WrongRedoStart {
@@ -35,19 +36,28 @@ export default function WrongRedoPage() {
   const [attempt, setAttempt] = useState<WrongRedoStart | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [empty, setEmpty] = useState(false);
   const startedRef = useRef(false);
 
   const start = () => {
     setError(null);
+    setEmpty(false);
     setLoading(true);
     setAttempt(null);
     const params = new URLSearchParams(window.location.search);
     const ids = (params.get("ids") ?? "").split(",").filter(Boolean);
-    api<WrongRedoStart>("/api/v1/exams/wrong/redo", {
-      method: "POST",
-      body: JSON.stringify({ question_ids: ids }),
-    })
-      .then(setAttempt)
+    api<{ total: number }>("/api/v1/exams/wrong?page_size=1")
+      .then(async (wrong) => {
+        if (wrong.total === 0) {
+          setEmpty(true);
+          return;
+        }
+        const created = await api<WrongRedoStart>("/api/v1/exams/wrong/redo", {
+          method: "POST",
+          body: JSON.stringify({ question_ids: ids }),
+        });
+        setAttempt(created);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "生成重做失败"))
       .finally(() => setLoading(false));
   };
@@ -63,15 +73,28 @@ export default function WrongRedoPage() {
   if (!attempt) {
     return (
       <div className="user-page">
+        <PageHeader title="错题重做" variant="eyebrow" />
         <div className="flex flex-col items-center gap-5 py-16 text-center">
           <p className="text-copy text-muted">
-            {loading ? "正在生成错题重做…" : (error ?? "错题重做不可用")}
+            {loading
+              ? "正在生成错题重做…"
+              : empty
+                ? "还没有错题，完成练习后会在这里保留答错的题目。"
+                : (error ?? "错题重做不可用")}
           </p>
           {!loading && (
             <>
-              <Button variant="dark" size="nav" icon={RotateCcw} onClick={start} loading={loading}>
-                重新生成
-              </Button>
+              {!empty && (
+                <Button
+                  variant="dark"
+                  size="nav"
+                  icon={RotateCcw}
+                  onClick={start}
+                  loading={loading}
+                >
+                  重新生成
+                </Button>
+              )}
               <div className="flex items-center gap-4 text-copy">
                 <Link
                   href="/practice/exams"
@@ -96,6 +119,7 @@ export default function WrongRedoPage() {
 
   return (
     <div className="user-page">
+      <PageHeader title="错题重做" className="sr-only" />
       <ExamRunner
         questions={attempt.questions}
         submitPath={`/api/v1/exams/attempts/${attempt.session_id}/submit`}

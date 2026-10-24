@@ -172,9 +172,6 @@ export default function PracticePage() {
       >
         <div>
           <h2 className="text-copy-lg font-semibold text-ink">逐句听力</h2>
-          <p className="mt-1 text-meta text-muted">
-            真实视频原声 · 重播与慢放 · 听写后查看原句和解析
-          </p>
         </div>
         <LinkButton href="/practice/listening" size="sm">
           选择听力素材
@@ -250,7 +247,6 @@ export default function PracticePage() {
                   <h2 id="practice-types-title" className="user-sec-title">
                     按题型练
                   </h2>
-                  <span className="user-sec-sub">每组只取一小段 · 不计时</span>
                 </div>
                 <ul className="divide-y divide-hairline">
                   {typeEntries.map((type, index) => (

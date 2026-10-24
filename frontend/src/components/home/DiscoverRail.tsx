@@ -131,8 +131,10 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
     ])
       .then(([data, channels]) => {
         if (controller.signal.aborted) return;
+        if (!data?.words || !data?.this_week || !data?.streak)
+          throw new Error("学习进度数据不完整");
         setOverview(data);
-        setSubs(Array.isArray(channels) ? channels : channels.items);
+        setSubs(Array.isArray(channels) ? channels : (channels.items ?? []));
         setLoadState("ready");
       })
       .catch(() => {
@@ -259,7 +261,6 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
             />
           ))}
         </div>
-        <p className="mt-2 text-caption text-muted">只记录发生过的学习；没有任务打卡，也不补记。</p>
       </section>
 
       <Link

@@ -21,7 +21,7 @@ async def invalidate_video_detail_cache(video_id: str) -> None:
     try:
         from app.core.redis import get_redis
 
-        redis = await get_redis()
+        redis = get_redis()
         await redis.delete(f"video:detail:{video_id}")
     except Exception:
         pass

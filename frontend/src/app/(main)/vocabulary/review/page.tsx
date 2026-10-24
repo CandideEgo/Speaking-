@@ -165,9 +165,7 @@ export default function VocabularyReviewPage() {
           <h2 className="mt-2 text-display-sm font-semibold text-ink">
             复习了 {Object.values(counts).reduce((sum, n) => sum + n, 0)} 个词。
           </h2>
-          <p className="mt-2 text-copy text-muted">
-            认识会拉长间隔，模糊和不认识会更快回来。没有分数，也不需要凑正确率。
-          </p>
+
           <div className="mx-auto mt-6 grid max-w-md grid-cols-4 gap-2">
             {REVIEW_RATINGS.map((item) => (
               <div key={item.id} className="rounded-md border border-hairline p-3">
@@ -245,9 +243,7 @@ export default function VocabularyReviewPage() {
           <section className="mx-auto max-w-[46rem] py-16 text-center" aria-label="今日无到期词">
             <p className="text-caption font-semibold tracking-[0.09em] text-muted">今日复习</p>
             <h2 className="mt-2 text-display-sm font-semibold text-ink">今天的到期词已经清空。</h2>
-            <p className="mt-2 text-copy text-muted">
-              复习记录会决定下一次出现的时间；新词可以继续去训练。
-            </p>
+
             <div className="mt-6 flex justify-center gap-2">
               <LinkButton href="/vocabulary">去词汇页</LinkButton>
               <LinkButton href="/vocabulary/drill" variant="outline">

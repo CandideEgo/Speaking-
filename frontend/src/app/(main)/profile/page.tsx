@@ -377,7 +377,6 @@ export default function ProfilePage() {
                     <div className="user-sec-head">
                       <div>
                         <h2 className="user-sec-title">学习统计</h2>
-                        <p className="user-sec-sub mt-1">查看词汇积累与复习安排。</p>
                       </div>
                     </div>
                     <div className="user-stat-grid mt-4">
@@ -404,9 +403,6 @@ export default function ProfilePage() {
                     <div className="user-sec-head">
                       <div>
                         <h2 className="user-sec-title">词库增长与掌握度（近 8 周）</h2>
-                        <p className="user-sec-sub mt-1">
-                          每周一快照；总词汇、已掌握与学习中的变化。
-                        </p>
                       </div>
                     </div>
                     <Card padding={5} className="mt-4">

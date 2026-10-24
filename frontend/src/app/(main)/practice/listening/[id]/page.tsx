@@ -189,7 +189,7 @@ export default function ListeningAttempt() {
       <PageHeader
         crumb={<Link href="/practice/listening">← 听力素材</Link>}
         title={submitted ? "本次听力结果" : "逐句听写"}
-        description={session?.title}
+        meta={session?.title}
       />
       {error ? (
         <ErrorState title={error} onRetry={() => setRetry((n) => n + 1)} />

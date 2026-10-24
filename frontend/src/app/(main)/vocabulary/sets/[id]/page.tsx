@@ -247,7 +247,6 @@ export default function VocabSetDetailPage() {
                 <h2 id="set-source-title" className="user-sec-title">
                   来源视频
                 </h2>
-                <span className="user-sec-sub">词和原句都来自这里</span>
               </div>
               {detail.video_id ? (
                 <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-hairline bg-surface-soft p-3">
@@ -577,9 +576,7 @@ export default function VocabSetDetailPage() {
 
             <section className="user-aside-sec">
               <h2 className="user-aside-title">下一步</h2>
-              <p className="text-meta leading-relaxed text-muted">
-                先「快速筛词」把已经认识的词挑出去，剩下的再进训练队列；也可以直接开始训练，跳过筛词。
-              </p>
+
               <Link
                 href="/vocabulary/drill"
                 className="mt-3 inline-block text-copy font-semibold text-ink hover:text-brand-700"

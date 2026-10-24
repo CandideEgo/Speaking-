@@ -536,13 +536,6 @@ export default function ChannelDetailPage() {
                   )}
                 </section>
 
-                <section className="user-aside-sec">
-                  <h2 className="user-aside-title">订阅之后</h2>
-                  <p className="text-meta leading-relaxed text-body">
-                    订阅后会出现在「频道」页的「我订阅的频道」，方便回到这里查看最近收录、继续没学完的内容；随时可以取消。
-                  </p>
-                </section>
-
                 {related.length > 0 && (
                   <section className="user-aside-sec">
                     <h2 className="user-aside-title">相关频道</h2>

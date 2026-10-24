@@ -189,6 +189,7 @@ function VideoActions({
             : "border-hairline text-body hover:border-ink hover:text-ink"
         )}
         onClick={onToggleFavorite}
+        aria-label={isFavorited ? "取消收藏" : "收藏视频"}
         aria-pressed={isFavorited}
       >
         <Bookmark size={14} className={cn(isFavorited && "fill-current")} />
@@ -369,13 +370,14 @@ export default function WatchPage() {
     isFavorited,
     isLiked,
     likeCount,
+    favoriteCount,
     noteDraft,
     setNoteDraft,
     toggleFavorite,
     toggleLike,
     saveNote,
     clearNote,
-  } = useVideoMeta(id, video?.like_count ?? 0);
+  } = useVideoMeta(id, video?.like_count ?? 0, video?.favorite_count ?? 0);
   const {
     selectedWord,
     wordGloss,
@@ -928,11 +930,7 @@ export default function WatchPage() {
                 </button>
               </span>
             }
-            description={[
-              video.channel_name,
-              formatDuration(video.duration),
-              video.difficulty_level,
-            ]
+            meta={[video.channel_name, formatDuration(video.duration), video.difficulty_level]
               .filter(Boolean)
               .join(" · ")}
           />
@@ -1067,7 +1065,7 @@ export default function WatchPage() {
           )}
         </div>
 
-        <VideoMetadata video={video} className="mt-2" />
+        <VideoMetadata video={{ ...video, favorite_count: favoriteCount }} className="mt-2" />
         <div className="mt-3">
           <VideoActions
             compact={false}
@@ -1574,7 +1572,7 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      <WatchSourceCard video={video} />
+      <WatchSourceCard video={{ ...video, favorite_count: favoriteCount }} />
       <details open className="mt-4 border-t border-hairline py-3">
         <summary className="cursor-pointer text-copy font-semibold text-ink">视频信息</summary>
         <div className="mt-3 space-y-3">
@@ -1596,7 +1594,7 @@ export default function WatchPage() {
           <VideoStats
             likeCount={likeCount}
             viewCount={video.view_count}
-            favoriteCount={video.favorite_count}
+            favoriteCount={favoriteCount}
           />
           {/* 桌面端点赞/收藏/笔记已在页头动作行；这里只保留移动端入口。 */}
           {isMobile && (

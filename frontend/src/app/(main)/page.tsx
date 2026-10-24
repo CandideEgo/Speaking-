@@ -125,7 +125,6 @@ export default function HomePage() {
         <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
           <div className="min-w-0">
             <h2 className="text-title font-semibold tracking-tight text-ink">继续发现</h2>
-            <p className="mt-1 text-meta text-muted">按主题、难度和时长挑一段今天愿意听的。</p>
           </div>
           <Link
             href="/channels"

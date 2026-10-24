@@ -224,7 +224,14 @@ async def get_video_detail(
     if cacheable:
         cached = await cache_get(cache_key)
         if cached:
-            return VideoDetailResponse.model_validate_json(cached)
+            detail = VideoDetailResponse.model_validate_json(cached)
+            # Subtitle caching must never freeze changing engagement counters.
+            detail.like_count = video.like_count
+            detail.favorite_count = video.favorite_count
+            detail.view_count = video.view_count
+            detail.upload_date = video.upload_date.isoformat() if video.upload_date else None
+            detail.published_at = video.published_at.isoformat() if video.published_at else None
+            return detail
 
     # Decide which subtitles the viewer sees. The owner always sees their live
     # (draft) subtitles. A non-owner viewing a UGC video under re-review
@@ -292,6 +299,8 @@ async def get_video_detail(
         like_count=video.like_count,
         favorite_count=video.favorite_count,
         view_count=video.view_count,
+        upload_date=video.upload_date,
+        published_at=video.published_at,
         # 详情页保留完整简介（列表卡片才截断到 CARD_DESCRIPTION_LIMIT）。
         description=video.description,
         processing_mode=video.processing_mode,

@@ -10,6 +10,8 @@ export interface PageHeaderProps {
   title: ReactNode;
   /** Subtitle / description below the title. */
   description?: ReactNode;
+  /** Factual content such as channel stats or the video name. */
+  meta?: ReactNode;
   /**
    * `eyebrow` is the design system's list-page kicker (small caps), while
    * `display` is the large detail-page title. Defaults to `display` so pages
@@ -35,6 +37,7 @@ export function PageHeader({
   crumb,
   title,
   description,
+  meta,
   variant = "display",
   centered = false,
   className,
@@ -47,7 +50,9 @@ export function PageHeader({
           <div className="user-page-crumb">{crumb}</div>
         )}
         <h1 className={cn("user-page-title", variant === "eyebrow" && "is-eyebrow")}>{title}</h1>
-        {description && <p className="user-page-desc">{description}</p>}
+        {(meta || (description && typeof description !== "string")) && (
+          <div className="user-page-meta mt-2 text-meta text-body">{meta || description}</div>
+        )}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </header>

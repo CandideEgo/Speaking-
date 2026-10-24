@@ -18,6 +18,7 @@ from app.schemas.behavior import (
     BehaviorIngestResponse,
 )
 from app.services.behavior_service import drop_unknown_video_ids, ingest_batch, ingest_event
+from app.services.video_cache import invalidate_browse_cache
 
 router = APIRouter(prefix="/behavior", tags=["behavior"])
 
@@ -34,6 +35,8 @@ async def post_event(
     events = await drop_unknown_video_ids(db, [body.model_dump()])
     await ingest_event(db, events[0], current_user.id if current_user else None)
     await db.commit()
+    if current_user and body.event_type == "complete":
+        await invalidate_browse_cache()
     return BehaviorIngestResponse(ingested=1)
 
 
@@ -52,4 +55,6 @@ async def post_batch(
         events,
         current_user.id if current_user else None,
     )
+    if current_user and any(event["event_type"] == "complete" for event in events):
+        await invalidate_browse_cache()
     return BehaviorIngestResponse(ingested=count)

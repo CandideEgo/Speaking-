@@ -1,0 +1,51 @@
+import { test, expect } from "@playwright/test";
+import { loginViaToken, registerUserViaApi, uniquePhone } from "./helpers";
+
+test("真实收藏与订阅在观看、频道和收藏页保持一致", async ({ page, request }) => {
+  const { token } = await registerUserViaApi(request, uniquePhone());
+  const headers = { Authorization: `Bearer ${token}` };
+  const channels = await request.get("/api/v1/channels?page_size=4", { headers });
+  expect(channels.ok()).toBeTruthy();
+  const channel = (await channels.json()).items[0];
+  const detail = await request.get(`/api/v1/channels/${channel.slug}?page_size=4`, { headers });
+  const video = (await detail.json()).videos.items[0];
+  expect(video?.id).toBeTruthy();
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.addInitScript(() => localStorage.setItem("seeword_coach_done", "true"));
+  await loginViaToken(page, token);
+  await page.goto(`/watch/${video.id}`);
+  const favorite = page.getByRole("button", { name: "收藏视频", exact: true });
+  await expect(favorite).toBeVisible();
+  const source = page.getByRole("region", { name: "视频与频道信息" });
+  await favorite.click();
+  await expect(page.getByRole("button", { name: "取消收藏", exact: true })).toBeVisible();
+  await expect(source).toContainText(`${(video.favorite_count ?? 0) + 1} 次收藏`);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "取消收藏", exact: true })).toBeVisible();
+  await expect(source).toContainText(`${(video.favorite_count ?? 0) + 1} 次收藏`);
+  await source.getByRole("button", { name: "订阅频道", exact: true }).click();
+  await expect(source.getByRole("button", { name: "已订阅 · 取消", exact: true })).toBeVisible();
+  await expect(source).toContainText(`${channel.subscriber_count + 1} 人订阅`);
+  await page.goto(`/channels/${channel.slug}`);
+  await expect(page.getByRole("button", { name: "已订阅 · 取消", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "已订阅 · 取消", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "已订阅 · 取消", exact: true }).click();
+  await expect(page.getByRole("button", { name: "订阅频道", exact: true })).toBeVisible();
+  const subscriptions = await request.get("/api/v1/discovery/subscriptions", { headers });
+  expect((await subscriptions.json()).some((c: { slug: string }) => c.slug === channel.slug)).toBe(
+    false
+  );
+  await page.goto("/favorites");
+  await expect(page.locator(`main a[href*="/watch/${video.id}"]`).first()).toBeVisible();
+  await page.reload();
+  await expect(page.locator(`main a[href*="/watch/${video.id}"]`).first()).toBeVisible();
+  await page.goto(`/watch/${video.id}`);
+  await page.getByRole("button", { name: "取消收藏", exact: true }).click();
+  await expect(page.getByRole("button", { name: "收藏视频", exact: true })).toBeVisible();
+  await expect(source).toContainText(`${video.favorite_count ?? 0} 次收藏`);
+  await page.goto("/favorites");
+  await expect(page.locator(`main a[href*="/watch/${video.id}"]`)).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

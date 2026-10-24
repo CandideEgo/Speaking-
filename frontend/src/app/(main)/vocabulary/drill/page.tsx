@@ -99,7 +99,7 @@ function DrillHeader({
           <X size={15} />
           <span className="hidden sm:inline">退出训练</span>
         </button>
-        <span className="text-copy font-semibold text-ink flex-shrink-0">{label}</span>
+        <PageHeader title={label} variant="eyebrow" className="m-0! shrink-0 border-0! p-0!" />
         <div className="flex-1 min-w-0 h-1.5 rounded-full bg-surface-card overflow-hidden">
           <div
             className="h-full bg-brand-500 rounded-full transition-all duration-300"
@@ -638,7 +638,6 @@ function DrillIntro({
                 <h2 id="drill-how-title" className="user-sec-title">
                   这一轮怎么练
                 </h2>
-                <span className="user-sec-sub">三种题型轮换</span>
               </div>
               <div className="user-kv mt-3">
                 <div className="user-kv-row">
@@ -683,9 +682,7 @@ function DrillIntro({
             </section>
             <section className="user-aside-sec">
               <h2 className="user-aside-title">说明</h2>
-              <p className="text-meta leading-relaxed text-muted">
-                学习进度会自动保存，下次可以接着练。
-              </p>
+
               <button
                 type="button"
                 onClick={() => router.push("/")}

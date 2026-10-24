@@ -36,7 +36,6 @@ export function HomeEditorialScenarios({
     <section id="home-scenarios" aria-label="今天就能用" className="min-w-0">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-title font-bold tracking-tight text-ink">今天就能用</h2>
-        <p className="text-meta text-muted">跳到原片，听清这句在语境里的意思</p>
       </div>
       <SceneSentenceCard
         videoId={videoId}

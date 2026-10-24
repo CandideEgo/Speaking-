@@ -231,9 +231,6 @@ export default function ContactPage() {
               <div className="user-sec-head">
                 <div>
                   <h2 className="user-sec-title">联系我们</h2>
-                  <p className="user-sec-sub mt-1">
-                    欢迎通过邮件联系我们，登录后也可以在这里提交反馈。
-                  </p>
                 </div>
               </div>
               <Card padding={5} className="mt-4">
@@ -296,9 +293,6 @@ export default function ContactPage() {
               <div className="user-sec-head">
                 <div>
                   <h2 className="user-sec-title">提交反馈</h2>
-                  <p className="user-sec-sub mt-1">
-                    正文至少 5 个字；提交后可在下方「我的反馈」看到处理进度。
-                  </p>
                 </div>
               </div>
               {isAuthenticated ? (
@@ -436,7 +430,6 @@ export default function ContactPage() {
               <div className="user-sec-head">
                 <div>
                   <h2 className="user-sec-title">常见问题</h2>
-                  <p className="user-sec-sub mt-1">选择问题查看解答。</p>
                 </div>
               </div>
               <div className="mt-4 border-t border-hairline-soft">

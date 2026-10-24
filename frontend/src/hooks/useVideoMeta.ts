@@ -21,10 +21,15 @@ async function toggleVideoLike(videoId: string): Promise<{ liked: boolean }> {
  *  `initialLikeCount` is the total like_count from the video detail payload
  *  (server of record). The local count is adjusted ±1 on toggle and rolled
  *  back on failure. */
-export function useVideoMeta(videoId: string | undefined, initialLikeCount: number = 0) {
+export function useVideoMeta(
+  videoId: string | undefined,
+  initialLikeCount: number = 0,
+  initialFavoriteCount: number = 0
+) {
   const [isFavorited, setIsFavorited] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
+  const [favoriteCount, setFavoriteCount] = useState(initialFavoriteCount);
   const [noteDraft, setNoteDraft] = useState("");
 
   // 在途的点赞/收藏请求：一次只处理一个，避免重复提交与乐观值被回滚覆盖。
@@ -37,6 +42,10 @@ export function useVideoMeta(videoId: string | undefined, initialLikeCount: numb
     if (likeInFlightRef.current) return;
     setLikeCount(initialLikeCount);
   }, [initialLikeCount]);
+
+  useEffect(() => {
+    if (!favoriteInFlightRef.current) setFavoriteCount(initialFavoriteCount);
+  }, [initialFavoriteCount, videoId]);
 
   // Load initial state
   useEffect(() => {
@@ -65,7 +74,9 @@ export function useVideoMeta(videoId: string | undefined, initialLikeCount: numb
     if (!videoId || favoriteInFlightRef.current) return;
     favoriteInFlightRef.current = true;
     const wasFavorited = isFavorited;
+    const delta = wasFavorited ? -1 : 1;
     setIsFavorited(!wasFavorited); // optimistic
+    setFavoriteCount((count) => Math.max(0, count + delta));
     try {
       await api(`/api/v1/videos/${videoId}/favorite`, {
         method: wasFavorited ? "DELETE" : "POST",
@@ -73,6 +84,7 @@ export function useVideoMeta(videoId: string | undefined, initialLikeCount: numb
       toast.success(wasFavorited ? "已取消收藏" : "已收藏视频");
     } catch {
       setIsFavorited(wasFavorited); // rollback
+      setFavoriteCount((count) => Math.max(0, count - delta));
       toast.error("操作失败，请重试");
     } finally {
       favoriteInFlightRef.current = false;
@@ -129,6 +141,7 @@ export function useVideoMeta(videoId: string | undefined, initialLikeCount: numb
     isFavorited,
     isLiked,
     likeCount,
+    favoriteCount,
     noteDraft,
     setNoteDraft,
     toggleFavorite,

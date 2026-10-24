@@ -154,16 +154,10 @@ function RegisterForm() {
   return (
     <AuthCard
       title="创建账号"
-      subtitle={
-        <>
-          已有账号？{" "}
-          <Link
-            href={loginHref}
-            className="font-semibold text-ink underline decoration-hairline underline-offset-2 transition-colors hover:decoration-ink"
-          >
-            直接登录
-          </Link>
-        </>
+      headerActions={
+        <Link href={loginHref} className="text-meta font-semibold text-ink hover:underline">
+          直接登录
+        </Link>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>

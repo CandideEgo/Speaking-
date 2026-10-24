@@ -199,9 +199,7 @@ export default function DailyCheckPage() {
             {skipped ? (
               <section className="rounded-md border border-hairline bg-surface-soft p-5">
                 <h2 className="text-copy-lg font-bold text-ink">今天这一组已跳过</h2>
-                <p className="mt-2 text-copy leading-relaxed text-body">
-                  跳过就是跳过：不显示连击惩罚、也不会在明天补一次。想练的时候，这一组还在，或者直接去套卷里挑一套。
-                </p>
+
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <Button onClick={() => setSkipped(false)}>恢复这一组</Button>
                   <Link href="/practice/exams" className={LINK_OUTLINE}>

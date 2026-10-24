@@ -402,14 +402,14 @@ async function openEditorial(page: Page, editorial: HomeEditorialPage = EDITORIA
 }
 
 test.describe("已发布编排：完整视频发现", () => {
-  test("双语标题与已发布导语介绍完整视频，入口不附带片段", async ({ page }) => {
+  test("双语标题保留，辅助导语移除，完整视频入口保留", async ({ page }) => {
     await openEditorial(page);
     await expect(page.getByRole("heading", { name: /^发现 · / })).toBeVisible();
     const card = page.getByRole("article", { name: "精选视频", exact: true });
     await expect(card).toContainText(LEAD_SLOT.video.title);
     await expect(card).toContainText(LEAD_SLOT.video.title_zh!);
-    await expect(card).toContainText(LEAD_CONTENT.dek);
-    await expect(card).toContainText("完整视频 12:34");
+    await expect(card).not.toContainText(LEAD_CONTENT.dek);
+    await expect(card).toContainText("12:34");
     await expect(card.getByRole("link", { name: "观看完整视频", exact: true })).toHaveAttribute(
       "href",
       "/watch/video-lead?from=home"
@@ -423,7 +423,7 @@ test.describe("已发布编排：完整视频发现", () => {
     await expect(page.getByRole("button", { name: "脸和手的细节" })).toHaveCount(0);
   });
 
-  test("编辑标题不替换视频原名，导语优先于原平台简介", async ({ page }) => {
+  test("编辑标题不替换视频原名，不展示辅助导语", async ({ page }) => {
     const editorial = cloneEditorial();
     editorial.lead!.content.headline = "不应替换视频名的编辑标题";
     editorial.lead!.video.description = "原平台内容介绍";
@@ -431,11 +431,11 @@ test.describe("已发布编排：完整视频发现", () => {
     const card = page.getByRole("article", { name: "精选视频", exact: true });
     await expect(card).toContainText(LEAD_SLOT.video.title_zh!);
     await expect(card).not.toContainText("不应替换视频名的编辑标题");
-    await expect(card).toContainText(LEAD_CONTENT.dek);
+    await expect(card).not.toContainText(LEAD_CONTENT.dek);
     await expect(card).not.toContainText("原平台内容介绍");
   });
 
-  test("缺导语用现有简介，缺中文标题与其他元信息时保持可用", async ({ page }) => {
+  test("不显示简介小字，缺中文标题与其他元信息时保持可用", async ({ page }) => {
     const editorial = cloneEditorial();
     editorial.lead!.content.dek = " ";
     editorial.lead!.video = videoCard("video-lead", {
@@ -448,7 +448,7 @@ test.describe("已发布编排：完整视频发现", () => {
     });
     await openEditorial(page, editorial);
     const card = page.getByRole("article", { name: "精选视频", exact: true });
-    await expect(card).toContainText("What happens when we compare real and generated images.");
+    await expect(card).not.toContainText("What happens when we compare real and generated images.");
     await expect(card.getByRole("heading")).toHaveText("Original English video");
     await expect(card.getByRole("link", { name: "观看完整视频", exact: true })).toHaveAttribute(
       "href",
@@ -480,7 +480,7 @@ test.describe("已发布编排：完整视频发现", () => {
     await expect(page.getByText("精选内容准备中，先去频道找找。")).toHaveCount(0);
   });
 
-  test("推荐流保留中文标题与内容简介，不请求学习指标", async ({ page }) => {
+  test("推荐流保留双语标题并移除说明小字，不请求学习指标", async ({ page }) => {
     await mockHome(page, null);
     const metadataRequests: string[] = [];
     page.on("request", (request) => {
@@ -507,7 +507,7 @@ test.describe("已发布编排：完整视频发现", () => {
     const feed = page.locator("#feed");
     await expect(feed).toContainText("中文内容标题");
     await expect(feed).toContainText("English title");
-    await expect(feed).toContainText("这条视频介绍动物如何辨认同伴。");
+    await expect(feed).not.toContainText("这条视频介绍动物如何辨认同伴。");
     expect(metadataRequests).toEqual([]);
     await expect(
       feed.locator('[aria-label^="点赞数"], [aria-label^="播放量"], [aria-label^="收藏数"]')
@@ -528,7 +528,8 @@ test.describe("已发布编排：完整视频发现", () => {
         await page.setViewportSize({ width, height });
         await page.goto("/");
         const card = page.getByRole("article", { name: "精选视频", exact: true });
-        await expect(card).toContainText(LEAD_CONTENT.dek);
+        await expect(card).toContainText(LEAD_SLOT.video.title);
+        await expect(card).not.toContainText(LEAD_CONTENT.dek);
         const action = card.getByRole("link", { name: "观看完整视频", exact: true });
         await action.scrollIntoViewIfNeeded();
         await expect(action).toBeInViewport();

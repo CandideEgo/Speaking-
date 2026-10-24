@@ -18,7 +18,6 @@ import { ComplianceInfo } from "@/components/common/ComplianceInfo";
  */
 export function AuthCard({
   title,
-  subtitle,
   children,
   wide = false,
   headerActions,
@@ -52,7 +51,6 @@ export function AuthCard({
 
       <header>
         <h1 className={cn("font-display text-ink", wide && "max-w-[40rem]")}>{title}</h1>
-        {subtitle && <p>{subtitle}</p>}
       </header>
 
       {children}

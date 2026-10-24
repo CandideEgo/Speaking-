@@ -14,6 +14,7 @@
 ## 公共组件
 
 - 页面标题 PageHeader；操作 Button/LinkButton；筛选 TabPills；容器 Card。
+- 页面与分区标题下不展示小字导语、解释副标题。只保留标题、真实频道简介/视频名/统计与必要的操作反馈。
 - 视频卡 VideoCard/HomeFeedCard；频道卡 ChannelCard；视频数据 VideoMetadata/VideoStats。
 - 加载 Skeleton/VideoCardSkeleton；无数据 EmptyState；请求失败 ErrorState + 重试；错误提示 toastApiError。
 - 所有数量只使用 lib/format.formatCount（utils 与 formatViews 兼容转发）；中文 万/亿，英文 K/M/B。未知不填 0，真实 0 必须展示。
