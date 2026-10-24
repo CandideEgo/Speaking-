@@ -216,8 +216,20 @@ def create_app() -> FastAPI:
     # any create_all (e.g. conftest in tests) or Alembic autogenerate runs.
     from app import models
 
-    app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
-    Instrumentator().instrument(app).expose(app)
+    # Defence in depth: the public docs/schema (and the metrics endpoint) are
+    # useful in dev but are not part of the public surface. Production nginx
+    # happens to route only /api/, /media/ and /health to the backend, but a
+    # future proxy change must not be the only thing hiding them.
+    is_production = settings.env == "production"
+    app = FastAPI(
+        title=settings.app_name,
+        debug=settings.debug,
+        lifespan=lifespan,
+        docs_url=None if is_production else "/docs",
+        redoc_url=None if is_production else "/redoc",
+        openapi_url=None if is_production else "/openapi.json",
+    )
+    Instrumentator().instrument(app).expose(app, endpoint="/internal/metrics" if is_production else "/metrics")
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)

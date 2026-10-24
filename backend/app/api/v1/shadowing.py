@@ -1,4 +1,9 @@
-"""Authenticated compatibility routes for retired recording features."""
+"""Authenticated compatibility routes for retired recording features.
+
+Each (path, method) is a distinct function so FastAPI/OpenAPI gets a unique
+operation id. Stacking several methods on one function made the generated
+operation ids collide (invalid OpenAPI for code generators/schema validators).
+"""
 
 from fastapi import APIRouter, Depends, Request
 
@@ -9,8 +14,26 @@ from app.services.retired_features import feature_gone
 router = APIRouter(prefix="/shadowing", tags=["shadowing"])
 
 
-@router.api_route("/attempts", methods=["GET", "POST"])
-@router.api_route("/attempts/{attempt_id}", methods=["PATCH", "DELETE"])
+@router.get("/attempts")
+async def list_shadowing_attempts(request: Request, current_user: User = Depends(get_current_user)):
+    feature_gone()
+
+
+@router.post("/attempts")
+async def create_shadowing_attempt(request: Request, current_user: User = Depends(get_current_user)):
+    feature_gone()
+
+
+@router.patch("/attempts/{attempt_id}")
+async def update_shadowing_attempt(request: Request, attempt_id: str, current_user: User = Depends(get_current_user)):
+    feature_gone()
+
+
+@router.delete("/attempts/{attempt_id}")
+async def delete_shadowing_attempt(request: Request, attempt_id: str, current_user: User = Depends(get_current_user)):
+    feature_gone()
+
+
 @router.get("/stats")
-async def retired_shadowing(request: Request, current_user: User = Depends(get_current_user)):
+async def shadowing_stats(request: Request, current_user: User = Depends(get_current_user)):
     feature_gone()

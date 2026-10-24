@@ -14,7 +14,7 @@
   - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **已修（功能漂移）**：新增 `p7q8r9s0t1u2` 对齐迁移（只补不删、先查重复/孤儿；唯一约束、FK、dedup 索引、vocabulary 索引重命名、列注释、模型 nullability/Text 对齐），并新增 `scripts/check_schema_drift.py` 门禁（剩 7 条退役表相关差异，逐条带原因；新漂移即失败）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
 - **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
-- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 18 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
+- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 20 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
 
 ## 2. 本轮已落地的修复
 
@@ -25,6 +25,8 @@
 | BE-01 | 非 development 只校验 `JWT_SECRET` 非空；`jwt_algorithm` 可被 env 改成任意值 | `backend/app/core/config.py` 增加 ≥32 字符、拒绝开发默认值、算法白名单 `HS256/384/512`；`backend/.env.example` 同步 | `test_config_env_guard.py` 22 passed（新增 6 条强度用例） |
 | BE-02 | `POST /behavior/events` 的 `complete` 无幂等：重复调用会重复 `view_count++`、重复发 `completed_video`、每次删光 `browse:*` / `rankings:snapshot:*` | `behavior_service.py` 用 Redis 去重键（6h，按 user+video+session）在**副作用层**去重；`ingest_*` 返回「是否真的写了副作用」，`behavior.py` 只在首次完成时失效缓存；Redis 故障 fail-open，不阻断播放埋点 | 新增 `test_duplicate_complete_is_idempotent`；`test_behavior_api.py` 13 passed |
 | BE-18 | 历史交卷列表用 `int(score * question_count)` 反推答对数，截断少报 | `exam_service.list_attempts` 改为按 session 聚合 `ExamAnswer.correct` | `test_attempt_history_correct_count_uses_answer_rows`；`test_exams_api.py` 21 passed |
+| BE-17 | `/metrics`、`/docs`、`/redoc`、`/openapi.json` 在应用层无鉴权，生产只靠 nginx 不转发 | production 关闭 docs/redoc/openapi（`docs_url/redoc_url/openapi_url=None`），metrics 端点从 `/metrics` 移到 `/internal/metrics`；开发/测试保持原路径 | 新增 `test_exposure.py` 2 项：production 下 docs 路由不存在且 metrics 改名、development 下两者保留；全量见下 |
+| BE-20 | `shadowing.py` 用叠加装饰器把多个方法绑到同一函数，OpenAPI operationId 重复；`shadowing-sentences` 的 `response_model=list[dict]` 与恒 410 实现不符 | 每个 (path, method) 拆成独立函数（5 条兼容路由 + videos 1 条），删除 410 端点的 `response_model` | 新增 `test_openapi_contract.py` 2 项：全 schema operationId 唯一、shadowing 6 条 id 互不重复；`test_response_contract.py` 16 项通过 |
 | BE-24 | 字幕搜索无条件用 `plainto_tsquery`，SQLite 测试库直接报错、且无测试覆盖 | `search_service.search_subtitles` 按方言分流（Postgres FTS / 其他 ILIKE） | `test_search_d7.py` 新增 2 条，16 passed |
 | BE-05 | nginx 限流 location 指向不存在的 `/auth/login|register`，真实入口完全无限流 | `nginx.conf` / `nginx.ssl.conf` 改为 `sms/login`、`phone-login`、`sms/register`、`sms/reset-password`、`sms/send-code` 的精确 location | 配置 grep 核对；未在真实 nginx 上 reload（本机无生产） |
 | BE-04 | 媒体/PDF 的 `?token=` 是第二份更弱的校验：不查黑名单、改密、封禁 | `dependencies.resolve_token_user()` 成为字符串 token 的唯一入口；`media._viewer_id_from_request`、shadowing 校验与 `exam_pdfs` 全部走同一条链 | `test_media_access.py` 新增被封禁 owner、改密后旧 token、被封禁 shadowing owner 三条用例；media + PDF 47 passed |
@@ -109,7 +111,7 @@
 - **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **BE-17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
+- **BE-19/21–23/25/27–31**：未修，建议见 `backend-architecture.md`。
 - **对存量库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库就有 58 + 49 条）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。
 - **前端剩余结构性缺口**：收藏页 3 类 tab + 内联笔记的密度、通知页的精简列表、应用壳页脚（设计无、但保留协议/隐私/反馈入口）、侧栏折叠与其余打磨项；首页继续观看、频道 hero、会员状态卡、学习记录统计卡已在本轮补齐。
 

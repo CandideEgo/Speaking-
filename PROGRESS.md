@@ -240,3 +240,15 @@
 - GPU 转录最终失败、回调投递最终失败：`_send_alert_sync` 在同步 Celery 任务里 `asyncio.run(send_alert(...))`，best-effort，不影响任务本身。
 - lifespan 在生产未配置 `ALERT_WEBHOOK_URL` 时打 warning，避免把无效开关当成已接线。
 - 无 webhook 时 `send_alert` 仍回退站内管理员通知；新增/扩展 3 个用例验证 watchdog 双通道、投递最终失败告警、转录最终失败先回 error 再告警；全量后端 1370 passed / 16 skipped。
+
+### 生产关闭 docs/schema、metrics 移入内部路径（BE-17）
+
+- `create_app()` 在 `env=production` 时不注册 `/docs`、`/redoc`、`/openapi.json`；开发/测试保留。
+- Prometheus metrics 在 production 从 `/metrics` 移到 `/internal/metrics`，不再依赖 nginx 是唯一遮挡。
+- 新增 `test_exposure.py` 2 项（production 无 docs 路由且 metrics 改名、development 保留两者）。
+
+### OpenAPI operationId 唯一（BE-20）
+
+- `shadowing.py` 每个 (path, method) 拆成独立函数，消除叠加装饰器导致的重复 operationId（5 条兼容路由）。
+- `GET /videos/{id}/shadowing-sentences` 删除与恒 410 实现不符的 `response_model=list[dict]`。
+- 新增 `test_openapi_contract.py` 2 项：全 schema operationId 唯一、shadowing 6 条路由 id 互不重复；`test_response_contract.py` 16 项通过；全量后端 1374 passed / 16 skipped。

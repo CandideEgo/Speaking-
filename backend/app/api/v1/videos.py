@@ -1023,7 +1023,7 @@ async def list_video_vocabulary(
 # Phase 1 B0 — return the top-N sentences with the highest exam-word density,
 # used by the EndScreen "跟读重点句" entry. Falls back to the first N
 # sentences when no exam words are tagged.
-@router.get("/{video_id}/shadowing-sentences", response_model=list[dict])
+@router.get("/{video_id}/shadowing-sentences")
 @rate_limit("30/minute")
 async def list_shadowing_sentences(
     request: Request,
