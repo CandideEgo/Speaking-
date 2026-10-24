@@ -6,6 +6,7 @@ import { ArrowRight, CirclePlay, Flame } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { formatDuration } from "@/lib/format";
 import { watchHref } from "@/lib/watchEntry";
 import type { VideoCard } from "@/types";
@@ -73,7 +74,7 @@ export function DiscoverContinue() {
       <span className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-sm bg-surface-card">
         <Image src={video.thumbnail_url} alt="" sizes="96px" />
       </span>
-      <span className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-caption font-semibold text-brand-700">
           <CirclePlay size={13} aria-hidden /> 继续观看 · {progress}%
         </span>
@@ -84,13 +85,14 @@ export function DiscoverContinue() {
           {video.title}
           {remaining != null && remaining > 0 ? ` · 还剩 ${formatDuration(remaining)}` : ""}
         </span>
+        <VideoMetadata video={video} className="mt-1" />
         <span className="mt-1.5 block h-[3px] overflow-hidden rounded-pill bg-surface-card">
           <span
             className="block h-full rounded-pill bg-brand-500"
             style={{ width: `${progress}%` }}
           />
         </span>
-      </span>
+      </div>
       <span className="shrink-0 rounded-pill border border-hairline px-3 py-1.5 text-meta font-semibold text-ink group-hover:border-hairline-strong">
         继续
       </span>

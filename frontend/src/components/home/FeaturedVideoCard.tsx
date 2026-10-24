@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Play } from "lucide-react";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
 import { formatDuration } from "@/lib/format";
 import { watchHref } from "@/lib/watchEntry";
@@ -119,6 +120,8 @@ export function FeaturedVideoCard({
               </span>
             )}
           </div>
+
+          <VideoMetadata video={video} />
 
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <LinkButton href={href} icon={Play}>
