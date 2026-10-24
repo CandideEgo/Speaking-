@@ -292,3 +292,10 @@
 - 首页 feed 工具条移除「时长」下拉，只留分类 chips + 难度 + 排序 + 条数；HomeFeed 同步删掉 DURATION_OPTIONS / durationLabel / 已选筛选里的时长项，筛选状态与请求参数能力保留在 hook 内。
 - `npm run check` 通过（design-system 9 条 + session-writes + tsc + eslint + prettier）；`npm run test:unit` 332 passed。
 - e2e `home-feed.spec.ts` 新增两条契约断言（无 `#feed-duration`、无协议页脚）；在 `localhost:3000` 下 **7 passed**。中途用 `127.0.0.1` 覆盖 `PLAYWRIGHT_BASE_URL` 时 dev server 的 HMR/水合不工作，改用配置默认的 localhost 后通过（不是本轮改动回归）。
+
+### 首页 rail 单条周进度、续看常驻占位（V-13 / V-24）
+
+- DiscoverRail 的「本周节奏」从 7 段小条改为单条进度条（days_active / 7，带 role=progressbar 与 aria-valuenow），并补回设计说明「只记录发生过的学习；没有任务打卡，也不补记。」
+- 「继续观看」在无记录时不再整块消失，改为同几何的占位条（封面占位 + kicker + 「看一段视频就会出现在这里」+ 提示），首屏高度保持稳定；失败态与重试逻辑不变。
+- home-continue-learning.spec.ts：无记录用例改为断言占位条；新增「本周节奏」用例断言单条进度条 aria-valuenow=4 与说明文案；**7 passed**（chromium / localhost）。
+- `npm run check` 通过；`npm run test:unit` 332 passed。

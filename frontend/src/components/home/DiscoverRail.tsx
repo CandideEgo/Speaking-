@@ -59,7 +59,32 @@ export function DiscoverContinue() {
       </p>
     );
   }
-  if (!item) return null;
+  if (!item) {
+    // Design keeps this strip as a permanent module (V-24): hiding it on a
+    // fresh account shifts the whole first screen up by one row.
+    return (
+      <div
+        data-testid="continue-learning-placeholder"
+        className="mb-4 flex items-center gap-3 rounded-md border border-dashed border-hairline bg-canvas p-2.5"
+      >
+        <span className="grid aspect-video w-24 shrink-0 place-items-center rounded-sm bg-surface-card text-muted">
+          <CirclePlay size={20} aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="text-caption font-semibold uppercase tracking-[0.07em] text-brand-700">
+            继续观看
+          </span>
+          <span className="mt-0.5 block text-copy font-semibold text-ink">
+            看一段视频就会出现在这里
+          </span>
+          <span className="mt-0.5 block text-meta text-muted">
+            自动记住上次播放位置，回来接着看。
+          </span>
+        </div>
+        <span className="shrink-0 text-caption text-muted">未开始</span>
+      </div>
+    );
+  }
   const { video } = item;
   const progress = Math.max(0, Math.min(100, Math.round(item.progress_percentage)));
   const remaining = item.remaining_seconds;
@@ -159,6 +184,8 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
 
   const due = overview?.words?.due_review_count ?? initialDue;
   const week = overview?.this_week;
+  const weekDays = Math.max(0, Math.min(7, week?.days_active ?? 0));
+  const weekProgress = Math.round((weekDays / 7) * 100);
 
   return (
     <aside className="flex flex-col gap-3" aria-label="今天的进度">
@@ -256,18 +283,22 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
             </dd>
           </div>
         </dl>
-        <div className="mt-2 flex gap-1">
-          {(
-            week?.daily ??
-            Array.from({ length: 7 }, () => ({ date: "", minutes: 0, active: false }))
-          ).map((day, index) => (
-            <span
-              key={`${day.date}-${index}`}
-              title={day.date ? `${day.date} · ${day.minutes} 分钟` : undefined}
-              className={`h-1.5 flex-1 rounded-pill ${(day.active ?? day.minutes > 0) ? "bg-brand-500" : "bg-surface-card"}`}
-            />
-          ))}
+        <div
+          className="mt-2.5 h-1.5 overflow-hidden rounded-pill bg-surface-card"
+          role="progressbar"
+          aria-label="本周学习天数"
+          aria-valuemin={0}
+          aria-valuemax={7}
+          aria-valuenow={weekDays}
+        >
+          <span
+            className="block h-full rounded-pill bg-brand-500"
+            style={{ width: `${weekProgress}%` }}
+          />
         </div>
+        <p className="mt-2 text-meta leading-relaxed text-muted">
+          只记录发生过的学习；没有任务打卡，也不补记。
+        </p>
       </section>
     </aside>
   );
