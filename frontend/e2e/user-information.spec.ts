@@ -366,6 +366,12 @@ test("收藏保留笔记与日期，历史保留观看进度和来源信息", as
   await page.goto("/favorites");
   await expect(page.getByText(VIDEO.description, { exact: true })).toBeVisible();
   await expect(page.getByText("想再听一次的内容", { exact: false })).toBeVisible();
+  // 设计是「视频 / 原句」tab，不再是三段常驻（V-18）。
+  await expect(page.getByRole("region", { name: "收藏的视频" })).toBeVisible();
+  await page.getByRole("button", { name: /^原句 \d+$/ }).click();
+  await expect(page.getByRole("region", { name: "收藏的句子" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "收藏的视频" })).toHaveCount(0);
+  await page.getByRole("button", { name: /^视频 \d+$/ }).click();
   const card = page.locator("a").filter({ has: page.getByText(VIDEO.title_zh, { exact: true }) });
   await expect(card).toBeVisible();
   await expect(

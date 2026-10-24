@@ -307,3 +307,12 @@
 - `user-information.spec.ts` 的默认页用例改为断言「学习资产」区域存在、且六宫格里的 `/favorites`、`/upgrade` 链接不再出现；该 spec **11 passed**。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。
+
+### 收藏页改为「视频 / 原句 / 词」tab（V-18）
+
+- 收藏页从三段常驻 + 右栏说明改为 tab 切换：默认「视频」，可切「原句」「词」，计数在 tab 上；主栏恢复整宽，视频改为设计的两列网格。
+- 删除重复的统计条与右栏「三组分别怎么收 / 取一个出来练」说明；空态和分组逻辑保留。
+- `user-information.spec.ts` 的收藏用例新增 tab 断言：默认视频区可见，切到原句后句子区可见且视频区卸载，再切回；该 spec **11 passed**。
+- `design-rollout.spec.ts` 的「收藏句子后回看」用例补了先切「原句」tab 的一步；该 spec 依赖 testing 后端，本轮未复跑（未执行）。
+- `npm run check` 通过；`npm run test:unit` 332 passed。
+- `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。

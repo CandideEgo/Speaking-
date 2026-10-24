@@ -176,6 +176,8 @@ test("观看页保留全站导航，播放控制和句子收藏位于内容区",
   await page.reload();
   await expect(unsave).toHaveAttribute("aria-pressed", "true");
   await page.goto("/favorites");
+  // 设计收藏页是「视频 / 原句」两个 tab（V-18）：先切到原句再看保存的句子。
+  await page.getByRole("button", { name: /原句/ }).click();
   const saved = page
     .getByRole("region", { name: "收藏的句子", exact: true })
     .getByRole("link")

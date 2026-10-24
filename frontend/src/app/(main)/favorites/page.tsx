@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Bookmark, BookOpen, Clock, FileText, HelpCircle, Play, Trash2 } from "lucide-react";
+import { Bookmark, Play, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -19,6 +19,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { TabPills } from "@/components/ui/TabPills";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { toastApiError } from "@/lib/errors";
 import type { Paginated, VideoCard as VideoCardDTO, VocabularyWord } from "@/types";
@@ -84,6 +85,8 @@ export default function FavoritesPage() {
   const [removingSentenceId, setRemovingSentenceId] = useState<string | null>(null);
   const [removeWord, setRemoveWord] = useState<VocabularyWord | null>(null);
   const [wordBusy, setWordBusy] = useState(false);
+  // 设计是「视频 / 原句」两个 tab；「词」作为第三个 tab，避免三组常驻把主栏压窄（V-18）。
+  const [activeTab, setActiveTab] = useState<"videos" | "sentences" | "words">("videos");
 
   const fetcher = useCallback(
     (page: number) =>
@@ -114,14 +117,6 @@ export default function FavoritesPage() {
   const words = usePaginatedList<VocabularyWord>({ fetcher: wordFetcher, mode: "append" });
 
   useScrollRestore(scrollKey(pathname, searchParams.toString()), items.length > 0);
-
-  const lastFavorited = useMemo(() => {
-    const dates = items
-      .map((v) => v.favorited_at)
-      .filter((x): x is string => Boolean(x))
-      .sort();
-    return dates.length ? dates[dates.length - 1] : null;
-  }, [items]);
 
   async function handleUnfavorite(videoId: string, title: string) {
     setRemovingIds((prev) => new Set(prev).add(videoId));
@@ -222,77 +217,49 @@ export default function FavoritesPage() {
         />
 
         {!allEmpty && (
-          <div className="mt-6 user-stat-grid">
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {total}
-                <span className="ml-1 text-meta font-semibold text-muted">段</span>
-              </span>
-              <span className="user-stat-label">收藏的视频</span>
-            </div>
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {sentences.total}
-                <span className="ml-1 text-meta font-semibold text-muted">句</span>
-              </span>
-              <span className="user-stat-label">收藏的句子</span>
-            </div>
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {words.total}
-                <span className="ml-1 text-meta font-semibold text-muted">词</span>
-              </span>
-              <span className="user-stat-label">收藏的词</span>
-            </div>
-            {/* 一次都还没收藏时不占位：一格「— 最近一次收藏」不回答任何问题，
-                手机上还要占掉统计块的四分之一。 */}
-            {lastFavorited && (
-              <div className="user-stat">
-                <span className="user-stat-num">{formatMonthDay(lastFavorited)}</span>
-                <span className="user-stat-label">最近一次收藏</span>
-              </div>
-            )}
+          <div className="mt-6">
+            <TabPills
+              tabs={[
+                { key: "videos", label: `视频 ${total}` },
+                { key: "sentences", label: `原句 ${sentences.total}` },
+                { key: "words", label: `词 ${words.total}` },
+              ]}
+              activeKey={activeTab}
+              onChange={(key) => setActiveTab(key as typeof activeTab)}
+            />
           </div>
         )}
 
-        <div className="user-page-layout has-aside">
-          <div className="user-page-main">
-            {allEmpty ? (
-              <div className="rounded-lg border border-dashed border-hairline-strong bg-surface-soft p-6">
-                <div className="flex items-start gap-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-canvas text-muted">
-                    <Bookmark size={18} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-copy-lg font-semibold text-ink">收藏还是空的</p>
-                    <p className="mt-1 max-w-[52ch] text-copy leading-relaxed text-body">
-                      看视频时，右上角书签收藏整段，字幕句尾的书签收藏一句；字幕里点词，词卡里的「收进词库」收藏单词。收藏会连同原句、时间点和学习进度一起留着。
-                    </p>
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <LinkButton href="/" variant="outline" size="sm" icon={Play}>
-                        去首页挑一段
-                      </LinkButton>
-                      <LinkButton href="/vocabulary" variant="text" size="sm" iconRight>
-                        看词库
-                      </LinkButton>
-                    </div>
+        <div className="mt-6">
+          {allEmpty ? (
+            <div className="rounded-lg border border-dashed border-hairline-strong bg-surface-soft p-6">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-canvas text-muted">
+                  <Bookmark size={18} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-copy-lg font-semibold text-ink">收藏还是空的</p>
+                  <p className="mt-1 max-w-[52ch] text-copy leading-relaxed text-body">
+                    看视频时，右上角书签收藏整段，字幕句尾的书签收藏一句；字幕里点词，词卡里的「收进词库」收藏单词。收藏会连同原句、时间点和学习进度一起留着。
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <LinkButton href="/" variant="outline" size="sm" icon={Play}>
+                      去首页挑一段
+                    </LinkButton>
+                    <LinkButton href="/vocabulary" variant="text" size="sm" iconRight>
+                      看词库
+                    </LinkButton>
                   </div>
                 </div>
               </div>
-            ) : (
-              <>
-                {/* ---------------- 收藏的视频 ---------------- */}
-                <section aria-labelledby="f-video-title">
-                  <div className="user-sec-head">
-                    <h2 className="user-sec-title flex items-center gap-2" id="f-video-title">
-                      <Play size={17} className="text-muted" />
-                      收藏的视频
-                    </h2>
-                    <span className="user-sec-sub">{total} 段</span>
-                  </div>
-
+            </div>
+          ) : (
+            <>
+              {/* ---------------- 收藏的视频 ---------------- */}
+              {activeTab === "videos" && (
+                <section aria-label="收藏的视频">
                   {loading && items.length === 0 ? (
-                    <div className="mt-4 grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
+                    <div className="grid gap-5 sm:grid-cols-2">
                       {Array.from({ length: 4 }).map((_, i) => (
                         <VideoCardSkeleton key={i} />
                       ))}
@@ -313,7 +280,7 @@ export default function FavoritesPage() {
                     </GroupEmpty>
                   ) : (
                     <>
-                      <div className="mt-4 grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
+                      <div className="grid gap-5 sm:grid-cols-2">
                         {visible.map((v) => (
                           <div key={v.id} className="flex min-w-0 flex-col gap-2">
                             <VideoCard video={v} entry={{ from: "favorites" }} />
@@ -369,17 +336,12 @@ export default function FavoritesPage() {
                     </>
                   )}
                 </section>
+              )}
 
-                {/* ---------------- 收藏的句子 ---------------- */}
-                <section aria-labelledby="f-sent-title">
-                  <div className="user-sec-head">
-                    <h2 className="user-sec-title flex items-center gap-2" id="f-sent-title">
-                      <FileText size={17} className="text-muted" />
-                      收藏的句子
-                    </h2>
-                    <span className="user-sec-sub">{sentences.total} 句</span>
-                  </div>
-                  <p className="mt-3 max-w-[62ch] text-meta leading-relaxed text-body">
+              {/* ---------------- 收藏的句子 ---------------- */}
+              {activeTab === "sentences" && (
+                <section aria-label="收藏的句子">
+                  <p className="max-w-[62ch] text-meta leading-relaxed text-body">
                     句子和它所在的时间点一起存；点时间回观看页，从那一句开始。
                   </p>
 
@@ -466,17 +428,12 @@ export default function FavoritesPage() {
                     </Button>
                   )}
                 </section>
+              )}
 
-                {/* ---------------- 收藏的词 ---------------- */}
-                <section aria-labelledby="f-word-title">
-                  <div className="user-sec-head">
-                    <h2 className="user-sec-title flex items-center gap-2" id="f-word-title">
-                      <Bookmark size={17} className="text-muted" />
-                      收藏的词
-                    </h2>
-                    <span className="user-sec-sub">{words.total} 个词</span>
-                  </div>
-                  <p className="mt-3 max-w-[62ch] text-meta leading-relaxed text-body">
+              {/* ---------------- 收藏的词 ---------------- */}
+              {activeTab === "words" && (
+                <section aria-label="收藏的词">
+                  <p className="max-w-[62ch] text-meta leading-relaxed text-body">
                     这里与生词本共用词条；移除会同时删除该词的复习进度。
                   </p>
 
@@ -554,66 +511,9 @@ export default function FavoritesPage() {
                     </Button>
                   )}
                 </section>
-              </>
-            )}
-          </div>
-
-          {/* 右栏：三组怎么收 / 取一个出来练 / 说明（1280+ 才出现，CSS 原语控制） */}
-          <aside className="user-page-aside" aria-label="收藏说明">
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">三组分别怎么收</h2>
-              <ul className="flex flex-col gap-2 text-meta text-body">
-                <li className="flex items-baseline justify-between gap-3">
-                  <span>视频</span>
-                  <b className="font-semibold text-ink">观看页书签</b>
-                </li>
-                <li className="flex items-baseline justify-between gap-3">
-                  <span>句子</span>
-                  <b className="font-semibold text-ink">字幕句尾书签</b>
-                </li>
-                <li className="flex items-baseline justify-between gap-3">
-                  <span>词</span>
-                  <b className="font-semibold text-ink">词卡「收进词库」</b>
-                </li>
-                <li className="flex items-baseline justify-between gap-3">
-                  <span>最近收藏</span>
-                  <b className="font-semibold tabular-nums text-ink">
-                    {lastFavorited ? formatMonthDay(lastFavorited) : "—"}
-                  </b>
-                </li>
-              </ul>
-            </section>
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">取一个出来练</h2>
-              <div className="flex flex-col gap-2">
-                <Link
-                  href="/practice"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <BookOpen size={14} className="text-muted" />
-                  开始阅读练习
-                </Link>
-                <Link
-                  href="/vocabulary"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Bookmark size={14} className="text-muted" />
-                  复习词库里到期的词
-                </Link>
-                <Link
-                  href="/history"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Clock size={14} className="text-muted" />
-                  看学习记录
-                </Link>
-              </div>
-            </section>
-            <p className="flex items-start gap-1.5 text-caption leading-relaxed text-muted">
-              <HelpCircle size={14} className="mt-0.5 shrink-0" />
-              <span>取消视频或句子收藏后，可通过提示中的「撤销」恢复。移除生词前会再次确认。</span>
-            </p>
-          </aside>
+              )}
+            </>
+          )}
         </div>
 
         <ConfirmDialog
