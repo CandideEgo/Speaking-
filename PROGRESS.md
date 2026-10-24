@@ -210,3 +210,9 @@
 - `_post_transcription_callback` 把 408/425/429 与 5xx 一并视为瞬时失败重试，其余 4xx 仍永久失败；429（回调端点 30/min 限流）不再丢弃已完成的转录。
 - `transcribe_video_gpu` 检查回调返回值：False 时 `raise self.retry(countdown=60)`，避免 Celery 任务“成功”而视频永远停在 `processing`；投递失败与转录异常的重试路径分开，避免重复 retry。
 - 新增 `test_callback_delivery.py` 5 项（429→200、401 不重试、5xx 耗尽、投递失败 retry、投递成功不 retry）通过；全量后端 1358 passed / 16 skipped。
+
+### 管线锁覆盖长流程、翻译步骤及时打点（BE-12）
+
+- 锁 TTL 从固定 60 min 改为 `sum(step_timeouts) + 10min`（最低 60min），覆盖 translating 30 + annotating 5 + prewarm 30 + classifying 10 + downloading 60 + transcoding 30 的预算；`run_steps` 在每个步骤边界 `refresh_lock` 续期，Redis 故障仅告警不阻断。
+- `_run_translating` 在调用 LLM 前先写 `processing_step=translating` 并 `touch_step_started_at`，长翻译不再被 watchdog 按转录开始时间误判；翻译结束不再重置时间戳。
+- 新增 `test_pipeline_lock_ttl.py` 5 项（TTL 覆盖、60min 下限、refresh、Redis 故障不阻断、翻译前打点）与既有 `test_pipeline_steps.py` 6 项通过；全量后端 1363 passed / 16 skipped。

@@ -539,6 +539,14 @@ async def _run_translating(ctx: PipelineCtx) -> None:
     from app.models.video import VideoStatus
 
     db, video, video_id = ctx.db, ctx.video, ctx.video_id
+    # Stamp the translating step *before* the LLM work starts. The old code
+    # only touched step_started_at after every subtitle was translated, so the
+    # watchdog kept seeing the transcription start time while a long
+    # translation was legitimately running and could mark the video error.
+    video.processing_step = "translating"
+    touch_step_started_at(video)
+    video.processing_progress = STEP_PROGRESS["translating"]
+    await db.commit()
     sub_result = await db.execute(
         select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
     )
@@ -610,8 +618,6 @@ async def _run_translating(ctx: PipelineCtx) -> None:
 
         video.title_zh = await translate_video_title(video.title, engine=ctx.engine)
 
-    video.processing_step = "translating"
-    touch_step_started_at(video)
     video.processing_progress = STEP_PROGRESS["translating"]
     await db.commit()
     await update_progress(video_id, "translating")
