@@ -32,6 +32,9 @@ import { WatchBottomBar } from "@/components/watch/WatchBottomBar";
 import { SaveSentenceButton } from "@/components/watch/SaveSentenceButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { VideoTitle } from "@/components/video/VideoTitle";
+import { WatchSourceCard } from "@/components/watch/WatchSourceCard";
+import { RelatedVideos } from "@/components/watch/RelatedVideos";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { VideoStats } from "@/components/video/VideoStats";
 import { PublishedVideoEditorial } from "@/components/watch/PublishedVideoEditorial";
 import { useWatchStageWidth } from "@/hooks/useWatchStageWidth";
@@ -1064,6 +1067,7 @@ export default function WatchPage() {
           )}
         </div>
 
+        <VideoMetadata video={video} className="mt-2" />
         <div className="mt-3">
           <VideoActions
             compact={false}
@@ -1570,7 +1574,8 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      <details className="mt-6 border-t border-hairline py-3">
+      <WatchSourceCard video={video} />
+      <details open className="mt-4 border-t border-hairline py-3">
         <summary className="cursor-pointer text-copy font-semibold text-ink">视频信息</summary>
         <div className="mt-3 space-y-3">
           {video.description?.trim() && (
@@ -1616,6 +1621,7 @@ export default function WatchPage() {
         </div>
       </details>
       <PublishedVideoEditorial key={video.id} video={video} />
+      <RelatedVideos videoId={video.id} />
 
       <section
         aria-label="接着看"
