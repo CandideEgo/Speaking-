@@ -46,6 +46,7 @@ import { reducedAid, validInterval } from "@/lib/watchSession";
 import { cefrWithExamHint } from "@/lib/cefrLevels";
 import {
   ArrowLeft,
+  ArrowRight,
   Loader2,
   Play,
   Bookmark,
@@ -1291,7 +1292,8 @@ export default function WatchPage() {
             >
               <div className="hidden lg:contents">
                 <Button
-                  variant="outline"
+                  variant="text"
+                  icon={ArrowLeft}
                   onClick={() => {
                     resumeFollow();
                     navigateSubtitle(-1);
@@ -1301,6 +1303,8 @@ export default function WatchPage() {
                   上一句
                 </Button>
                 <Button
+                  variant="text"
+                  icon={Play}
                   onClick={() => handleReplay()}
                   disabled={
                     !currentSubtitle ||
@@ -1314,7 +1318,9 @@ export default function WatchPage() {
                   重听本句
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="text"
+                  icon={ArrowRight}
+                  iconRight
                   onClick={() => {
                     resumeFollow();
                     navigateSubtitle(1);
@@ -1323,6 +1329,7 @@ export default function WatchPage() {
                 >
                   下一句
                 </Button>
+                <span aria-hidden className="mx-1 h-[18px] w-px shrink-0 bg-hairline" />
               </div>
               <Button variant="text" onClick={() => handleReplay(true)} disabled={!currentSubtitle}>
                 少一点辅助再听
@@ -1330,6 +1337,7 @@ export default function WatchPage() {
               <Button variant="text" onClick={play}>
                 继续播放
               </Button>
+              <span aria-hidden className="mx-1 h-[18px] w-px shrink-0 bg-hairline" />
               {currentSubtitle && <SaveSentenceButton subtitleId={currentSubtitle.id} />}
               {temporaryMode !== null && (
                 <Button variant="outline" onClick={() => setTemporaryMode(null)}>

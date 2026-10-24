@@ -338,5 +338,13 @@
 - 新增数据请求：`/exams/attempts?page_size=1` 与 `/vocabulary/stats`；失败时卡片显示空态，不阻塞记录列表。
 - `user-information.spec.ts` 的历史用例改为只断言记录列表里的标题，并新增三张卡标题断言；整份 spec **12 passed**。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
+
+### 观看页动作行统一为 ghost 文本按钮 + 分隔线（V-23）
+
+- 「上一句 / 重听本句 / 下一句」从 outline/primary 改为 ghost 文本按钮，带图标；`SaveSentenceButton` 也从 outline 改为 text。
+- 按设计把动作分成三组并用竖分隔线（上一句/重听/下一句 | 收藏 | 少一点辅助再听/继续播放）；蓝色实心不再出现在这一行，留给全站唯一主操作。
+- 保留了产品特有的「少一点辅助再听」「继续播放」动作，但视觉语言与契约一致；未删除任何功能。
+- `ui-review-fixes-mobile.spec.ts` 的主按钮对比度用例改到登录页的 primary 提交按钮上验证（观看页动作行已没有主按钮）；该用例 1 passed。
+- watch 相关 e2e：`watch-desktop-stage` + `watch-baseline-mobile` **17 passed**；`npm run check` 通过；`npm run test:unit` 332 passed。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。

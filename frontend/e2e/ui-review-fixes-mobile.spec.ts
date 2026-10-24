@@ -104,13 +104,14 @@ test("复习总量、预览与训练分开说明，词性归一化与来源链�
   await expect(page).toHaveURL(`/watch/${VIDEO_ID}?from=drill`);
 });
 
-test("主按钮明暗主题默认与悬停文字对比度至少 4.5", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await setupWatch(page);
-  await openWatch(page);
-  const button = page
-    .getByTestId("sentence-actions")
-    .getByRole("button", { name: "重听本句", exact: true });
+test("主按钮明暗主题默认与悬停文字对比度至少 4.5", async ({ browser }) => {
+  // 观看页的动作行按设计已全部收敛为 ghost 文本按钮（V-23），主按钮改在
+  // 登录页验证：那才是全站 primary action 的真实用色。
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto("/login");
+  const button = page.getByRole("button", { name: "登录", exact: true });
+  await expect(button).toBeVisible({ timeout: 15000 });
   for (const dark of [false, true]) {
     await page.evaluate((value) => document.documentElement.classList.toggle("dark", value), dark);
     for (const hover of [false, true]) {
@@ -137,6 +138,7 @@ test("主按钮明暗主题默认与悬停文字对比度至少 4.5", async ({ p
       expect(ratio).toBeGreaterThanOrEqual(4.5);
     }
   }
+  await context.close();
 });
 
 async function reachable(page: Page, selector: string) {
