@@ -45,7 +45,7 @@ export function MobileTabBar() {
     <nav
       data-testid="mobile-tab-bar"
       aria-label="底部导航"
-      className="z-40 shrink-0 border-t border-hairline bg-canvas md:hidden"
+      className="user-mobile-tabs z-40 shrink-0 border-t border-hairline bg-canvas"
     >
       <div className="grid grid-cols-5">
         {TABS.map((tab) => {

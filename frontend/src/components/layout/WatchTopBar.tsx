@@ -21,7 +21,7 @@ import type { WatchChromeState } from "@/components/watch/WatchChromeProvider";
  * 的常规流行，滚的只有 main，顶栏天然常驻。
  */
 export function WatchTopBar({ chrome = {} }: { chrome?: WatchChromeState }) {
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const isDesktop = useMediaQuery("(min-width: 1025px)");
   if (isDesktop) return <TopBar />;
 
   const { title, levelText, levelSelector, onBack, onMore, moreOpen } = chrome;

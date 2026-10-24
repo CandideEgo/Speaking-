@@ -37,10 +37,12 @@ test("账号读取暂时失败显示重试状态，保留当前页面", async ({
 });
 
 test("导航按断点切换，观看页归属首页", async ({ page }) => {
-  for (const width of [375, 768, 1280, 1440]) {
+  // 设计契约（styles.css:1669）：≤1024 收侧栏、改底部导航。壳层断点必须与
+  // 观看页内部断点（1025）一致，所以 1024 / 1025 两档都要钉住。
+  for (const width of [375, 768, 1024, 1025, 1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    if (width >= 768) {
+    if (width >= 1025) {
       await expect(page.locator(".user-sidebar")).toBeVisible();
       await page.getByRole("button", { name: "折叠导航" }).click();
       await expect(page.getByRole("button", { name: "展开导航" })).toHaveAttribute(
@@ -51,7 +53,8 @@ test("导航按断点切换，观看页归属首页", async ({ page }) => {
     } else {
       await expect(page.locator(".user-sidebar")).toBeHidden();
     }
-    if (width < 768) await expect(page.getByRole("navigation", { name: "底部导航" })).toBeVisible();
+    if (width <= 1024)
+      await expect(page.getByRole("navigation", { name: "底部导航" })).toBeVisible();
     else await expect(page.getByRole("navigation", { name: "底部导航" })).toBeHidden();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(
       false

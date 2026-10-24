@@ -328,7 +328,7 @@ export default function NotificationsPage() {
                               <Link
                                 href={n.related_url}
                                 onClick={() => void markRead(n)}
-                                className="inline-flex items-center gap-1 text-caption font-semibold text-body transition-colors hover:text-brand-700"
+                                className="inline-flex min-h-11 items-center gap-1 px-1 text-caption font-semibold text-body transition-colors hover:text-brand-700"
                               >
                                 查看详情
                                 <ChevronRight size={13} />
@@ -338,7 +338,7 @@ export default function NotificationsPage() {
                               <button
                                 type="button"
                                 onClick={() => void markRead(n)}
-                                className="inline-flex items-center gap-1 text-caption text-body transition-colors hover:text-ink"
+                                className="inline-flex min-h-11 items-center gap-1 px-1 text-caption text-body transition-colors hover:text-ink"
                               >
                                 <Check size={12} />
                                 标为已读

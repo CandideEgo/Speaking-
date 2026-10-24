@@ -13,6 +13,8 @@ export interface User {
   role?: "user" | "admin";
   last_active_at: string | null;
   onboarding_completed: boolean;
+  /** False for phone-only accounts; /set-password uses it to pick first-setup UX. */
+  has_password?: boolean;
   created_at: string;
 }
 

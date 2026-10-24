@@ -14,7 +14,7 @@ export function WatchBottomBar({
   chrome?: WatchChromeState;
   inline?: boolean;
 }) {
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const isDesktop = useMediaQuery("(min-width: 1025px)");
   // 判据用「≤1023px」那一档（计划 §5 说的 pathname + isMobile）。
   // 已知一处**有意保留**的边角：768–1023px（竖屏平板 / 窄桌面窗）`isMobile` 为真，底栏照常
   // 占位；这一段此前就没有实测读数，计划 §12 也明说「不动桌面版式」，所以不在这里加断点 ——

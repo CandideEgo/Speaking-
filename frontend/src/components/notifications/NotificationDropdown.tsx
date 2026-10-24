@@ -48,7 +48,6 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hasFetchedRef = useRef(false);
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -70,17 +69,16 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
     }
   }, [onUnreadCountChange]);
 
-  // Initial fetch on mount
+  // Initial fetch on mount. No "already fetched" ref: under React StrictMode
+  // the effect mounts → cleans up → mounts again, and a ref guard made the
+  // second mount skip the request while the first mount's cleanup discarded
+  // its `setIsLoading(false)` — the panel then spun forever (audit F1). The
+  // in-flight GET is deduped by the API client, so two mounts stay one request.
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      await fetchNotifications();
+    void fetchNotifications().finally(() => {
       if (!cancelled) setIsLoading(false);
-    }
-    if (!hasFetchedRef.current) {
-      hasFetchedRef.current = true;
-      load();
-    }
+    });
     return () => {
       cancelled = true;
     };
@@ -199,6 +197,12 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
     };
   }, [onClose]);
 
+  // Move focus into the panel when it opens so keyboard users land in the
+  // popover instead of tabbing through the page behind it.
+  useEffect(() => {
+    dropdownRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+  }, []);
+
   const markAsRead = useCallback(
     async (notification: Notification) => {
       if (notification.is_read) return;
@@ -246,6 +250,8 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
   return (
     <div
       ref={dropdownRef}
+      role="dialog"
+      aria-label="通知"
       className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-lg border border-hairline bg-canvas shadow-lg z-50 overflow-hidden"
     >
       {/* Header */}

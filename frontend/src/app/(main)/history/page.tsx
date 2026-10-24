@@ -296,9 +296,9 @@ export default function HistoryPage() {
               <div>
                 {groups.map((group) => (
                   <section key={group.label}>
-                    <h3 className="mb-2 mt-6 text-meta font-bold tracking-[0.06em] text-muted first:mt-0">
+                    <h2 className="mb-2 mt-6 text-meta font-bold tracking-[0.06em] text-muted first:mt-0">
                       {group.label} · {group.items.length} 段 · 共 {formatTimeSpent(group.seconds)}
-                    </h3>
+                    </h2>
                     <ul className="divide-y divide-hairline-soft">
                       {group.items.map((record) => (
                         <RecordRow key={record.id} record={record} />

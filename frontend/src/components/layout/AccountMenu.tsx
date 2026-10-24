@@ -24,7 +24,10 @@ export function AccountMenu({
   collapsed?: boolean;
 }) {
   const pathname = usePathname();
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+  // Shell breakpoint: sidebar shows ≥1025, bottom tabs + mobile topbar below
+  // (matches user-ui.css and WatchTopBar). Must not be 768 or the topbar loses
+  // its account menu between 768 and 1024.
+  const isDesktop = useMediaQuery("(min-width: 1025px)");
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const me = useProfileStore((s) => s.me);

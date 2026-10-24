@@ -116,7 +116,7 @@ export function CurrentSentenceCard({
   const isBand = variant === "band";
   // 设计稿的字号是分档的（桌面 22 / 1280 20 / 375 18），而「小/中/大」是用户偏好；
   // 这里按桌面/移动各取一套映射：默认档在桌面 20、移动 18，大档桌面 22。
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const isDesktop = useMediaQuery("(min-width: 1025px)");
   const fontEn = (isDesktop ? SUBTITLE_FONT_EN_DESKTOP : SUBTITLE_FONT_EN_MOBILE)[fontSize];
   const fontZh = (isDesktop ? SUBTITLE_FONT_ZH_DESKTOP : SUBTITLE_FONT_ZH_MOBILE)[fontSize];
   // 展开态默认自己管（`expanded`/`onToggleExpand` 传了才由调用方接管）。

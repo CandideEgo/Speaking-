@@ -259,7 +259,7 @@ export default function ProfilePage() {
             <div
               role="tablist"
               aria-label="账户与学习设置分组"
-              className="flex gap-1 overflow-x-auto border-b border-hairline"
+              className="flex flex-wrap gap-1 border-b border-hairline min-[1025px]:flex-nowrap"
             >
               {TABS.map((tab, index) => (
                 <button

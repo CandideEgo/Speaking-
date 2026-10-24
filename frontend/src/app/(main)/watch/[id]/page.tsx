@@ -353,7 +353,7 @@ export default function WatchPage() {
   // 桌面端保持常规流里的 sticky 版式。
   const slotRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const isMobile = useMediaQuery("(max-width: 1023px)");
+  const isMobile = useMediaQuery("(max-width: 1024px)");
   const stageWidth = useWatchStageWidth(stageRef, slotRef, !isMobile && playbackMode === "ready");
   // #30：移动端滚过画框之后画面贴顶常驻；DEC-069 之后钉住位置从壳顶变成**顶栏下沿**
   // （`main` 上沿，顶栏是 main 之上的常规流行）。`dismiss` 已随画面内的退出 X 一起删除
@@ -1455,7 +1455,7 @@ export default function WatchPage() {
                     <FileText size={13} aria-hidden />
                     看全文
                   </Link>
-                  <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted">
+                  <label className="flex min-h-11 shrink-0 cursor-pointer select-none items-center gap-1.5 px-1 text-caption text-muted">
                     <input
                       type="checkbox"
                       checked={followEnabled}
@@ -1493,7 +1493,7 @@ export default function WatchPage() {
                     <FileText size={13} aria-hidden />
                     看全文
                   </Link>
-                  <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted">
+                  <label className="flex min-h-11 shrink-0 cursor-pointer select-none items-center gap-1.5 px-1 text-caption text-muted">
                     <input
                       type="checkbox"
                       checked={followEnabled}

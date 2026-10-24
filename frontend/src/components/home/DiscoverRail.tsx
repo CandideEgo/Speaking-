@@ -162,29 +162,36 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
 
   return (
     <aside className="flex flex-col gap-3" aria-label="今天的进度">
-      <section className="rounded-lg bg-surface-dark p-4 text-on-dark">
-        <p className="text-caption font-semibold tracking-[0.08em] text-on-dark-soft">今天复习</p>
-        <p className="mt-2 flex items-baseline gap-1.5">
-          <span className="text-[2.75rem] font-semibold leading-none tracking-tight">{due}</span>
-          <span className="text-meta text-on-dark-soft">个到期</span>
-        </p>
-        <p className="mt-2 text-meta text-on-dark-soft">
-          {due > 0 ? "先处理到期的词，约 2 分钟。" : "今天的到期词已经清空。"}
-        </p>
-        <div className="mt-3 flex gap-2">
-          <Link
-            href="/vocabulary/review"
-            className="rounded-pill bg-canvas px-3 py-1.5 text-meta font-semibold text-ink"
-          >
-            {due > 0 ? "开始复习" : "看全部词汇"}
-          </Link>
-          <Link
-            href="/vocabulary"
-            className="rounded-pill border border-on-dark/25 px-3 py-1.5 text-meta text-on-dark"
-          >
-            全部 {overview?.words?.total ?? 0}
-          </Link>
+      {/* 首页 rail 与设计一致：白底发丝线卡。深色实心卡只留给词汇 due-card
+          与会员 member-card —— 这里用深色会在暗色模式下与画布同色、边界消失。 */}
+      <section className="rounded-md border border-hairline bg-canvas p-[18px]">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-copy font-semibold text-ink">今天到期</h2>
+          <span className="text-caption text-muted">复习</span>
         </div>
+        <p className="mt-2 flex items-baseline gap-1.5">
+          <span className="text-[2.625rem] font-semibold leading-none tracking-tight tabular-nums text-ink">
+            {due}
+          </span>
+          <span className="text-meta text-muted">个单词</span>
+        </p>
+        <p className="mt-2 text-meta leading-relaxed text-muted">
+          {due > 0
+            ? "先复习到期的词，大约 2 分钟。复习过的词会从到期列表里移走。"
+            : "今天的到期词已经清空。"}
+        </p>
+        <Link
+          href="/vocabulary/review"
+          className="mt-3 flex h-9 w-full items-center justify-center rounded-pill bg-action-primary text-meta font-semibold text-on-primary transition-colors hover:bg-action-primary-hover"
+        >
+          {due > 0 ? "开始复习" : "看全部词汇"}
+        </Link>
+        <Link
+          href="/vocabulary"
+          className="mt-2 block text-center text-caption text-muted transition-colors hover:text-ink"
+        >
+          全部 {overview?.words?.total ?? 0} 词
+        </Link>
       </section>
 
       <section className="rounded-md border border-hairline bg-canvas p-3.5">

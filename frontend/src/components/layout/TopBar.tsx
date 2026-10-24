@@ -74,12 +74,13 @@ export function TopBar() {
       <div className="container-page flex h-full items-center gap-3">
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-2 md:hidden"
+          className="flex min-h-11 shrink-0 items-center gap-2 min-[1025px]:hidden"
           aria-label="SeeWord 首页"
         >
           <span className="user-brand-mark" aria-hidden="true">
             S
           </span>
+          <span className="text-[17px] font-semibold tracking-[-0.02em] text-ink">SeeWord</span>
         </Link>
 
         <button
@@ -87,7 +88,7 @@ export function TopBar() {
           onClick={() => setSearchOpen(true)}
           aria-haspopup="dialog"
           aria-label="搜索视频、原句、单词或频道"
-          className="hidden h-9 w-full max-w-[42.5rem] items-center gap-2 rounded-pill bg-surface-soft px-4 text-copy text-muted transition-colors hover:bg-surface-card md:flex"
+          className="hidden h-9 w-full max-w-[42.5rem] items-center gap-2 rounded-pill bg-surface-soft px-4 text-copy text-muted transition-colors hover:bg-surface-card min-[1025px]:flex"
         >
           <Search size={17} className="shrink-0" aria-hidden />
           <span className="flex-1 text-left">搜索视频、原句或单词</span>
@@ -100,7 +101,7 @@ export function TopBar() {
           type="button"
           onClick={() => setSearchOpen(true)}
           aria-label="搜索"
-          className="grid min-h-10 min-w-10 place-items-center rounded-pill text-muted hover:bg-surface-soft hover:text-ink md:hidden"
+          className="grid min-h-11 min-w-11 place-items-center rounded-pill text-muted hover:bg-surface-soft hover:text-ink min-[1025px]:hidden"
         >
           <Search size={19} />
         </button>
@@ -110,7 +111,7 @@ export function TopBar() {
             <Link
               href="/vocabulary"
               aria-label={`${due} 个单词待复习`}
-              className="flex h-8 items-center gap-1.5 rounded-pill bg-surface-soft px-3 text-meta text-body transition-colors hover:bg-surface-card"
+              className="flex h-11 items-center gap-1.5 rounded-pill bg-surface-soft px-3 text-meta text-body transition-colors hover:bg-surface-card min-[1025px]:h-8"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden />
               <strong className="font-semibold text-ink">{due > 99 ? "99+" : due}</strong>
@@ -124,6 +125,9 @@ export function TopBar() {
               variant="ghost"
               size="icon"
               aria-label={unreadCount > 0 ? `通知，${unreadCount} 条未读` : "通知"}
+              aria-haspopup="dialog"
+              aria-expanded={showNotifications}
+              className="h-11 w-11"
             >
               <Bell size={18} />
               {unreadCount > 0 && (
@@ -138,10 +142,14 @@ export function TopBar() {
             )}
           </div>
 
-          <Link href="/profile" aria-label="我的账户" className="hidden rounded-full md:block">
+          <Link
+            href="/profile"
+            aria-label="我的账户"
+            className="hidden rounded-full min-[1025px]:block"
+          >
             <Avatar src={me?.url} name={user} seed={user?.sub} gender={me?.gender} size="sm" />
           </Link>
-          <div className="md:hidden">
+          <div className="min-[1025px]:hidden">
             <AccountMenu placement="topbar" />
           </div>
         </div>

@@ -331,14 +331,14 @@ export default function FavoritesPage() {
                               <span className="flex items-center gap-3">
                                 <Link
                                   href={watchHref(v.id, { from: "favorites" })}
-                                  className="font-semibold text-body transition-colors hover:text-brand-700"
+                                  className="inline-flex min-h-11 items-center font-semibold text-body transition-colors hover:text-brand-700"
                                 >
                                   继续看
                                 </Link>
                                 <button
                                   type="button"
                                   onClick={() => void handleUnfavorite(v.id, v.title)}
-                                  className="inline-flex items-center gap-1 text-body transition-colors hover:text-error-text"
+                                  className="inline-flex min-h-11 items-center gap-1 text-body transition-colors hover:text-error-text"
                                 >
                                   <Trash2 size={12} />
                                   取消收藏

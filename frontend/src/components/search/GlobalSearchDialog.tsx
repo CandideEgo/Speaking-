@@ -226,7 +226,10 @@ export function GlobalSearchDialog({ open, onClose }: { open: boolean; onClose: 
           <p className="px-3 py-8 text-center text-meta text-muted">正在搜索…</p>
         )}
         {!loading && query.trim() && results.length === 0 && (
-          <p className="px-3 py-8 text-center text-meta text-muted">没有找到相关内容</p>
+          <div className="px-3 py-8 text-center">
+            <p className="text-meta text-body">没有找到「{query.trim()}」</p>
+            <p className="mt-1 text-caption text-muted">试试更短的词，或者直接搜中文释义。</p>
+          </div>
         )}
         {!loading &&
           results.map((result, index) => (

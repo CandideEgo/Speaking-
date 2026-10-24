@@ -27,6 +27,10 @@ export function FeaturedVideoCard({
 }) {
   const href = watchHref(video.id, { from: "home" });
   const quote = content?.expressions.find((expression) => expression.sentence)?.sentence ?? null;
+  // 设计稿首页主 CTA 直接落在引文那一句（?t=），而不是从 0 开始播。
+  const quoteStart = quote ? Math.floor(quote.start_time) : null;
+  const startHref =
+    quoteStart != null ? watchHref(video.id, { from: "home", extra: { t: quoteStart } }) : href;
 
   const channelHref = video.channel_slug ? `/channels/${video.channel_slug}` : null;
 
@@ -108,6 +112,14 @@ export function FeaturedVideoCard({
               ) : (
                 <span className="font-semibold text-ink">{video.channel_name}</span>
               ))}
+            {content?.sentences?.length ? (
+              <span className="whitespace-nowrap">
+                <span aria-hidden className="text-hairline-strong">
+                  ·{" "}
+                </span>
+                {content.sentences.length} 句逐句字幕
+              </span>
+            ) : null}
             {content?.topic_label && (
               <span className="whitespace-nowrap">
                 <span aria-hidden className="text-hairline-strong">
@@ -121,8 +133,8 @@ export function FeaturedVideoCard({
           <VideoMetadata video={video} />
 
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <LinkButton href={href} icon={Play}>
-              观看完整视频
+            <LinkButton href={startHref} icon={Play}>
+              {quote ? "从这句话开始" : "观看完整视频"}
             </LinkButton>
             {channelHref && (
               <LinkButton href={channelHref} variant="outline">

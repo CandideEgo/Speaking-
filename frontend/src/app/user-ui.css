@@ -20,8 +20,8 @@
   --ink: #1d1d1f;
   --body: #424245;
   --body-strong: #1d1d1f;
-  --muted-c: #6e6e73;
-  --muted-soft: #86868b;
+  --muted-c: #5f5f66;
+  --muted-soft: #69696f;
   --hairline: #d2d2d7;
   --hairline-soft: #ececef;
   --hairline-strong: #86868b;
@@ -65,7 +65,7 @@
   --color-brand-950: #002b56;
   /* Solid CTAs: white on #0071e3 = 4.73:1 (AA for normal text). */
   --color-action-primary: #0071e3;
-  --color-action-primary-hover: #0066cc;
+  --color-action-primary-hover: #0077ed;
 
   /* Radii / elevation / width */
   --radius-sm: 8px;
@@ -807,10 +807,10 @@
   align-items: baseline;
   margin: 0;
 }
+/* 首页页头按设计稿是 11px 小眉标（组件里已是 text-caption）；这里不再把
+   h1 放大成 20px —— 设计稿的大标题只留给详情页（频道名 / 观看标题 / 姓名）。 */
 .user-ui .home-compact .home-editorial-heading h1 {
-  font-size: 1.25rem;
-  line-height: 1.5;
-  letter-spacing: -0.035em;
+  letter-spacing: 0.09em;
 }
 .user-ui .home-compact .home-editorial-eyebrow {
   margin: 0;
@@ -1221,7 +1221,7 @@
     margin-bottom: 0.85rem;
   }
   .user-ui .home-compact .home-editorial-heading h1 {
-    font-size: 1.3rem;
+    font-size: 0.75rem;
   }
   .user-ui .home-compact .home-editorial-eyebrow {
     display: none;
@@ -1420,12 +1420,6 @@
   color: var(--muted-c);
   margin-bottom: 0.5rem;
 }
-.user-ui .user-page-crumb::before {
-  content: "";
-  width: 1.125rem;
-  height: 1px;
-  background: var(--hairline-strong);
-}
 .user-ui .user-page-title {
   font-size: 1.875rem;
   line-height: 2.375rem;
@@ -1533,6 +1527,11 @@
   .user-ui .user-study-layout {
     grid-template-columns: minmax(0, 1fr) 19rem;
   }
+}
+/* 设计稿在 ≤1024 收起侧栏、改用底部导航（styles.css:1669）；观看页顶栏
+   也以 1024 为界（WatchTopBar 的 useMediaQuery）。壳层断点必须一致：
+   否则 820/1024 会出现「侧栏 + 观看页紧凑顶栏」这种设计里没有的组合。 */
+@media (min-width: 1025px) {
   .user-sidebar {
     position: relative;
     z-index: 40;
@@ -1902,11 +1901,12 @@
   margin-bottom: 0.4rem;
 }
 .user-ui .home-editorial-heading h1 {
-  color: var(--ink);
-  font-size: 2.05rem;
-  line-height: 1.28;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  color: var(--muted-soft);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   overflow-wrap: anywhere;
 }
 .user-ui .home-editorial-note {
@@ -2646,7 +2646,7 @@
     gap: 0.5rem;
   }
   .user-ui .home-editorial-heading h1 {
-    font-size: 1.55rem;
+    font-size: 0.75rem;
   }
   .user-ui .home-editorial-note {
     display: none;
@@ -2692,5 +2692,13 @@
   .user-ui .home-editorial-links a,
   .user-ui .home-editorial-cover-play {
     min-height: 44px;
+  }
+}
+
+/* 底部导航的可见断点与侧栏一致（≤1024 显示，≥1025 隐藏）——不要再退回
+   Tailwind 的 md:(768)，否则 820/1024 会同时没有侧栏也没有底部导航。 */
+@media (min-width: 1025px) {
+  .user-mobile-tabs {
+    display: none;
   }
 }

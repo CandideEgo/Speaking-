@@ -100,19 +100,19 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
     >
+      {/* 键盘用户的「跳到正文」必须是页面第一个可聚焦元素：放在 Sidebar 之前，
+          否则要穿过侧栏 15+ 个停靠点才到它（审计 F3）。目标仍是唯一的主滚动区。 */}
+      <a
+        href={`#${SCROLL_CONTAINER_ID}`}
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:border focus:border-hairline focus:bg-canvas focus:px-4 focus:py-2 focus:text-meta focus:font-semibold focus:text-ink"
+      >
+        跳到正文
+      </a>
       <Sidebar />
       <UnreadCountSync />
       <div className="user-shell-main">
         <TopBar />
         <DeletionBanner />
-        {/* 键盘用户的「跳到正文」：侧栏 + 顶栏有 20+ 个 tab 停靠点，
-            没有 skip link 时每次进页都要 Tab 穿过去。目标就是唯一的主滚动区。 */}
-        <a
-          href={`#${SCROLL_CONTAINER_ID}`}
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:border focus:border-hairline focus:bg-canvas focus:px-4 focus:py-2 focus:text-meta focus:font-semibold focus:text-ink"
-        >
-          跳到正文
-        </a>
         <main
           id={SCROLL_CONTAINER_ID}
           tabIndex={-1}

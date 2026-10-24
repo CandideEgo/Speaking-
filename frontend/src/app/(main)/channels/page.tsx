@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Radio, Search } from "lucide-react";
+import { Radio, Search, X } from "lucide-react";
 import { ChannelCard } from "@/components/channels/ChannelCard";
 import { SubscribedChannels } from "@/components/channels/SubscribedChannels";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -253,14 +253,29 @@ export default function ChannelsPage() {
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="h-10 w-full rounded-md border border-hairline-strong bg-surface-soft pl-9 pr-3 text-copy text-ink placeholder:text-muted focus:border-ink focus:bg-canvas focus:outline-none"
+                  className="h-10 w-full rounded-md border border-hairline-strong bg-surface-soft pl-9 pr-10 text-copy text-ink placeholder:text-muted focus:border-ink focus:bg-canvas focus:outline-none"
                   placeholder="搜索频道、方向或视频标题"
                 />
+                {query.trim() && (
+                  <button
+                    type="button"
+                    aria-label="清空频道搜索"
+                    onClick={() => setQuery("")}
+                    className="absolute right-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-sm text-muted transition-colors hover:bg-surface-card hover:text-ink"
+                  >
+                    <X size={15} aria-hidden />
+                  </button>
+                )}
               </div>
               {isFiltered && (
-                <span className="text-meta tabular-nums text-muted" aria-live="polite">
-                  显示 {visibleChannels.length} / {channelTotal}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-meta tabular-nums text-muted" aria-live="polite">
+                    显示 {visibleChannels.length} / {channelTotal}
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    清空筛选
+                  </Button>
+                </div>
               )}
             </div>
             {directionOptions.length > 0 && (

@@ -7,6 +7,7 @@ import { HomeEditorialHeader, HomeEditorialHero } from "@/components/home/HomeEd
 import { DiscoverContinue, DiscoverRail } from "@/components/home/DiscoverRail";
 import { FeaturedListening } from "@/components/home/FeaturedListening";
 import { HomeFeed } from "@/components/home/HomeFeed";
+import { HomeSubscribedChannels } from "@/components/home/HomeSubscribedChannels";
 import { VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/common/SkeletonCard";
@@ -117,11 +118,7 @@ export default function HomePage() {
       </div>
 
       {/* id 锚点：站内「去浏览」类入口统一落到 `/`，需要时可 #feed 定位 */}
-      <section
-        id="feed"
-        aria-label="视频列表"
-        className="home-video-feed mt-8 scroll-mt-6 border-t border-hairline pt-5"
-      >
+      <section id="feed" aria-label="视频列表" className="home-video-feed mt-9 scroll-mt-6">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
           <div className="min-w-0">
             <h2 className="text-title font-semibold tracking-tight text-ink">继续发现</h2>
@@ -138,6 +135,8 @@ export default function HomePage() {
           <HomeFeed layoutReady={layoutReady} />
         </Suspense>
       </section>
+
+      <HomeSubscribedChannels />
     </div>
   );
 }
