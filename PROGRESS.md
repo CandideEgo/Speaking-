@@ -366,5 +366,12 @@
 - `ChannelCard` 顶部改为设计中的 8:5 封面图（无频道图时退回最新视频缩略图，再退回首字母），名称/简介移到封面下方；保留学习方向、事实行、最近收录与订阅按钮。
 - 频道目录与加载骨架从 3 列改为设计的两列网格；页头补「已订阅 N」与「去发现」。
 - `design-rollout.spec` 的频道订阅用例 **1 passed**；`npm run check` 通过；`npm run test:unit` 332 passed。
+
+### 首页 hero 元信息改为句数/主题/点赞/收藏（V-12）
+
+- `FeaturedVideoCard` 移除 `VideoMetadata`（原片发布 / 本站播放量），元信息行按设计保留频道、逐句字幕句数、主题，并补点赞与收藏计数。
+- 主 CTA 已是「从这句话开始」并带 `?t=`，次 CTA「看频道」保留。
+- `home-editorial.spec.ts` 的 hero 用例改为断言不再出现「原片发布 / 次播放」、且出现「点赞 / 收藏」；该 spec **8 passed**。
+- `npm run check` 通过；`npm run test:unit` 332 passed。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。

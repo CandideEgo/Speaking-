@@ -414,9 +414,11 @@ test.describe("已发布编排：完整视频发现", () => {
       "href",
       /^\/watch\/video-lead\?from=home&t=12$/
     );
-    await expect(
-      card.locator('[aria-label^="点赞数"], [aria-label^="播放量"], [aria-label^="收藏数"]')
-    ).toHaveCount(0);
+    // hero 元信息按设计改为「句数 · 主题 · 点赞 · 收藏」，不展示发布/播放量（V-12）。
+    await expect(card).not.toContainText("原片发布");
+    await expect(card).not.toContainText("次播放");
+    await expect(card).toContainText("点赞");
+    await expect(card).toContainText("收藏");
     await expect(page.locator("#home-scenarios")).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "我的学习入口" })).toHaveCount(0);
     await expect(page.getByText(LEAD_SENTENCE.text_en, { exact: true })).toHaveCount(0);

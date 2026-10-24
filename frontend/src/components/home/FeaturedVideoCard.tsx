@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Play } from "lucide-react";
+import { Bookmark, Heart, Play } from "lucide-react";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
-import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
-import { formatDuration } from "@/lib/format";
+import { formatCount, formatDuration } from "@/lib/format";
 import { watchHref } from "@/lib/watchEntry";
 import type { HomeEditorialContent } from "@/types/homeContent";
 import type { VideoCard } from "@/types";
@@ -128,9 +127,19 @@ export function FeaturedVideoCard({
                 {content.topic_label}
               </span>
             )}
+            {/* 设计 hero 元信息是「句数 · 主题 · 点赞 · 收藏」，不展示发布/播放量（V-12）。 */}
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <span aria-hidden className="text-hairline-strong">
+                ·
+              </span>
+              <Heart size={12} aria-hidden />
+              {formatCount(video.like_count ?? 0)} 点赞
+            </span>
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <Bookmark size={12} aria-hidden />
+              {formatCount(video.favorite_count ?? 0)} 收藏
+            </span>
           </div>
-
-          <VideoMetadata video={video} />
 
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <LinkButton href={startHref} icon={Play}>
