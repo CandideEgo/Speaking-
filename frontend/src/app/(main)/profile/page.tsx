@@ -77,13 +77,13 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-/** 每个 tab 各自说明自己：进度页顶着「账户与学习设置」会答非所问。 */
-const TAB_HEADERS: Record<TabKey, { title: string; description: string }> = {
-  content: { title: "我的内容", description: "找到看过、收藏的视频，以及保存的词。" },
-  profile: { title: "个人资料", description: "昵称、头像与学习身份。" },
-  progress: { title: "学习进度", description: "看过多少、记住多少，用数字说明。" },
-  account: { title: "账号与安全", description: "手机号、密码与数据导出。" },
-  settings: { title: "学习设置", description: "每日目标、提醒与默认播放偏好。" },
+/** 各 tab 只显示对应标题。 */
+const TAB_HEADERS: Record<TabKey, { title: string }> = {
+  content: { title: "我的内容" },
+  profile: { title: "个人资料" },
+  progress: { title: "学习进度" },
+  account: { title: "账号与安全" },
+  settings: { title: "学习设置" },
 };
 
 export default function ProfilePage() {
@@ -205,11 +205,7 @@ export default function ProfilePage() {
         </p>
       )}
       <div className="user-page">
-        <PageHeader
-          crumb="我的"
-          title={TAB_HEADERS[activeTab].title}
-          description={TAB_HEADERS[activeTab].description}
-        />
+        <PageHeader crumb="我的" title={TAB_HEADERS[activeTab].title} />
 
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
         <Card padding={5} className="mt-6 flex items-center gap-4">

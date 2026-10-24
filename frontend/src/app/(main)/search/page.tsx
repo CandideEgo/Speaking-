@@ -217,7 +217,7 @@ export default function SearchPage() {
         <PageHeader
           crumb="搜索"
           title="搜索视频与频道"
-          description="按话题、标题或频道找内容，也可以搜索字幕里的原话和词义。"
+
           actions={
             <LinkButton variant="outline" icon={Compass} href="/">
               不想搜，按分类挑

@@ -8,9 +8,7 @@ export interface PageHeaderProps {
   crumb?: ReactNode;
   /** Main page title (h1). */
   title: ReactNode;
-  /** Subtitle / description below the title. */
-  description?: ReactNode;
-  /** Factual content such as channel stats or the video name. */
+  /** Factual data attached to this page, such as a video title or channel stats. */
   meta?: ReactNode;
   /**
    * `eyebrow` is the design system's list-page kicker (small caps), while
@@ -26,17 +24,12 @@ export interface PageHeaderProps {
 }
 
 /**
- * 用户端内容页的统一页头。
- *
- * 版式规则（下边线、间距、字号、crumb 前的小横线）全部在 `user-ui.css` 的
- * `.user-page-header/.user-page-crumb/.user-page-title/.user-page-desc`，
- * 与 stage-3 的 `shared/page.css` 一档对齐；页面只传内容，不再各自写
- * padding/字号。首页不使用页头（原型 `home.html` 没有标题区，直接进本周精听）。
+ * Shared user page heading with one semantic title and optional factual metadata.
+ * Typography and spacing are defined in `user-ui.css`.
  */
 export function PageHeader({
   crumb,
   title,
-  description,
   meta,
   variant = "display",
   centered = false,
@@ -50,9 +43,7 @@ export function PageHeader({
           <div className="user-page-crumb">{crumb}</div>
         )}
         <h1 className={cn("user-page-title", variant === "eyebrow" && "is-eyebrow")}>{title}</h1>
-        {(meta || (description && typeof description !== "string")) && (
-          <div className="user-page-meta mt-2 text-meta text-body">{meta || description}</div>
-        )}
+        {meta && <div className="user-page-meta mt-2 text-meta text-body">{meta}</div>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </header>

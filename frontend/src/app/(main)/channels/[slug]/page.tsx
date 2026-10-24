@@ -382,7 +382,7 @@ export default function ChannelDetailPage() {
                   <span className="min-w-0 break-words">{channel.name}</span>
                 </span>
               }
-              description={
+              meta={
                 <>
                   {introText && (
                     <span

@@ -552,7 +552,7 @@ function DrillIntro({
         <PageHeader
           crumb="词汇 · 训练"
           title={words.length ? `本轮训练 · ${words.length} 个词` : "今日训练"}
-          description="认词、巩固、听音选词三种题型轮换；答错或跳过的词会再问一次。随时可以退出。"
+
           actions={
             <>
               <Link href="/vocabulary" className="text-copy text-muted hover:text-ink">

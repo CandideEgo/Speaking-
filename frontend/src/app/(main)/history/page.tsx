@@ -196,7 +196,7 @@ export default function HistoryPage() {
         <PageHeader
           crumb="我的"
           title="观看历史"
-          description="按天排出看过的每一段，带进度和停留时长。想接着上次的地方继续，点每行右侧的「继续观看」。"
+
           actions={
             resume ? (
               <LinkButton

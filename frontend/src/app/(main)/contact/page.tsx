@@ -212,7 +212,7 @@ export default function ContactPage() {
         <PageHeader
           crumb="帮助"
           title="帮助与反馈"
-          description="查找常见问题的解答，或向我们反馈使用中遇到的问题。"
+
           actions={
             <Button
               variant="outline"

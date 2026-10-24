@@ -82,7 +82,7 @@ export default function ListeningLibrary() {
       <PageHeader
         crumb={<Link href="/practice">← 全部练习</Link>}
         title="逐句听力"
-        description="从真实视频中听写原句。可重播、慢放，交卷后对照字幕和译文。"
+
         actions={
           <label className="flex items-center gap-2 text-meta text-body">
             每组题数

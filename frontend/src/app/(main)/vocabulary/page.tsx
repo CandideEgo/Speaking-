@@ -309,11 +309,7 @@ export default function VocabularyPage() {
       <div className="user-page">
         {/* Page head: crumb → h1 → desc；视图切换紧贴页头左对齐，
             「词单」不再单列按钮——它就是「词库」视图的入口。 */}
-        <PageHeader
-          crumb="词汇"
-          title="词汇"
-          description="带着原句复习，再回到内容中遇见这些词。"
-        />
+        <PageHeader crumb="词汇" title="词汇" />
         <div className="mt-4">
           <TabPills
             tabs={[

@@ -152,7 +152,6 @@ export default function VocabularyReviewPage() {
           </>
         }
         title="复习到期词"
-        description="认识会拉长间隔，模糊和不认识会更快回来。这里没有分数，也不需要凑正确率。"
       />
 
       {loading ? (

@@ -154,7 +154,7 @@ export default function PracticePage() {
         crumb="练习"
         title="练习"
         variant="eyebrow"
-        description="选择题型或完整套卷，交卷后查看答案、解析与本次结果。"
+
         actions={
           <div className="hidden flex-col items-end gap-1 text-right md:flex">
             <span className="text-meta font-semibold text-body">自由练习</span>

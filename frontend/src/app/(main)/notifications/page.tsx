@@ -203,7 +203,7 @@ export default function NotificationsPage() {
         <PageHeader
           crumb="我的"
           title="通知"
-          description="查看系统消息、视频就绪与词汇复习提醒。"
+
           actions={
             <Button
               variant="primary"

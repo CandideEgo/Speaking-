@@ -161,7 +161,7 @@ export default function DailyCheckPage() {
       <PageHeader
         crumb="每日练 · 可选"
         title="今天，就练这一组"
-        description="按上次错题类型推荐。不是每日任务：可以跳过、可以换一组，不计时、不倒数，跳过也不会留下记录。"
+
         actions={
           recommendation ? (
             <>

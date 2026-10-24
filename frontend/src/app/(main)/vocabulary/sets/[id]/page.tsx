@@ -159,12 +159,6 @@ export default function VocabSetDetailPage() {
   if (!detail) return null;
 
   const ctaSieveLabel = masteredCount === 0 ? "快速筛词" : "继续筛词";
-  const description =
-    detail.source_type === "exam"
-      ? "考试词单按考纲整理，词表里没有原句；筛完把不会的词学掉即闭环。"
-      : detail.source_type === "custom"
-        ? "自建词单，可以随时加词、删词；筛完把不会的词学掉即闭环。"
-        : "词单里的词、释义与原句都来自这段视频；筛完把不会的词学掉即闭环。";
 
   return (
     <PageTransition>
@@ -179,7 +173,6 @@ export default function VocabSetDetailPage() {
             </span>
           }
           title={detail.title}
-          description={description}
           actions={
             <>
               <Link

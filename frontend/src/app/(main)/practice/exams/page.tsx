@@ -130,7 +130,6 @@ export default function ExamPapersPage() {
           </Link>
         }
         title="历年真题 · 阅读部分"
-        description="在线练习阅读客观题，交卷后核对答案。听力、写作、翻译暂未接入。"
       />
       <nav aria-label="真题科目" className="mt-5 flex gap-2 overflow-x-auto pb-2">
         {PAPER_LEVELS.map((key) => (

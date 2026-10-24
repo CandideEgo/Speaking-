@@ -210,7 +210,7 @@ export default function FavoritesPage() {
         <PageHeader
           crumb="我的"
           title="我的收藏"
-          description="回顾收藏的视频、句子和词汇，重温值得记住的内容。"
+
           actions={
             allEmpty ? undefined : (
               <LinkButton href="/" variant="outline" icon={Play}>

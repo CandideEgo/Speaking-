@@ -95,7 +95,7 @@ export default function ExamResultPage() {
           </Link>
         }
         title={`答对 ${correct} / ${attempt.question_count} 题`}
-        description="只记答对题数，不预测考试分数或换算等级。"
+
         actions={
           <>
             {wrong.length > 0 && (

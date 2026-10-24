@@ -102,7 +102,7 @@ export default function VocabSetsPage() {
           </>
         }
         title="词单：按视频、按考试、按自己收的词"
-        description="一个词单是一批要过筛的词。点进词单看词表、来源句和进度。"
+
         actions={
           !emptyLib && (
             <LinkButton href="/vocabulary/drill" size="md">

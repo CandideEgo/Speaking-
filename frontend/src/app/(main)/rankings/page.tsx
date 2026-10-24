@@ -49,11 +49,7 @@ export default function RankingsPage() {
   return (
     <PageTransition>
       <div className="user-page">
-        <PageHeader
-          crumb="视频排行"
-          title="排行"
-          description="最新上架，以及本周热播、本周收藏；点任意一条回观看页。"
-        />
+        <PageHeader crumb="视频排行" title="排行" />
         <TabPills
           tabs={TABS}
           activeKey={scope}
