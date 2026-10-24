@@ -255,6 +255,7 @@ async def list_public_channels(
             latest_video.thumbnail_url if latest_video else None,
             facts,
         )
+        item["total_view_count"] = sum(v.view_count or 0 for v in videos)
         item["latest_video"] = latest_video_payload(latest_video)
         item["subscriber_count"] = subscriber_counts.get(channel.id, 0)
         item["is_subscribed"] = channel.id in subscribed
@@ -296,6 +297,7 @@ async def get_channel_detail(
         upstream_stats = (newest.external_meta or {}).get("channel") or {}
 
     channel_dict = _channel_public(channel, total, cover_fallback, facts)
+    channel_dict["total_view_count"] = sum(v.view_count or 0 for v in fact_videos)
     channel_dict["follower_count"] = upstream_stats.get("follower_count")
     channel_dict["is_verified"] = upstream_stats.get("is_verified")
     subscriber_counts, subscribed = await subscriber_stats(db, [channel.id], viewer_id)

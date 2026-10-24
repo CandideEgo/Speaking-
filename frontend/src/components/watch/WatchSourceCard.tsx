@@ -18,7 +18,7 @@ export function WatchSourceCard({ video }: { video: VideoCard }) {
     if (!video.channel_slug) return;
     const controller = new AbortController();
     api<{ channel: ChannelSummary }>(
-      `/api/v1/channels/${encodeURIComponent(video.channel_slug)}?page_size=1`,
+      `/api/v1/channels/${encodeURIComponent(video.channel_slug)}?page_size=4`,
       { signal: controller.signal }
     )
       .then((data) => {

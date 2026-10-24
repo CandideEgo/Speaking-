@@ -55,6 +55,8 @@ export interface ChannelSummary {
   follower_count?: number | null;
   /** 本站订阅人数（ChannelSubscription 聚合；游客也可见）。 */
   subscriber_count?: number;
+  /** Sum of in-site completed views for all public channel videos. */
+  total_view_count?: number;
   /** 当前登录用户是否已订阅；游客恒为 false。 */
   is_subscribed?: boolean;
   /** 最近一条公开视频的发布时间（详情响应携带）。 */

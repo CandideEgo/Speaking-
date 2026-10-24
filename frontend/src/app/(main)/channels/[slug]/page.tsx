@@ -23,7 +23,8 @@ import {
   formatCollectedVideos,
   formatDifficultyRange,
 } from "@/lib/channelLearning";
-import { formatViews } from "@/lib/format";
+import { formatCount, formatViews } from "@/lib/format";
+import { SUBSCRIPTION_EVENT, type SubscriptionChange } from "@/lib/subscriptionEvents";
 import { scrollKey } from "@/lib/scrollMemory";
 import type { ChannelDifficultyRange, ChannelSummary } from "@/types/channels";
 
@@ -219,6 +220,29 @@ export default function ChannelDetailPage() {
     return () => controller.abort();
   }, [slug]);
 
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const change = (event as CustomEvent<SubscriptionChange>).detail;
+      if (change.slug !== slug) return;
+      setChannel((current) =>
+        current
+          ? {
+              ...current,
+              is_subscribed: change.subscribed,
+              subscriber_count: Math.max(
+                0,
+                (current.subscriber_count ?? 0) +
+                  Number(change.subscribed) -
+                  Number(current.is_subscribed)
+              ),
+            }
+          : current
+      );
+    };
+    window.addEventListener(SUBSCRIPTION_EVENT, listener);
+    return () => window.removeEventListener(SUBSCRIPTION_EVENT, listener);
+  }, [slug]);
+
   const mergedVideos = videos;
 
   const directionChips = useMemo(() => directionLabels(channel?.learning_directions), [channel]);
@@ -266,8 +290,17 @@ export default function ChannelDetailPage() {
   const headerFacts: { key: string; label: string; title?: string }[] = [
     { key: "collected", label: formatCollectedVideos(collectedCount) },
   ];
-  if (channel?.subscriber_count && channel.subscriber_count > 0) {
-    headerFacts.push({ key: "subscribers", label: `${channel.subscriber_count} 人订阅` });
+  if (channel?.subscriber_count != null) {
+    headerFacts.push({
+      key: "subscribers",
+      label: `${formatCount(channel.subscriber_count)} 人订阅`,
+    });
+  }
+  if (channel?.total_view_count != null) {
+    headerFacts.push({
+      key: "views",
+      label: `${formatCount(channel.total_view_count)} 次本站播放`,
+    });
   }
   if (channel?.recent_video_count && channel.recent_video_count > 0) {
     headerFacts.push({ key: "recent", label: `近 30 天新增 ${channel.recent_video_count} 段` });

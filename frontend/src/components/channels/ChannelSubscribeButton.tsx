@@ -4,6 +4,11 @@ import Link from "next/link";
 import { BookmarkPlus, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import { toastApiError } from "@/lib/errors";
+import {
+  SUBSCRIPTION_EVENT,
+  publishSubscription,
+  type SubscriptionChange,
+} from "@/lib/subscriptionEvents";
 import { Button } from "@/components/ui/Button";
 
 interface Subscription {
@@ -24,7 +29,16 @@ export function ChannelSubscribeButton({ slug }: { slug: string }) {
       });
     return () => controller.abort();
   }, [slug]);
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const change = (event as CustomEvent<SubscriptionChange>).detail;
+      if (change.slug === slug) setSubscribed(change.subscribed);
+    };
+    window.addEventListener(SUBSCRIPTION_EVENT, listener);
+    return () => window.removeEventListener(SUBSCRIPTION_EVENT, listener);
+  }, [slug]);
   async function toggle() {
+    if (busy || subscribed === null) return;
     setBusy(true);
     try {
       const result = await api<{ subscribed: boolean }>(
@@ -32,6 +46,7 @@ export function ChannelSubscribeButton({ slug }: { slug: string }) {
         { method: subscribed ? "DELETE" : "PUT" }
       );
       setSubscribed(result.subscribed);
+      publishSubscription({ slug, subscribed: result.subscribed });
     } catch (err) {
       toastApiError(err, "订阅操作失败，请重试");
     } finally {

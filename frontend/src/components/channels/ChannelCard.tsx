@@ -7,6 +7,12 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { VideoTitle } from "@/components/video/VideoTitle";
+import { formatCount } from "@/lib/format";
+import {
+  SUBSCRIPTION_EVENT,
+  publishSubscription,
+  type SubscriptionChange,
+} from "@/lib/subscriptionEvents";
 import { api } from "@/lib/api";
 import { userInitial } from "@/lib/avatar";
 import { toastApiError } from "@/lib/errors";
@@ -49,6 +55,15 @@ export function ChannelCard({
     setIsSubscribed(subscribed);
   }, [subscribed]);
 
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const change = (event as CustomEvent<SubscriptionChange>).detail;
+      if (change.slug === channel.slug) setIsSubscribed(change.subscribed);
+    };
+    window.addEventListener(SUBSCRIPTION_EVENT, listener);
+    return () => window.removeEventListener(SUBSCRIPTION_EVENT, listener);
+  }, [channel.slug]);
+
   async function toggleSubscription() {
     if (subscribing) return;
     setSubscribing(true);
@@ -60,6 +75,7 @@ export function ChannelCard({
       );
       setIsSubscribed(result.subscribed);
       onSubscriptionChange?.(channel, result.subscribed);
+      publishSubscription({ slug: channel.slug, subscribed: result.subscribed });
     } catch (error) {
       toastApiError(error, next ? "订阅失败，请重试" : "取消订阅失败，请重试");
     } finally {
@@ -78,9 +94,10 @@ export function ChannelCard({
   // 「本站已收录 N 段」是本站事实；不写成原频道的全部视频数。
   const facts = [
     formatCollectedVideos(channel.video_count),
-    channel.subscriber_count && channel.subscriber_count > 0
-      ? `${channel.subscriber_count} 人订阅`
+    channel.subscriber_count != null
+      ? `${formatCount(Math.max(0, channel.subscriber_count + Number(isSubscribed) - Number(subscribed)))} 人订阅`
       : null,
+    channel.total_view_count != null ? `${formatCount(channel.total_view_count)} 次本站播放` : null,
     difficulty ? `难度 ${difficulty}` : null,
     channel.accent_label || null,
   ].filter((fact): fact is string => Boolean(fact));

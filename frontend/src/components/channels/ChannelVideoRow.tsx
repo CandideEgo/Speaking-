@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Play } from "lucide-react";
 import { Image } from "@/components/ui/Image";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { VideoDescription } from "@/components/video/VideoDescription";
 import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
@@ -61,6 +62,7 @@ export function ChannelVideoRow({ video, slug, badge, eager = false }: ChannelVi
           zhClassName="break-words text-copy font-semibold leading-snug text-ink transition-colors group-hover:text-brand-700"
         />
         <VideoDescription description={video.description} />
+        <VideoMetadata video={video} />
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted">
           <DifficultyBadge level={video.difficulty_level} size="sm" />
           {duration && <span className="tabular-nums">{duration}</span>}
