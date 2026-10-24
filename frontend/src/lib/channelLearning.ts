@@ -6,6 +6,8 @@
  * 这里的别名表只用于让用户用中文口语（如「发音」「口语」）也能搜到英文标题的频道。
  */
 
+import { formatCount } from "@/lib/format";
+
 import type {
   ChannelDifficultyRange,
   ChannelLearningDirection,
@@ -46,7 +48,7 @@ export function formatDifficultyRange(
 
 /** 「本站已收录 23 段」——明确这是本站数量，不是原频道全部视频。 */
 export function formatCollectedVideos(count: number): string {
-  return `本站已收录 ${Math.max(0, count)} 段`;
+  return `本站已收录 ${formatCount(count)} 段`;
 }
 
 /** 学习方向的中文标签列表；服务端没给时返回空数组。 */

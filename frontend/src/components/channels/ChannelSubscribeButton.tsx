@@ -20,15 +20,21 @@ interface Subscription {
 export function ChannelSubscribeButton({ slug }: { slug: string }) {
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
+    setFailed(false);
     api<Subscription[]>("/api/v1/discovery/subscriptions", { signal: controller.signal })
       .then((items) => setSubscribed(items.some((c) => c.slug === slug)))
       .catch((err) => {
-        if (!controller.signal.aborted) toastApiError(err, "订阅状态读取失败");
+        if (!controller.signal.aborted) {
+          setFailed(true);
+          toastApiError(err, "订阅状态读取失败");
+        }
       });
     return () => controller.abort();
-  }, [slug]);
+  }, [slug, attempt]);
   useEffect(() => {
     const listener = (event: Event) => {
       const change = (event as CustomEvent<SubscriptionChange>).detail;
@@ -36,7 +42,7 @@ export function ChannelSubscribeButton({ slug }: { slug: string }) {
     };
     window.addEventListener(SUBSCRIPTION_EVENT, listener);
     return () => window.removeEventListener(SUBSCRIPTION_EVENT, listener);
-  }, [slug]);
+  }, [slug, attempt]);
   async function toggle() {
     if (busy || subscribed === null) return;
     setBusy(true);
@@ -57,11 +63,17 @@ export function ChannelSubscribeButton({ slug }: { slug: string }) {
     <Button
       variant={subscribed === true ? "outline" : "primary"}
       icon={subscribed === true ? Check : BookmarkPlus}
-      disabled={busy || subscribed === null}
-      onClick={toggle}
+      disabled={busy || (subscribed === null && !failed)}
+      onClick={failed && subscribed === null ? () => setAttempt((n) => n + 1) : toggle}
       aria-pressed={subscribed === true}
     >
-      {subscribed === null ? "读取订阅状态…" : subscribed ? "已订阅 · 取消" : "订阅频道"}
+      {failed && subscribed === null
+        ? "重试读取订阅状态"
+        : subscribed === null
+          ? "读取订阅状态…"
+          : subscribed
+            ? "已订阅 · 取消"
+            : "订阅频道"}
     </Button>
   );
 }

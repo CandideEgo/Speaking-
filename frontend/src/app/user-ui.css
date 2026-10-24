@@ -1435,12 +1435,11 @@
   overflow-wrap: anywhere;
 }
 .user-ui .user-page-title.is-eyebrow {
-  font-size: 0.6875rem;
-  line-height: 1rem;
+  font-size: 1.25rem;
+  line-height: 1.5rem;
   font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--muted-c);
+  letter-spacing: -0.015em;
+  color: var(--ink);
 }
 .user-ui .user-page-header:has(.is-eyebrow) {
   align-items: center;

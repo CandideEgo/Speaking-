@@ -24,8 +24,6 @@ const LABELS: Record<string, string> = {
   reviewed_words: "复习",
 };
 
-const COLORS = ["#FF6B4A", "#5BC0BE", "#9BC1FF", "#FFC857", "#F4A6C0"];
-
 interface EventDistributionChartProps {
   data: EventDistributionItem[];
 }
@@ -36,6 +34,13 @@ interface EventDistributionChartProps {
  */
 export function EventDistributionChart({ data }: EventDistributionChartProps) {
   const chartTheme = useChartTheme();
+  const colors = [
+    chartTheme.series.brand,
+    chartTheme.series.success,
+    chartTheme.series.indigo,
+    chartTheme.series.warning,
+    chartTheme.series.neutral,
+  ];
   const chartData = useMemo(
     () =>
       data
@@ -60,7 +65,12 @@ export function EventDistributionChart({ data }: EventDistributionChartProps) {
   return (
     <div>
       <div className="h-[220px]">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer
+          width="100%"
+          height="100%"
+          minWidth={0}
+          initialDimension={{ width: 320, height: 220 }}
+        >
           <PieChart>
             <Pie
               data={chartData}
@@ -74,7 +84,7 @@ export function EventDistributionChart({ data }: EventDistributionChartProps) {
               {chartData.map((_, i) => (
                 <Cell
                   key={i}
-                  fill={COLORS[i % COLORS.length]}
+                  fill={colors[i % colors.length]}
                   stroke={chartTheme.tooltipStyle.background as string}
                   strokeWidth={2}
                 />
@@ -92,7 +102,7 @@ export function EventDistributionChart({ data }: EventDistributionChartProps) {
           <span key={d.raw} className="inline-flex items-center gap-1 text-caption text-muted">
             <span
               className="w-2 h-2 rounded-full"
-              style={{ background: COLORS[i % COLORS.length] }}
+              style={{ background: colors[i % colors.length] }}
             />
             {d.name} {d.value}
           </span>

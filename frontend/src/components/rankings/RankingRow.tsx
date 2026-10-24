@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { VideoTitle } from "@/components/video/VideoTitle";
 import { cn, formatCount, relativeTime } from "@/lib/utils";
@@ -99,6 +100,7 @@ export function RankingRow({
           enClassName="hidden sm:block"
         />
         {meta && <p className="mt-1 line-clamp-1 text-meta text-body">{meta}</p>}
+        <VideoMetadata video={video} className="mt-1" />
       </div>
 
       <div className="w-14 flex-shrink-0 text-right sm:w-20">

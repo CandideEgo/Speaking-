@@ -14,6 +14,7 @@ import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { useNotificationStore } from "@/stores/notificationStore";
 import { cn } from "@/lib/utils";
 import type { Paginated } from "@/types";
 
@@ -120,7 +121,10 @@ export default function NotificationsPage() {
       if (item.type) next[item.type] = (next[item.type] ?? 0) + 1;
     }
     setCounts(next);
-    setUnread(unreadRes?.count ?? 0);
+    if (unreadRes) {
+      setUnread(unreadRes.count);
+      useNotificationStore.getState().setUnread(unreadRes.count);
+    }
   }, []);
 
   useEffect(() => {

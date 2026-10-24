@@ -43,7 +43,9 @@ export function PageHeader({
   return (
     <header className={cn("user-page-header", centered && "text-center", className)}>
       <div className="min-w-0">
-        {crumb && <div className="user-page-crumb">{crumb}</div>}
+        {crumb && !(typeof crumb === "string" && crumb === title) && (
+          <div className="user-page-crumb">{crumb}</div>
+        )}
         <h1 className={cn("user-page-title", variant === "eyebrow" && "is-eyebrow")}>{title}</h1>
         {description && <p className="user-page-desc">{description}</p>}
       </div>

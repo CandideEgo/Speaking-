@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, BookOpen, CheckCircle2, Clock3, Flame } from "lucide-react";
 
+import { ErrorState } from "@/components/common/ErrorState";
+import { Skeleton } from "@/components/common/SkeletonCard";
 import { api } from "@/lib/api";
 
 interface Overview {
@@ -31,16 +33,31 @@ interface Overview {
  */
 export function ProfileOverview() {
   const [data, setData] = useState<Overview | null>(null);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
+    setError(false);
     api<Overview>("/api/v1/users/me/overview", { signal: controller.signal })
       .then((payload) => {
         if (!controller.signal.aborted) setData(payload);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!controller.signal.aborted) setError(true);
+      });
     return () => controller.abort();
-  }, []);
+  }, [attempt]);
+
+  if (error)
+    return <ErrorState title="学习概览未能加载" onRetry={() => setAttempt((n) => n + 1)} />;
+  if (!data)
+    return (
+      <div aria-busy="true" className="grid gap-4 sm:grid-cols-2">
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+      </div>
+    );
 
   const assets = [
     {

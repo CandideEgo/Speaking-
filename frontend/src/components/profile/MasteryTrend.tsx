@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { ErrorState } from "@/components/common/ErrorState";
 import { TrendingUp } from "lucide-react";
 import { api } from "@/lib/api";
 import type { MasteryTrendResponse } from "@/types";
@@ -24,9 +25,11 @@ export function MasteryTrend({ weeks = 8 }: { weeks?: number }) {
   const [data, setData] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
 
     async function fetchTrend() {
       setError(false);
@@ -73,7 +76,7 @@ export function MasteryTrend({ weeks = 8 }: { weeks?: number }) {
     return () => {
       cancelled = true;
     };
-  }, [weeks]);
+  }, [weeks, attempt]);
 
   if (loading) {
     return (
@@ -81,7 +84,10 @@ export function MasteryTrend({ weeks = 8 }: { weeks?: number }) {
     );
   }
 
-  if (error || data.length < 2) {
+  if (error)
+    return <ErrorState title="学习趋势未能加载" onRetry={() => setAttempt((n) => n + 1)} />;
+
+  if (data.length < 2) {
     return (
       <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted">
         <TrendingUp size={24} className="opacity-40" />

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Play } from "lucide-react";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { cn, formatCount, relativeTime } from "@/lib/utils";
 import { watchHref } from "@/lib/watchEntry";
@@ -128,6 +129,7 @@ function PodiumCard({ video, rank, mode, metricLabel, featured = false }: Podium
         {video.channel_name && (
           <p className="mt-1 line-clamp-1 text-meta text-body">{video.channel_name}</p>
         )}
+        <VideoMetadata video={video} className="mt-1.5" />
         <div className={featured ? "mt-3" : "mt-1.5"}>
           <PodiumMetric
             video={video}

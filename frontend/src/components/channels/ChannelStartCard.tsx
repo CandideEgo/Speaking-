@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { VideoDescription } from "@/components/video/VideoDescription";
 import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
@@ -108,6 +109,7 @@ export function ChannelStartCard({ video, basis, slug }: ChannelStartCardProps) 
           </Link>
 
           <VideoDescription description={video.description} />
+          <VideoMetadata video={video} />
 
           <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
             <LinkButton href={href} size="sm" icon={Play}>

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, CirclePlay, Flame } from "lucide-react";
 
+import { ErrorState } from "@/components/common/ErrorState";
+import { Skeleton } from "@/components/common/SkeletonCard";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { VideoMetadata } from "@/components/video/VideoMetadata";
@@ -115,24 +117,43 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [subs, setSubs] = useState<ChannelSubscriptionSummary[]>([]);
 
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    api<Overview>("/api/v1/users/me/overview", { signal: controller.signal })
-      .then((data) => {
-        if (!controller.signal.aborted) setOverview(data);
-      })
-      .catch(() => {});
-    api<ChannelSubscriptionSummary[] | { items: ChannelSubscriptionSummary[] }>(
-      "/api/v1/discovery/subscriptions",
-      { signal: controller.signal }
-    )
-      .then((data) => {
+    setLoadState("loading");
+    Promise.all([
+      api<Overview>("/api/v1/users/me/overview", { signal: controller.signal }),
+      api<ChannelSubscriptionSummary[] | { items: ChannelSubscriptionSummary[] }>(
+        "/api/v1/discovery/subscriptions",
+        { signal: controller.signal }
+      ),
+    ])
+      .then(([data, channels]) => {
         if (controller.signal.aborted) return;
-        setSubs(Array.isArray(data) ? data : (data.items ?? []));
+        setOverview(data);
+        setSubs(Array.isArray(channels) ? channels : channels.items);
+        setLoadState("ready");
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!controller.signal.aborted) setLoadState("error");
+      });
     return () => controller.abort();
-  }, []);
+  }, [attempt]);
+  if (loadState === "error")
+    return (
+      <aside>
+        <ErrorState title="学习进度未能加载" onRetry={() => setAttempt((n) => n + 1)} />
+      </aside>
+    );
+  if (loadState === "loading")
+    return (
+      <aside aria-busy="true" className="space-y-3">
+        <Skeleton className="h-44" />
+        <Skeleton className="h-24" />
+        <Skeleton className="h-32" />
+      </aside>
+    );
 
   const due = overview?.words?.due_review_count ?? initialDue;
   const week = overview?.this_week;
