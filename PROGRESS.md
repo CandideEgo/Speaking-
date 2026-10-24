@@ -158,8 +158,8 @@
 - 视觉修复：首页眉标/右栏白卡/已订阅频道整段/主推 CTA「从这句话开始」+ 句数；断点改为设计契约（≤1024 收侧栏 + 底栏、≥1025 显示侧栏），顶栏/底栏/账号菜单/观看页内部断点同步；移除页头装饰线、补回移动端品牌字、搜索空态文案、hover token。
 - 功能/可访问性修复：通知浮层 StrictMode 永久 loading、TabPills 选中态 ARIA、skip link 成为第一个 Tab 停靠点、已设密码账号的 `/set-password` 引导（后端新增只读 `has_password`）、对比度 token 提到 AA、移动端触控目标 44px、通知浮层 dialog 语义、404 h1、history 标题层级、频道清空搜索、个人页 tab 换行。
 - 后端修复：JWT 密钥强度 + 算法白名单（BE-01）、`complete` 行为事件 Redis 幂等且只在真正写副作用时失效缓存（BE-02）、交卷列表答对数改用 `ExamAnswer` 聚合（BE-18）、字幕搜索按方言分流（BE-24）、nginx 鉴权限流指向真实路径（BE-05）、compose 金数据密钥改按需必填（BE-26）。
-- 验证：前端 `npm run check` 通过、332 项单测通过；后端 `ruff` 通过、全量 1343 passed / 16 skipped（需独立 PG_TEST_URL 的 integration 默认跳过）；e2e 断点用例已按新契约更新并通过，另 8 条定点通过；4 条 e2e 因 dev 后端 429 未执行（需 `ENV=testing` 测试后端，已记入报告）。未新增迁移、未放宽门禁/基线。
-- 未修：BE-03 迁移漂移、BE-04/15 媒体与 WS 鉴权收敛、BE-06 dev 固定码门、BE-08/09/11/12/13 等；收藏/通知/首页继续观看等剩余结构缺口。均已列入 `README.md` 第 5 节。
+- 验证：前端 `npm run check` 通过、332 项单测通过；后端 `ruff` 通过、全量 1346 passed / 16 skipped（需独立 PG_TEST_URL 的 integration 默认跳过；1 条 admin-panel 并发文件 OSError 单独复跑通过）；e2e 断点用例已按新契约更新并通过，另 8 条定点通过；4 条 e2e 因 dev 后端 429 未执行（需 `ENV=testing` 测试后端，已记入报告）。未新增迁移、未放宽门禁/基线。
+- 未修：BE-03 迁移漂移、BE-15 WS 鉴权收敛、BE-06 dev 固定码门、BE-08/09/11/12/13 等；收藏/通知等剩余结构缺口。均已列入 `README.md` 第 5 节。
 
 ### 第二轮补强：审计列出的结构性缺口
 

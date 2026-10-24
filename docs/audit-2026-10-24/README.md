@@ -81,8 +81,8 @@
 | 前端 `npm run check`（9 条设计系统 + 会话写入 + `tsc` + ESLint + Prettier） | **通过** |
 | 前端单测 | **30 文件 / 332 项通过** |
 | 后端 `ruff check app tests` | **All checks passed** |
-| 后端全量 `pytest tests/ -q` | **1343 passed, 16 skipped**（16 条需独立 `PG_TEST_URL` 的 integration 默认跳过） |
-| 本轮针对性后端测试 | config 22、exams 21、search 16、behavior 13、auth 4 全绿 |
+| 后端全量 `pytest tests/ -q` | **1346 passed, 16 skipped**（16 条需独立 `PG_TEST_URL` 的 integration 默认跳过）；1 条 `test_admin_panel` 在并发跑测时出现 Windows 文件 OSError，单独复跑通过 |
+| 本轮针对性后端测试 | config 22、exams 21、search 16、behavior 13、auth 4、media + PDF 47 全绿 |
 | e2e 定点 | 断点用例**通过**；`design-rollout` + `public-layout` 共 8 条通过，4 条因**dev 后端限流 429** 未跑通（`frontend/CLAUDE.md` 明确要求 e2e 用 `ENV=testing` 后端；本条记为未执行，不算产品缺陷） |
 | 浏览器复核（Playwright，1440/390） | 首个 Tab = 「跳到正文」；`aria-pressed` 存在；通知浮层 `dialog` + 空态、无 spinner；`/channels` 清空按钮存在；404 h1 = 「页面不存在」；已设密码账号出现引导、首设密码账号出现表单；触控 `search 44×44 / chip 52×44 / tab 78×60`；断点 1024/820/768/600/390 无侧栏且有底栏、1920/1440 反之；横向溢出 0 |
 | 视觉审计 | 13 路由 × 1440/390 全页 + 暗色 + 1024/820 定点共 57 张；114 次溢出测量 0px |
