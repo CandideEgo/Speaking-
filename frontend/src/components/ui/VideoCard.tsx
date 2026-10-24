@@ -3,9 +3,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Heart, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
-import { formatCount } from "@/lib/utils";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { Image } from "@/components/ui/Image";
 import { Card } from "@/components/ui/Card";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
@@ -47,6 +47,9 @@ export type VideoCardData = Pick<VideoCardDTO, "title" | "thumbnail_url" | "dura
   like_count?: number | null;
   /** 站内总播放量（complete 计数，区别于 YouTube 侧 ext_view_count）。 */
   view_count?: number | null;
+  upload_date?: string | null;
+  published_at?: string | null;
+  created_at?: string | null;
   /** 站内总收藏数。 */
   favorite_count?: number | null;
   /** 视频简介（列表接口已截断到 200 字符）；本地视频可能为 null。 */
@@ -204,29 +207,7 @@ export function VideoCard({
               {video.title_zh}
             </p>
           )}
-          <div className="mt-1 flex items-center gap-3 text-caption tabular-nums text-muted">
-            {(video.like_count ?? 0) > 0 && (
-              <span
-                className="inline-flex items-center gap-1"
-                title={`本站点赞 ${video.like_count}`}
-              >
-                <Heart size={11} aria-hidden />
-                {formatCount(video.like_count ?? 0)}
-              </span>
-            )}
-            {(video.favorite_count ?? 0) > 0 && (
-              <span
-                className="inline-flex items-center gap-1"
-                title={`本站收藏 ${video.favorite_count}`}
-              >
-                <Bookmark size={11} aria-hidden />
-                {formatCount(video.favorite_count ?? 0)}
-              </span>
-            )}
-            {video.difficulty_level && (
-              <span className="ml-auto text-caption text-muted">{video.difficulty_level}</span>
-            )}
-          </div>
+          <VideoMetadata video={video} className="mt-1.5" />
         </div>
       </Card>
     );
@@ -240,7 +221,7 @@ export function VideoCard({
       padding={0}
       className={cn(
         "overflow-hidden cursor-pointer",
-        "hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/[0.08] hover:border-transparent",
+        "hover:border-hairline-strong",
         "transition-all duration-200 ease-out group",
         className
       )}
@@ -314,6 +295,7 @@ export function VideoCard({
           enClassName="mb-2"
         />
         <VideoDescription description={video.description} className="mb-2" />
+        <VideoMetadata video={video} className="mb-2" />
         {footer ?? (
           <div className="flex flex-wrap items-center gap-2 text-meta text-muted">
             {channelName &&
