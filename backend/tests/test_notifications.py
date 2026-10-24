@@ -686,6 +686,29 @@ class TestWebSocketHandshakeAuth:
         assert ws.accepted is False
         assert ws.close_code == status.WS_1008_POLICY_VIOLATION
 
+    async def test_stale_password_token_closes_socket(
+        self, client: AsyncClient, auth_headers: dict, db_session, monkeypatch
+    ):
+        """A token issued before a password change must fail the WS handshake
+        just like an HTTP request (same auth chain)."""
+        from datetime import UTC, datetime, timedelta
+
+        from app.models.user import User
+
+        me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+        user = await db_session.get(User, me["id"])
+        assert user is not None
+        user.password_changed_at = datetime.now(UTC) + timedelta(hours=1)
+        await db_session.commit()
+
+        token = auth_headers["Authorization"].removeprefix("Bearer ")
+        ws = _FakeWebSocket(protocols=f"bearer, {token}")
+
+        await _handshake(ws, monkeypatch)
+
+        assert ws.accepted is False
+        assert ws.close_code == status.WS_1008_POLICY_VIOLATION
+
     async def test_auth_cookie_is_accepted_as_fallback(self, client: AsyncClient, auth_headers: dict, monkeypatch):
         from app.api.v1.notifications import ws_manager
 

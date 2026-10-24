@@ -46,10 +46,15 @@ class Settings(BaseSettings):
 
     # Alibaba Cloud Dypnsapi — SMS verification code for phone login / change
     # phone / reset password (SendSmsVerifyCode / CheckSmsVerifyCode: the code
-    # is generated and verified server-side by Aliyun). When sms_login_enabled
-    # is False (or AK/SK missing), sms_service falls back to a dev fake that
-    # logs/accepts the fixed code "1234" — no Aliyun calls.
+    # is generated and verified server-side by Aliyun). The fixed-code dev fake
+    # ("1234") is opt-in via sms_dev_fake_enabled and only allowed outside
+    # production; without it, missing AK/SK fail closed.
     sms_login_enabled: bool = False
+    # Explicit opt-in for the fixed-code dev fake ("1234"). Required for local
+    # dev / CI phone flows; if ENV is forgotten in a deployment this stays
+    # False, so the fake cannot silently turn a public box into "any phone can
+    # log in with 1234". Refused outright in production.
+    sms_dev_fake_enabled: bool = False
     aliyun_sms_access_key: str = ""
     aliyun_sms_secret_key: str = ""
     aliyun_sms_sign_name: str = "速通互联验证码"
@@ -416,6 +421,11 @@ class Settings(BaseSettings):
                 f"DATABASE_URL must be set when ENV={env!r} (development is the only env with a fallback)"
             )
         if env == "production":
+            if self.sms_dev_fake_enabled:
+                raise RuntimeError(
+                    "SMS_DEV_FAKE_ENABLED must not be enabled in production "
+                    "(the fixed code '1234' would let anyone log into any phone account)"
+                )
             # The guard is "an LLM key must exist", not "the OpenAI key must
             # exist": production may run entirely on the Command Code provider.
             # An empty pair is still fatal — features would fail at call time.

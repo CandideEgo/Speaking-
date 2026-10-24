@@ -14,7 +14,7 @@
   - BE-03 模型与迁移漂移（`alembic check` 20+ 差异）→ **未修**（需要一条「只补不删」的迁移，见遗留）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
 - **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
-- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 6 条 + 1 条契约补充（`has_password`），其余有优先级建议。
+- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 9 条 + 1 条契约补充（`has_password`）；唯一未修 P1 是 BE-03 迁移漂移，其余按优先级留在报告。
 
 ## 2. 本轮已落地的修复
 
@@ -28,6 +28,7 @@
 | BE-24 | 字幕搜索无条件用 `plainto_tsquery`，SQLite 测试库直接报错、且无测试覆盖 | `search_service.search_subtitles` 按方言分流（Postgres FTS / 其他 ILIKE） | `test_search_d7.py` 新增 2 条，16 passed |
 | BE-05 | nginx 限流 location 指向不存在的 `/auth/login|register`，真实入口完全无限流 | `nginx.conf` / `nginx.ssl.conf` 改为 `sms/login`、`phone-login`、`sms/register`、`sms/reset-password`、`sms/send-code` 的精确 location | 配置 grep 核对；未在真实 nginx 上 reload（本机无生产） |
 | BE-04 | 媒体/PDF 的 `?token=` 是第二份更弱的校验：不查黑名单、改密、封禁 | `dependencies.resolve_token_user()` 成为字符串 token 的唯一入口；`media._viewer_id_from_request`、shadowing 校验与 `exam_pdfs` 全部走同一条链 | `test_media_access.py` 新增被封禁 owner、改密后旧 token、被封禁 shadowing owner 三条用例；media + PDF 47 passed |
+| BE-06 | `ENV` 漏配（默认 development）时固定验证码 `1234` 可登录任意手机号，且不校验是否发过码 | 新增 `SMS_DEV_FAKE_ENABLED` 显式开关（默认 false，production 直接拒绝启动）；`verify_code` 必须读到 Redis 里的已发码；CI/本地 `.env` 显式开启 | `test_sms_security.py` / `test_auth_sms.py` / `test_config_env_guard.py` 共 61 passed；dev API 实测发码后 1234 可登录、未发码 400、错误码 400 |
 | BE-26 | 未启用金数据时 compose 仍强制要求 `JINSHUJU_PURCHASE_TOKEN_SECRET` | `docker-compose.prod.yml` 改为 `${VAR:-}`，必填判断留在 `config.py`（已实现） | 配置读码；`docker compose config` 未执行 |
 | F4 契约 | 前端无法知道账号是否已设密码，已设密码用户进 `/set-password` 必然 400 | `User.has_password` 模型属性 + `UserResponse.has_password`（只增字段） | `test_auth.py` 断言 `has_password is True` |
 
@@ -81,8 +82,8 @@
 | 前端 `npm run check`（9 条设计系统 + 会话写入 + `tsc` + ESLint + Prettier） | **通过** |
 | 前端单测 | **30 文件 / 332 项通过** |
 | 后端 `ruff check app tests` | **All checks passed** |
-| 后端全量 `pytest tests/ -q` | **1346 passed, 16 skipped**（16 条需独立 `PG_TEST_URL` 的 integration 默认跳过）；1 条 `test_admin_panel` 在并发跑测时出现 Windows 文件 OSError，单独复跑通过 |
-| 本轮针对性后端测试 | config 22、exams 21、search 16、behavior 13、auth 4、media + PDF 47 全绿 |
+| 后端全量 `pytest tests/ -q` | **1350 passed, 16 skipped**（16 条需独立 `PG_TEST_URL` 的 integration 默认跳过） |
+| 本轮针对性后端测试 | config 23、exams 21、search 16、behavior 13、auth 4、media + PDF 47、notifications 35、SMS/配置 61 全绿 |
 | e2e 定点 | 断点用例**通过**；`design-rollout` + `public-layout` 共 8 条通过，4 条因**dev 后端限流 429** 未跑通（`frontend/CLAUDE.md` 明确要求 e2e 用 `ENV=testing` 后端；本条记为未执行，不算产品缺陷） |
 | 浏览器复核（Playwright，1440/390） | 首个 Tab = 「跳到正文」；`aria-pressed` 存在；通知浮层 `dialog` + 空态、无 spinner；`/channels` 清空按钮存在；404 h1 = 「页面不存在」；已设密码账号出现引导、首设密码账号出现表单；触控 `search 44×44 / chip 52×44 / tab 78×60`；断点 1024/820/768/600/390 无侧栏且有底栏、1920/1440 反之；横向溢出 0 |
 | 视觉审计 | 13 路由 × 1440/390 全页 + 暗色 + 1024/820 定点共 57 张；114 次溢出测量 0px |
@@ -95,7 +96,7 @@
 - **全量 e2e / 四浏览器**：dev 后端会 429，需按 `frontend/CLAUDE.md` 用 `ENV=testing` 的测试后端 + `seed_e2e.py` 重跑；本轮只跑了定点用例。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **BE-03 迁移漂移修复、BE-06 SMS dev-fake、BE-08 周统计、BE-09 无界查询、BE-11 回调重试、BE-12 管线锁、BE-13/14/15/16/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
+- **BE-03 迁移漂移修复、BE-08 周统计、BE-09 无界查询、BE-11 回调重试、BE-12 管线锁、BE-13/14/16/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
 - **前端剩余结构性缺口**：收藏页 3 类 tab + 内联笔记的密度、通知页的精简列表、应用壳页脚（设计无、但保留协议/隐私/反馈入口）、侧栏折叠与其余打磨项；首页继续观看、频道 hero、会员状态卡、学习记录统计卡已在本轮补齐。
 
 ## 4. 证据索引

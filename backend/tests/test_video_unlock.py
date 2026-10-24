@@ -57,8 +57,8 @@ class TestSignupTrial:
         import app.services.sms_service as sms_svc
 
         # Dev-fake SMS mode (code "1234").
-        original = sms_svc._real_send_enabled
-        sms_svc._real_send_enabled = lambda: False
+        original = sms_svc._dev_fake_enabled
+        sms_svc._dev_fake_enabled = lambda: True
         try:
             await client.post("/api/v1/auth/sms/send-code", json={"phone": "13600136000", "purpose": "register"})
             resp = await client.post(
@@ -66,7 +66,7 @@ class TestSignupTrial:
                 json={"phone": "13600136000", "code": "1234", "password": "Testpass123!"},
             )
         finally:
-            sms_svc._real_send_enabled = original
+            sms_svc._dev_fake_enabled = original
         assert resp.status_code == 201, resp.text
         user_payload = resp.json()["user"]
         assert user_payload["plan"] == "pro"

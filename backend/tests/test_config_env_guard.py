@@ -14,6 +14,13 @@ from app.core.config import Settings
 _STRONG_SECRET = "x" * 32
 
 
+@pytest.fixture(autouse=True)
+def _clear_sms_fake_env(monkeypatch):
+    """conftest enables the dev SMS fake suite-wide; these tests assert the
+    production guards, so the opt-in must not leak in from the environment."""
+    monkeypatch.delenv("SMS_DEV_FAKE_ENABLED", raising=False)
+
+
 def _settings(**overrides) -> Settings:
     """Build ``Settings`` from the explicit kwargs only.
 
@@ -67,6 +74,16 @@ class TestSecretGuards:
     def test_production_rejects_empty_database_url(self):
         with pytest.raises(RuntimeError, match="DATABASE_URL"):
             _settings(env="production", jwt_secret=_STRONG_SECRET, database_url="")
+
+    def test_production_rejects_sms_dev_fake(self):
+        """The fixed code '1234' must never be enabled on a production box."""
+        with pytest.raises(RuntimeError, match="SMS_DEV_FAKE_ENABLED"):
+            _settings(
+                env="production",
+                jwt_secret=_STRONG_SECRET,
+                database_url="postgresql+asyncpg://u:p@localhost/db",
+                sms_dev_fake_enabled=True,
+            )
 
     def test_production_rejects_missing_transcription_callback_secret(self):
         with pytest.raises(RuntimeError, match="TRANSCRIPTION_CALLBACK_SECRET"):

@@ -158,8 +158,8 @@
 - 视觉修复：首页眉标/右栏白卡/已订阅频道整段/主推 CTA「从这句话开始」+ 句数；断点改为设计契约（≤1024 收侧栏 + 底栏、≥1025 显示侧栏），顶栏/底栏/账号菜单/观看页内部断点同步；移除页头装饰线、补回移动端品牌字、搜索空态文案、hover token。
 - 功能/可访问性修复：通知浮层 StrictMode 永久 loading、TabPills 选中态 ARIA、skip link 成为第一个 Tab 停靠点、已设密码账号的 `/set-password` 引导（后端新增只读 `has_password`）、对比度 token 提到 AA、移动端触控目标 44px、通知浮层 dialog 语义、404 h1、history 标题层级、频道清空搜索、个人页 tab 换行。
 - 后端修复：JWT 密钥强度 + 算法白名单（BE-01）、`complete` 行为事件 Redis 幂等且只在真正写副作用时失效缓存（BE-02）、交卷列表答对数改用 `ExamAnswer` 聚合（BE-18）、字幕搜索按方言分流（BE-24）、nginx 鉴权限流指向真实路径（BE-05）、compose 金数据密钥改按需必填（BE-26）。
-- 验证：前端 `npm run check` 通过、332 项单测通过；后端 `ruff` 通过、全量 1346 passed / 16 skipped（需独立 PG_TEST_URL 的 integration 默认跳过；1 条 admin-panel 并发文件 OSError 单独复跑通过）；e2e 断点用例已按新契约更新并通过，另 8 条定点通过；4 条 e2e 因 dev 后端 429 未执行（需 `ENV=testing` 测试后端，已记入报告）。未新增迁移、未放宽门禁/基线。
-- 未修：BE-03 迁移漂移、BE-15 WS 鉴权收敛、BE-06 dev 固定码门、BE-08/09/11/12/13 等；收藏/通知等剩余结构缺口。均已列入 `README.md` 第 5 节。
+- 验证：前端 `npm run check` 通过、332 项单测通过；后端 `ruff` 通过、全量 1350 passed / 16 skipped（需独立 PG_TEST_URL 的 integration 默认跳过）；e2e 断点用例已按新契约更新并通过，另 8 条定点通过；4 条 e2e 因 dev 后端 429 未执行（需 `ENV=testing` 测试后端，已记入报告）。未新增迁移、未放宽门禁/基线。
+- 未修：BE-03 迁移漂移、BE-08/09/11/12/13 等；收藏/通知等剩余结构缺口。均已列入 `README.md` 第 5 节。
 
 ### 第二轮补强：审计列出的结构性缺口
 
@@ -175,3 +175,5 @@
 - 学习记录四个统计数字收进描边卡；首页右栏移除设计里没有的「查看学习记录」卡，收敛为到期/正在学/本周节奏三张。
 - Playwright 复核：四页横向溢出 0；频道封面实测 378px；会员页「当前状态」出现；学习记录统计卡边框 1px。
 - 后端媒体/PDF 鉴权收敛（BE-04）：新增 `dependencies.resolve_token_user()`，媒体 `?token=`、shadowing 录制与原卷 PDF 全部走与 API 相同的链（黑名单 / 改密 / 封禁）；补 3 条测试（封禁 owner、改密后旧 token、封禁 shadowing owner），media + PDF 47 项通过。
+- WebSocket 鉴权收敛（BE-15）：通知 WS 握手改用同一条 `resolve_token_user()` 链，补「改密后旧 token 被拒」用例，notifications 35 项通过。
+- 短信固定码改为显式 opt-in（BE-06）：新增 `SMS_DEV_FAKE_ENABLED`（默认 false，production 启动即拒绝），`verify_code` 必须读到 Redis 已发码；本地 `.env`、`.env.example`、CI 两处 env 显式开启，测试补「未显式开启不生效」「未发码不接受」「production 拒绝」；SMS/配置相关 61 项通过，dev API 实测发码后 1234 可登录、未发码 400。
