@@ -14,7 +14,6 @@ from app.models.learning import LearningRecord
 from app.models.learning_plan import LearningEvent
 from app.models.user import User
 from app.models.video import Video
-from app.models.weekly_report import WeeklyReport
 from app.schemas.common import VideoBrief
 from app.schemas.learning import (
     LearningRecordResponse,
@@ -382,24 +381,6 @@ async def stats_heatmap(
     from app.services.retired_features import feature_gone
 
     feature_gone()
-
-
-def _weekly_report_payload(r: WeeklyReport) -> dict:
-    return {
-        "id": r.id,
-        "week_start": r.week_start.isoformat(),
-        "study_days": r.study_days,
-        "total_minutes": r.total_minutes,
-        "new_words": r.new_words,
-        "reviewed_words": r.reviewed_words,
-        "videos_completed": r.videos_completed,
-        "streak_at_week_end": r.streak_at_week_end,
-        "delta_minutes_pct": r.delta_minutes_pct,
-        "daily_minutes": r.daily_minutes or [],
-        "daily_new_words": r.daily_new_words or [],
-        "highlight": r.highlight,
-        "created_at": r.created_at.isoformat() if r.created_at else None,
-    }
 
 
 @router.get("/weekly-reports")

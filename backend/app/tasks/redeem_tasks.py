@@ -1,9 +1,9 @@
 """Celery tasks for the redeem-code / Pro-membership lifecycle (ADR-0007).
 
 - ``downgrade_expired_pro``: write back plan=free for users whose Pro has
-  expired. ``require_pro_user`` only *blocks* expired Pro on access; it never
-  wrote back ``free``, so the admin ``pro_users`` count was inflated and the
-  profile page showed Pro indefinitely. This beat closes that gap.
+  expired. Access checks only *blocked* an expired Pro request; nothing wrote
+  back ``free``, so the admin ``pro_users`` count was inflated and the profile
+  page showed Pro indefinitely. This beat closes that gap.
 - ``expire_unused_redeem_codes``: flip unused codes older than their
   ``expires_at`` to ``expired`` so stale inventory can't be redeemed.
 """

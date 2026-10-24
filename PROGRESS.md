@@ -258,3 +258,9 @@
 - 新增 `UnprocessableEntityError(DomainError)`（status 422 / code `VALIDATION_ERROR`），替掉 listening（路由 + service 共 4 处）、videos 排名 scope、vocab_sets scope 共 6 处 `HTTPException(422)`；业务参数非法与 pydantic 校验现在共用同一 code。
 - `_http_exception_handler` 改为透传 `exc.headers`；`get_current_user` 的 401 带 `WWW-Authenticate: Bearer`。
 - 更新 `test_response_contract` 的 ranking scope 断言、`test_listening_api` 三处业务 422 与素材为空断言、`test_auth` 的 401 头断言；共 65 项通过；全量后端 1374 passed / 16 skipped。
+
+### 清死代码与 ECDICT 启动预热（BE-21 / BE-23）
+
+- 删除无调用点的 `require_pro_user` 与 `_weekly_report_payload`（含 `WeeklyReport` 导入）；`redeem_tasks` 注释不再引用已删依赖；`shadowing_service` 在前几轮已无引用。
+- lifespan 启动阶段用 `asyncio.to_thread(ecdict.get_index)` 预热 ECDICT 索引，避免首个词卡/搜索请求在事件循环里同步构建 ~0.7s（DB 不存在时跳过）。
+- `ruff check` 通过；`test_auth`、`test_auth_flows`、`test_learning_weekly_stats`、`test_openapi_contract`、`test_exposure` 共 23 项通过；真实生产启动耗时未执行；全量后端 1374 passed / 16 skipped。

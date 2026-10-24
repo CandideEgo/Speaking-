@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.core.time_utils import to_aware_utc
 from app.core.token_blacklist import is_token_blacklisted
-from app.models.user import PlanType, RoleType, User
+from app.models.user import RoleType, User
 
 security = HTTPBearer(auto_error=False)
 settings = get_settings()
@@ -153,31 +153,3 @@ async def get_admin_user(
             detail="Admin access required",
         )
     return current_user
-
-
-async def require_pro_user(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """Dependency that ensures the current user has an active Pro subscription.
-
-    Re-queries the User row from DB so that a freshly-upgraded user
-    (e.g. just redeemed an invite code) is not rejected with a stale
-    plan=free from the JWT-authenticated session.
-    """
-    # Re-fetch to get the latest plan status (may have changed since
-    # get_current_user loaded the row at the start of this request).
-    fresh = (await db.execute(select(User).where(User.id == current_user.id))).scalar_one_or_none()
-    user = fresh or current_user
-
-    if user.plan == PlanType.free:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Pro subscription required.",
-        )
-    if user.plan == PlanType.pro and user.plan_expires_at and to_aware_utc(user.plan_expires_at) < datetime.now(UTC):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Pro subscription has expired.",
-        )
-    return user

@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -184,6 +185,19 @@ async def lifespan(app: FastAPI):
             "fall back to in-app admin notifications only (best-effort, and lost "
             "if the DB is unavailable). Set it to receive pipeline failures off-site."
         )
+    # ECDICT builds its in-process index lazily on first lookup (~0.7s for
+    # 14k words, synchronous SQLite reads). Without prewarming, the first
+    # word-card/search request after every deploy blocks its worker's event
+    # loop for that whole build. Pay it once at startup instead.
+    if settings.env != "testing":
+        from app.services import ecdict
+
+        if ecdict.is_available():
+            try:
+                await asyncio.to_thread(ecdict.get_index)
+                logger.info("ecdict_index_warmed")
+            except Exception:
+                logger.warning("ecdict index prewarm failed; first lookup will build it", exc_info=True)
     # Cross-worker notification fan-out. Tests drive the subscriber directly
     # with a fake pubsub instead of starting a real connection.
     if settings.env != "testing":
