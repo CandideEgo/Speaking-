@@ -166,6 +166,21 @@ export default function PracticePage() {
         }
       />
 
+      <section
+        className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-hairline bg-surface-soft p-4 sm:p-5"
+        aria-label="听力练习"
+      >
+        <div>
+          <h2 className="text-copy-lg font-semibold text-ink">逐句听力</h2>
+          <p className="mt-1 text-meta text-muted">
+            真实视频原声 · 重播与慢放 · 听写后查看原句和解析
+          </p>
+        </div>
+        <LinkButton href="/practice/listening" size="sm">
+          选择听力素材
+        </LinkButton>
+      </section>
+
       {/* 桌面把「自由练习 / 日期 / 今日推荐」放在页头右侧；窄屏收成一行，
           否则推荐入口在手机上完全消失。 */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-hairline pb-3 md:hidden">
@@ -386,7 +401,7 @@ export default function PracticePage() {
                   ))}
                 </ul>
                 <p className="mt-3 text-caption leading-relaxed text-muted">
-                  听力、翻译、写作与完整套卷不在按题型练里；完整套卷见套卷列表。
+                  听力使用视频原声，入口在本页上方；阅读题组按题型选择，完整套卷见套卷列表。
                 </p>
               </details>
 
