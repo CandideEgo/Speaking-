@@ -163,13 +163,20 @@ async def create_daily_session(
     stmt = select(ExamQuestion)
     if level:
         stmt = stmt.join(ExamQuestion.paper).where(ExamPaper.level == level)
-    pool = (await db.execute(stmt)).scalars().all()
+    # Draw a bounded random sample first so a large question bank is not fully
+    # materialised on every daily-check start. If the sample is too sparse
+    # (most rows unanswerable), fall back to the full pool — correctness first.
+    sample_size = max(count * 5, count)
+    pool = list((await db.execute(stmt.order_by(func.random()).limit(sample_size))).scalars())
     if not pool:
         # Level filter matched nothing (e.g. user target_exam has no bank yet):
         # fall back to any available question so the daily check still works.
-        pool = (await db.execute(select(ExamQuestion))).scalars().all()
+        pool = list((await db.execute(select(ExamQuestion).order_by(func.random()).limit(sample_size))).scalars())
     # Never draw unanswerable questions (client would render no options).
-    pool = _answerable_questions(list(pool))
+    pool = _answerable_questions(pool)
+    if len(pool) < count:
+        fallback = (await db.execute(select(ExamQuestion))).scalars().all()
+        pool = _answerable_questions(list(fallback))
     if not pool:
         raise NotFoundError("题库为空，请先导入真题")
     picked = random.sample(pool, min(count, len(pool)))
@@ -203,39 +210,60 @@ async def create_daily_session(
     return session, picked
 
 
-async def _graded_answer_rows(db: AsyncSession, user_id: str) -> list[ExamAnswer]:
-    """All answered rows across the user's submitted attempts, newest first."""
+async def _latest_wrong_answers(db: AsyncSession, user_id: str) -> list[ExamAnswer]:
+    """Latest graded answer per question, only where that answer is wrong.
+
+    Uses a window function instead of loading the user's entire answer history
+    into Python: the result is bounded by the number of distinct questions the
+    user has answered, not by every attempt since signup.
+    """
+    ranked = (
+        select(
+            ExamAnswer.id.label("answer_id"),
+            func.row_number()
+            .over(
+                partition_by=ExamAnswer.question_id,
+                order_by=(ExamAnswer.answered_at.desc(), ExamAnswer.id.desc()),
+            )
+            .label("rank"),
+        )
+        .join(ExamSession, ExamAnswer.session_id == ExamSession.id)
+        .where(
+            ExamSession.user_id == user_id,
+            ExamSession.submitted_at.is_not(None),
+            ExamAnswer.user_answer.is_not(None),
+            ExamAnswer.question_id.is_not(None),
+        )
+        .subquery()
+    )
     rows = (
         await db.execute(
             select(ExamAnswer)
-            .join(ExamSession, ExamAnswer.session_id == ExamSession.id)
-            .where(
-                ExamSession.user_id == user_id,
-                ExamSession.submitted_at.is_not(None),
-                ExamAnswer.user_answer.is_not(None),
-                ExamAnswer.question_id.is_not(None),
-            )
+            .join(ranked, ExamAnswer.id == ranked.c.answer_id)
+            .where(ranked.c.rank == 1, ExamAnswer.correct.is_(False))
             .order_by(ExamAnswer.answered_at.desc())
         )
     ).scalars()
     return list(rows)
 
 
-def _aggregate_by_question(rows: list[ExamAnswer]) -> dict[str, dict]:
-    """Latest graded answer + wrong count per question.
-
-    A question is in the wrong book when its most recent graded answer is
-    wrong — answering it correctly later (e.g. a wrong-redo pass) clears it.
-    """
-    latest: dict[str, ExamAnswer] = {}
-    wrong_counts: dict[str, int] = {}
-    for answer in rows:
-        qid = answer.question_id or ""
-        if answer.correct is False:
-            wrong_counts[qid] = wrong_counts.get(qid, 0) + 1
-        if qid not in latest:
-            latest[qid] = answer
-    return {"latest": latest, "wrong_counts": wrong_counts}
+async def _wrong_counts(db: AsyncSession, user_id: str) -> dict[str, int]:
+    """How many times each question was answered wrong (SQL GROUP BY)."""
+    rows = (
+        await db.execute(
+            select(ExamAnswer.question_id, func.count())
+            .join(ExamSession, ExamAnswer.session_id == ExamSession.id)
+            .where(
+                ExamSession.user_id == user_id,
+                ExamSession.submitted_at.is_not(None),
+                ExamAnswer.user_answer.is_not(None),
+                ExamAnswer.question_id.is_not(None),
+                ExamAnswer.correct.is_(False),
+            )
+            .group_by(ExamAnswer.question_id)
+        )
+    ).all()
+    return {qid: count for qid, count in rows if qid}
 
 
 async def list_wrong_questions(
@@ -250,8 +278,9 @@ async def list_wrong_questions(
     ``wrong_count`` and the source paper's title/level. Only answered rows
     count; unanswered questions are excluded.
     """
-    agg = _aggregate_by_question(await _graded_answer_rows(db, user_id))
-    latest = {qid: a for qid, a in agg["latest"].items() if a.correct is False}
+    latest_rows = await _latest_wrong_answers(db, user_id)
+    wrong_counts = await _wrong_counts(db, user_id)
+    latest = {a.question_id: a for a in latest_rows if a.question_id}
 
     question_ids = list(latest.keys())
     papers: dict[str, ExamPaper] = {}
@@ -278,7 +307,7 @@ async def list_wrong_questions(
                 "passage": snap.get("passage"),
                 "question": snap.get("question"),
                 "options": snap.get("options"),
-                "wrong_count": agg["wrong_counts"].get(qid, 1),
+                "wrong_count": wrong_counts.get(qid, 1),
                 "last_wrong_at": answer.answered_at,
                 "paper_id": paper.id if paper else None,
                 "paper_title": paper.title if paper else None,
@@ -313,8 +342,8 @@ async def create_wrong_redo_session(
     Mirrors ``create_daily_session``: question set locked via placeholder
     ExamAnswer rows so submissions can't enumerate arbitrary ids.
     """
-    agg = _aggregate_by_question(await _graded_answer_rows(db, user_id))
-    wrong_ids = sorted(qid for qid, a in agg["latest"].items() if a.correct is False)
+    latest_rows = await _latest_wrong_answers(db, user_id)
+    wrong_ids = sorted(a.question_id for a in latest_rows if a.question_id)
     if question_ids:
         allowed = set(question_ids)
         wrong_ids = [qid for qid in wrong_ids if qid in allowed]
@@ -360,34 +389,46 @@ async def exam_stats(db: AsyncSession, user_id: str) -> dict:
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
 
-    submitted = list(
-        (
-            await db.execute(
-                select(ExamSession).where(
-                    ExamSession.user_id == user_id,
-                    ExamSession.submitted_at.is_not(None),
-                )
+    month_completed, month_score_sum = (
+        await db.execute(
+            select(
+                func.count(ExamSession.id),
+                func.coalesce(func.sum(ExamSession.score), 0.0),
+            ).where(
+                ExamSession.user_id == user_id,
+                ExamSession.submitted_at.is_not(None),
+                ExamSession.submitted_at >= month_start,
             )
-        ).scalars()
+        )
+    ).one()
+    avg_score = round(float(month_score_sum) / month_completed, 4) if month_completed else None
+
+    last_daily_score = await db.scalar(
+        select(ExamSession.score)
+        .where(
+            ExamSession.user_id == user_id,
+            ExamSession.mode == MODE_DAILY,
+            ExamSession.submitted_at.is_not(None),
+        )
+        .order_by(ExamSession.submitted_at.desc())
+        .limit(1)
     )
-
-    month_sessions = [s for s in submitted if _as_naive_utc(s.submitted_at) >= month_start]
-    avg_score = None
-    if month_sessions:
-        avg_score = round(sum(s.score or 0 for s in month_sessions) / len(month_sessions), 4)
-
-    daily = [s for s in submitted if s.mode == MODE_DAILY]
-    week_daily_count = sum(1 for s in daily if _as_naive_utc(s.submitted_at) >= week_start)
-    last_daily = max(
-        daily,
-        key=lambda s: _as_naive_utc(s.submitted_at) or datetime.min,
-        default=None,
+    week_daily_count = int(
+        await db.scalar(
+            select(func.count(ExamSession.id)).where(
+                ExamSession.user_id == user_id,
+                ExamSession.mode == MODE_DAILY,
+                ExamSession.submitted_at.is_not(None),
+                ExamSession.submitted_at >= week_start,
+            )
+        )
+        or 0
     )
 
     return {
-        "month_completed": len(month_sessions),
+        "month_completed": int(month_completed),
         "avg_score": avg_score,
-        "last_daily_score": last_daily.score if last_daily else None,
+        "last_daily_score": last_daily_score,
         "week_daily_count": week_daily_count,
     }
 

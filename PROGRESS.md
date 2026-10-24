@@ -190,3 +190,10 @@
 
 - `internal._acquire_callback_lock` / `_release_callback_lock` 改为 `await app.core.redis.get_redis()`，`await r.set(nx=True, ex=TTL)` / `await r.delete`；删除每次调用新建同步 `redis.from_url` 客户端、事件循环内阻塞与连接池泄漏。
 - `test_internal_callback.py` 的锁替身改为 async Redis，10 项通过；全量后端 **1350 passed / 16 skipped**。
+
+### 真题查询有界化（BE-09）
+
+- `create_daily_session`：先 `ORDER BY random() LIMIT count×5` 抽有界样本，样本里可答题不足才回退全表，避免每次 daily/start 全表载入。
+- 错题本：新增 `_latest_wrong_answers`（`row_number()` 窗口取每题最新作答，只保留最新为错的题）与 `_wrong_counts`（SQL `GROUP BY` 统计错次），替换“载入全部历史作答再在 Python 聚合”。
+- `exam_stats`：改为 3 条 SQL（本月 count/sum、最近一次 daily、近 7 天 daily count），不再加载用户全部已提交 session。
+- `test_exams_api.py` 21 + `test_exam_corpus.py` 9 通过；全量 1350 passed / 16 skipped。
