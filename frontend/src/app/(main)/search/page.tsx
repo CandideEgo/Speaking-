@@ -9,7 +9,9 @@ import { watchHref } from "@/lib/watchEntry";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
-import { VideoCard } from "@/components/ui/VideoCard";
+import { ChannelCard } from "@/components/channels/ChannelCard";
+import type { ChannelSummary } from "@/types/channels";
+import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -34,12 +36,6 @@ interface SubtitleResult {
   start_time: number;
   video: Video;
 }
-interface Channel {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-}
 interface Group<T> {
   items: T[];
   has_more: boolean;
@@ -48,7 +44,7 @@ interface Results {
   videos?: Group<Video>;
   subtitles?: Group<SubtitleResult>;
   words?: Group<Word>;
-  channels?: Group<Channel>;
+  channels?: Group<ChannelSummary>;
 }
 const GROUPS = { all: "全部", videos: "视频", channels: "频道", subtitles: "字幕", words: "词汇" };
 const GROUP_UNITS: Record<string, string> = {
@@ -383,9 +379,15 @@ export default function SearchPage() {
                 {error ? (
                   <ErrorState title={error} onRetry={() => setRetry((v) => v + 1)} />
                 ) : !results ? (
-                  <p role="status" className="py-10 text-copy text-muted">
-                    正在搜索…
-                  </p>
+                  <div
+                    className="grid gap-4 py-5 sm:grid-cols-2"
+                    aria-busy="true"
+                    aria-label="正在搜索"
+                  >
+                    {Array.from({ length: 4 }, (_, i) => (
+                      <VideoCardSkeleton key={i} />
+                    ))}
+                  </div>
                 ) : (
                   <>
                     {/* 分组计数已经进了上面的类型标签，不再单开一块「命中总览」重复一遍。 */}
@@ -430,20 +432,7 @@ export default function SearchPage() {
                           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                             {results.channels?.items.map((c) => (
                               <li key={c.id}>
-                                <Link
-                                  href={`/channels/${c.slug}`}
-                                  className="flex h-full flex-col gap-1 rounded-lg border border-hairline bg-canvas p-4 hover:border-hairline-strong"
-                                >
-                                  <span className="inline-flex items-center gap-1 text-copy font-semibold text-ink">
-                                    <Layers size={14} className="text-muted" aria-hidden />
-                                    {c.name}
-                                  </span>
-                                  {c.description && (
-                                    <span className="text-meta leading-relaxed text-muted">
-                                      {c.description}
-                                    </span>
-                                  )}
-                                </Link>
+                                <ChannelCard channel={c} subscribed={c.is_subscribed ?? false} />
                               </li>
                             ))}
                           </ul>
