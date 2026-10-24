@@ -27,6 +27,7 @@
 | BE-18 | 历史交卷列表用 `int(score * question_count)` 反推答对数，截断少报 | `exam_service.list_attempts` 改为按 session 聚合 `ExamAnswer.correct` | `test_attempt_history_correct_count_uses_answer_rows`；`test_exams_api.py` 21 passed |
 | BE-24 | 字幕搜索无条件用 `plainto_tsquery`，SQLite 测试库直接报错、且无测试覆盖 | `search_service.search_subtitles` 按方言分流（Postgres FTS / 其他 ILIKE） | `test_search_d7.py` 新增 2 条，16 passed |
 | BE-05 | nginx 限流 location 指向不存在的 `/auth/login|register`，真实入口完全无限流 | `nginx.conf` / `nginx.ssl.conf` 改为 `sms/login`、`phone-login`、`sms/register`、`sms/reset-password`、`sms/send-code` 的精确 location | 配置 grep 核对；未在真实 nginx 上 reload（本机无生产） |
+| BE-04 | 媒体/PDF 的 `?token=` 是第二份更弱的校验：不查黑名单、改密、封禁 | `dependencies.resolve_token_user()` 成为字符串 token 的唯一入口；`media._viewer_id_from_request`、shadowing 校验与 `exam_pdfs` 全部走同一条链 | `test_media_access.py` 新增被封禁 owner、改密后旧 token、被封禁 shadowing owner 三条用例；media + PDF 47 passed |
 | BE-26 | 未启用金数据时 compose 仍强制要求 `JINSHUJU_PURCHASE_TOKEN_SECRET` | `docker-compose.prod.yml` 改为 `${VAR:-}`，必填判断留在 `config.py`（已实现） | 配置读码；`docker compose config` 未执行 |
 | F4 契约 | 前端无法知道账号是否已设密码，已设密码用户进 `/set-password` 必然 400 | `User.has_password` 模型属性 + `UserResponse.has_password`（只增字段） | `test_auth.py` 断言 `has_password is True` |
 
@@ -94,7 +95,7 @@
 - **全量 e2e / 四浏览器**：dev 后端会 429，需按 `frontend/CLAUDE.md` 用 `ENV=testing` 的测试后端 + `seed_e2e.py` 重跑；本轮只跑了定点用例。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **BE-03 迁移漂移修复、BE-04 媒体 token 全链路、BE-06 SMS dev-fake、BE-08 周统计、BE-09 无界查询、BE-11 回调重试、BE-12 管线锁、BE-13/14/15/16/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
+- **BE-03 迁移漂移修复、BE-06 SMS dev-fake、BE-08 周统计、BE-09 无界查询、BE-11 回调重试、BE-12 管线锁、BE-13/14/15/16/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
 - **前端剩余结构性缺口**：收藏页 3 类 tab + 内联笔记的密度、通知页的精简列表、应用壳页脚（设计无、但保留协议/隐私/反馈入口）、侧栏折叠与其余打磨项；首页继续观看、频道 hero、会员状态卡、学习记录统计卡已在本轮补齐。
 
 ## 4. 证据索引
