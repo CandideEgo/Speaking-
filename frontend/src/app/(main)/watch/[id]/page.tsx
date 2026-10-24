@@ -22,7 +22,7 @@ import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { resolveWatchReturn, watchFocusIssue, watchHref } from "@/lib/watchEntry";
 import type { Subtitle, VideoDetail, VocabSet, VocabSetCreateResponse } from "@/types";
-import { formatDuration, formatTime } from "@/lib/format";
+import { formatDuration, formatTime, formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
@@ -179,7 +179,7 @@ function VideoActions({
         aria-label={isLiked ? `取消点赞（${likeCount}）` : `点赞（${likeCount}）`}
       >
         <Heart size={14} className={cn(isLiked && "fill-current")} />
-        {likeCount > 0 ? likeCount : "点赞"}
+        {likeCount > 0 ? formatCount(likeCount) : "点赞"}
       </button>
       <button
         className={cn(

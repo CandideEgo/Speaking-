@@ -89,6 +89,10 @@ def latest_video_payload(video: Video | None) -> dict | None:
         "duration": video.duration,
         "published_at": video.published_at.isoformat() if video.published_at else None,
         "difficulty_level": video.difficulty_level,
+        "view_count": video.view_count,
+        "favorite_count": video.favorite_count,
+        "upload_date": video.upload_date.isoformat() if video.upload_date else None,
+        "created_at": video.created_at.isoformat() if video.created_at else None,
     }
 
 

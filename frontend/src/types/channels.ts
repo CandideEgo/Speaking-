@@ -1,3 +1,5 @@
+import type { VideoMetadataData } from "@/components/video/VideoMetadata";
+
 /**
  * 频道页的数据契约：列表、点开后的详情、以及「我订阅的频道」。
  *
@@ -8,7 +10,7 @@
  */
 
 /** 最近收录的一条公开视频（卡片辅助信息，不作为主标题）。 */
-export interface ChannelLatestVideo {
+export interface ChannelLatestVideo extends VideoMetadataData {
   id: string;
   title: string;
   /** 中文展示标题；为空时前端回退 title。 */
@@ -77,15 +79,17 @@ export interface ChannelSubscriptionSummary {
   video_count: number;
   latest_video: ChannelLatestVideo | null;
   /** 该频道里最近一条未完成、进度 > 0 的学习记录；没有则为 null。 */
-  continue_video: {
-    id: string;
-    title: string;
-    title_zh?: string | null;
-    thumbnail_url: string | null;
-    duration: number | null;
-    progress_percentage: number;
-    position_seconds: number | null;
-  } | null;
+  continue_video:
+    | ({
+        id: string;
+        title: string;
+        title_zh?: string | null;
+        thumbnail_url: string | null;
+        duration: number | null;
+        progress_percentage: number;
+        position_seconds: number | null;
+      } & VideoMetadataData)
+    | null;
   /** 本站公开视频中还没有学习记录的数量（不是「未读」）。 */
   unlearned_count: number;
 }

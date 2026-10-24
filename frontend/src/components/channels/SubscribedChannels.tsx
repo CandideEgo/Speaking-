@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { VideoTitle } from "@/components/video/VideoTitle";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { userInitial } from "@/lib/avatar";
 import { formatDuration } from "@/lib/format";
 import { watchHref } from "@/lib/watchEntry";
@@ -112,6 +113,7 @@ function SubscriptionCard({ item }: { item: ChannelSubscriptionSummary }) {
               zhClassName="text-meta font-medium leading-snug text-ink"
             />
           </Link>
+          <VideoMetadata video={continueVideo} className="mt-1" />
           <div
             className="mt-2 h-1.5 overflow-hidden rounded-pill bg-surface-card"
             role="progressbar"
@@ -161,6 +163,7 @@ function SubscriptionCard({ item }: { item: ChannelSubscriptionSummary }) {
               className="mt-0.5"
               zhClassName="text-meta font-medium leading-snug text-ink"
             />
+            <VideoMetadata video={latest} className="mt-1" />
             {latest.duration != null && (
               <p className="mt-1 text-caption tabular-nums text-muted">
                 {formatDuration(latest.duration)}

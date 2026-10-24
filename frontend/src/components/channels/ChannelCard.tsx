@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { VideoTitle } from "@/components/video/VideoTitle";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { formatCount } from "@/lib/format";
 import {
   SUBSCRIPTION_EVENT,
@@ -20,7 +21,6 @@ import {
   directionLabels,
   formatCollectedVideos,
   formatDifficultyRange,
-  latestVideoMeta,
 } from "@/lib/channelLearning";
 import { formatDuration } from "@/lib/format";
 import { watchHref } from "@/lib/watchEntry";
@@ -103,7 +103,7 @@ export function ChannelCard({
   ].filter((fact): fact is string => Boolean(fact));
   const latestFacts = [
     latest?.duration != null ? formatDuration(latest.duration) : null,
-    latestVideoMeta(channel),
+    latest?.difficulty_level,
   ].filter((fact): fact is string => Boolean(fact));
 
   return (
@@ -185,6 +185,7 @@ export function ChannelCard({
                 className="mt-0.5"
                 zhClassName="text-meta font-medium leading-snug text-ink"
               />
+              <VideoMetadata video={latest} className="mt-1" />
               {latestFacts.length > 0 && (
                 <p className="mt-1 text-caption tabular-nums text-muted">
                   {latestFacts.join(" · ")}
