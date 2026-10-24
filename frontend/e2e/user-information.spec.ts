@@ -84,7 +84,7 @@ async function mockContent(page: Page) {
   );
 }
 
-test("我的默认提供个人内容入口，五个一级导航和旧设置链接可用", async ({ page }) => {
+test("我的默认展示学习资产与会员/账户卡，五个一级导航和旧设置链接可用", async ({ page }) => {
   await mockContent(page);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
@@ -100,15 +100,10 @@ test("我的默认提供个人内容入口，五个一级导航和旧设置链�
       await expect(links.nth(index)).toHaveAccessibleName(label);
     if (width < 768) await expect(links).toHaveCount(5);
     const hub = page.locator("#profile-panel-content");
-    for (const href of [
-      "/history",
-      "/favorites",
-      "/vocabulary",
-      "/practice",
-      "/notifications",
-      "/upgrade",
-    ])
-      await expect(hub.locator(`a[href="${href}"]`)).toBeVisible();
+    // 设计「概览」只有学习资产 + 最近学习/节奏；六宫格快捷入口不在设计里（V-17）。
+    await expect(hub.getByRole("region", { name: "学习资产" })).toBeVisible();
+    await expect(hub.locator('a[href="/favorites"]')).toHaveCount(0);
+    await expect(hub.locator('a[href="/upgrade"]')).toHaveCount(0);
   }
   await page.goto("/profile?tab=settings");
   await expect(page.getByRole("tab", { name: "设置", exact: true })).toHaveAttribute(

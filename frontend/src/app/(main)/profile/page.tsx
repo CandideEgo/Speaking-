@@ -10,19 +10,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageTransition } from "@/components/common/PageTransition";
-import {
-  User as UserIcon,
-  Settings,
-  TrendingUp,
-  Sparkles,
-  BookOpen,
-  Bookmark,
-  History,
-  GraduationCap,
-  Bell,
-  Phone,
-  Crown,
-} from "lucide-react";
+import { User as UserIcon, Settings, TrendingUp, Bookmark, Bell, Phone, Crown } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
 import { ProfileOverview } from "@/components/profile/ProfileOverview";
@@ -296,66 +284,13 @@ export default function ProfilePage() {
 
             {/* Tab content */}
             <div className="mt-6">
-              {activeTab === "content" && <ProfileOverview />}
               {activeTab === "content" && (
                 <div
                   id="profile-panel-content"
                   role="tabpanel"
                   aria-labelledby="profile-tab-content"
-                  className="mt-4 grid gap-3 sm:grid-cols-2"
                 >
-                  {[
-                    {
-                      href: "/history",
-                      label: "观看历史",
-                      description: "接着上次的进度看",
-                      icon: History,
-                    },
-                    {
-                      href: "/favorites",
-                      label: "我的收藏",
-                      description: "保存的视频、句子与词",
-                      icon: Bookmark,
-                    },
-                    {
-                      href: "/vocabulary",
-                      label: "我的词汇",
-                      description: "回看原句，复习保存的词",
-                      icon: BookOpen,
-                    },
-                    {
-                      href: "/practice",
-                      label: "真题练习",
-                      description: "选题、继续作答与回看错题",
-                      icon: GraduationCap,
-                    },
-                    {
-                      href: "/notifications",
-                      label: "通知",
-                      description: "查看收到的消息",
-                      icon: Bell,
-                    },
-                    {
-                      href: "/upgrade",
-                      label: "会员",
-                      description: "查看权益与套餐",
-                      icon: Sparkles,
-                    },
-                  ].map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="flex items-start gap-3 rounded-md border border-hairline p-4 hover:bg-surface-soft"
-                    >
-                      <item.icon size={20} className="mt-1 shrink-0 text-muted" aria-hidden />
-                      <span>
-                        <strong className="block text-copy font-semibold text-ink">
-                          {item.label}
-                        </strong>
-                        <span className="mt-1 block text-meta text-muted">{item.description}</span>
-                      </span>
-                    </Link>
-                  ))}
+                  <ProfileOverview />
                 </div>
               )}
               {activeTab === "profile" && (
@@ -597,30 +532,6 @@ export default function ProfilePage() {
                   </Link>
                 </div>
               </div>
-            </section>
-
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">相关页面</h2>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    href="/upgrade"
-                    className="inline-flex items-center gap-1 text-copy font-semibold text-brand-700 hover:underline"
-                  >
-                    <Sparkles size={14} />
-                    会员套餐
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/vocabulary"
-                    className="inline-flex items-center gap-1 text-copy font-semibold text-brand-700 hover:underline"
-                  >
-                    <TrendingUp size={14} />
-                    词汇与复习
-                  </Link>
-                </li>
-              </ul>
             </section>
           </aside>
         </div>

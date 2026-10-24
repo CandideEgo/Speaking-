@@ -299,3 +299,11 @@
 - 「继续观看」在无记录时不再整块消失，改为同几何的占位条（封面占位 + kicker + 「看一段视频就会出现在这里」+ 提示），首屏高度保持稳定；失败态与重试逻辑不变。
 - home-continue-learning.spec.ts：无记录用例改为断言占位条；新增「本周节奏」用例断言单条进度条 aria-valuenow=4 与说明文案；**7 passed**（chromium / localhost）。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
+
+### 我的概览删除多余六宫格与相关页面、资产数字对齐设计（V-17 / V-30）
+
+- `profile` 的「我的内容」tab 删除 6 个快捷入口网格与右栏「相关页面」链接列表，只保留设计中的最近学习 + 学习节奏 + 会员卡 + 账户卡；`#profile-panel-content` 的 tabpanel 语义保留。
+- `ProfileOverview` 资产数字从 28px 改为设计值 23px（`text-[1.4375rem]`）；首页 due-number 已是 42px，无需再动。
+- `user-information.spec.ts` 的默认页用例改为断言「学习资产」区域存在、且六宫格里的 `/favorites`、`/upgrade` 链接不再出现；该 spec **11 passed**。
+- `npm run check` 通过；`npm run test:unit` 332 passed。
+- `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。

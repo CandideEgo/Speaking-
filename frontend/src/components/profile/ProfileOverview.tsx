@@ -107,7 +107,7 @@ export function ProfileOverview() {
               <asset.icon size={13} aria-hidden />
               {asset.label}
             </span>
-            <span className="mt-1.5 block text-[1.75rem] font-semibold leading-none tabular-nums text-ink">
+            <span className="mt-1.5 block text-[1.4375rem] font-semibold leading-none tabular-nums text-ink">
               {asset.value}
             </span>
             <span className="mt-1 block text-caption text-muted">{asset.hint}</span>
