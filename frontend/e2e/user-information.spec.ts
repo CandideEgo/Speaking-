@@ -343,6 +343,47 @@ test("词汇区分累计与本轮数量；词库按真实定位区分原句和�
   await expect(page.getByText("v:100", { exact: true })).toHaveCount(0);
 });
 
+test("通知页是单列列表，页头提供设置与全部已读", async ({ page }) => {
+  await mockContent(page);
+  await page.route("**/api/v1/notifications?**", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: "n1",
+            type: "video_ready",
+            title: "视频已就绪",
+            message: "你收藏的视频已经处理完成。",
+            is_read: false,
+            related_url: "/watch/content-video",
+            created_at: "2026-10-21T12:00:00Z",
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 20,
+        has_more: false,
+      },
+    })
+  );
+  await page.route("**/api/v1/notifications/unread-count", (route) =>
+    route.fulfill({ json: { count: 1 } })
+  );
+
+  await page.goto("/notifications");
+  await expect(page.getByRole("heading", { name: "通知", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "通知设置" })).toHaveAttribute(
+    "href",
+    "/profile?tab=settings"
+  );
+  await expect(page.getByRole("button", { name: /全部标为已读/ })).toBeVisible();
+  await expect(page.getByText("视频已就绪", { exact: true })).toBeVisible();
+  // 设计是单列列表，没有类型 tab、最近通知分区或右栏统计（V-20）。
+  await expect(page.getByRole("button", { name: /^全部 \d+$/ })).toHaveCount(0);
+  await expect(page.getByText("最近通知")).toHaveCount(0);
+  await expect(page.getByText("未读统计")).toHaveCount(0);
+});
+
 test("收藏保留笔记与日期，历史保留观看进度和来源信息", async ({ page }) => {
   await mockContent(page);
   await page.route("**/api/v1/videos/favorites?**", (route) =>

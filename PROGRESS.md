@@ -314,5 +314,13 @@
 - 删除重复的统计条与右栏「三组分别怎么收 / 取一个出来练」说明；空态和分组逻辑保留。
 - `user-information.spec.ts` 的收藏用例新增 tab 断言：默认视频区可见，切到原句后句子区可见且视频区卸载，再切回；该 spec **11 passed**。
 - `design-rollout.spec.ts` 的「收藏句子后回看」用例补了先切「原句」tab 的一步；该 spec 依赖 testing 后端，本轮未复跑（未执行）。
+
+### 通知页收敛为单列列表（V-20）
+
+- 删除类型筛选 tab、「最近通知」分区标题、底部「通知设置」预览块与右栏「未读统计 / 什么时候会收到」，正文只剩设计里的单列未读列表。
+- 页头按设计提供「通知设置」（去 `profile?tab=settings`）与「全部标为已读（N）」（无未读时禁用为「全部已读」）。
+- 偏好读取与 tab 计数请求一并移除：进页面从 1 次未读计数 + 1 次列表请求减为 2 个请求，不再额外拉 preferences/page_size=100。
+- `user-information.spec.ts` 新增通知页用例：断言页头两个操作、列表内容存在，且类型 tab/最近通知/未读统计均不再出现；该 spec **12 passed**。
+- `npm run check` 通过；`npm run test:unit` 332 passed。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。
