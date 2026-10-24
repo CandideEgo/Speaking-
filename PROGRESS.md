@@ -223,3 +223,13 @@
 - feed/featured 仍全族删除：缓存卡片负载本身带 `like_count`/`favorite_count`/`view_count`，既有 `test_live_video_metadata.py` 要求暖缓存下收藏/点赞/播放后卡片计数立即更新；不靠改测试来换性能。
 - 发布/下架/处理完成等结构性变更仍走 `invalidate_browse_cache()` 全量失效。
 - 新增 `test_video_cache_invalidation.py` 4 项逐族断言，`test_live_video_metadata.py` 2 项通过；交互路径不再清空全部 `rankings:snapshot:*`；全量后端 1367 passed / 16 skipped。
+
+### 修掉 mypy baseline 门的新错误（BE-16）
+
+- `discovery_service.py`：`**latest_video_payload(...)` 可能为 None，改为 `or {}`。
+- `exam_service.py`：`list_papers` 复用 `rows` 导致类型冲突，改名为 `section_rows`。
+- `vocabulary_service.py`：`dict(result.all())` 改显式推导并标注 `dict[str, int]`；subtitle 行改 `subtitle_rows` + 显式 `dict[str, float]`。
+- `overview_service.py`：`daily` 显式 `list[dict[str, Any]]`。
+- `video_service.py`：`upload_date`/`published_at` 显式 `isoformat()`，不再依赖 pydantic before-validator 的 mypy 误报。
+- `behavior.py`：BE-13 新增的集合显式 `str(video_id)`。
+- `.mypy-baseline` 只降不升：45 → 42 行，删掉 3 条已修掉的旧错误，没有新增。本地复算 CI 的 `comm -23` 等价命令 **new=0**；CI 作业本身未执行。全量后端 1367 passed / 16 skipped。

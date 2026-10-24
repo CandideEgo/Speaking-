@@ -20,7 +20,6 @@ app/services/ai_service.py:no-any-return
 app/services/alipay_payment.py:no-any-return
 app/services/alipay_payment.py:return-value
 app/services/behavior_service.py:arg-type
-app/services/exam_service.py:misc
 app/services/exam_service.py:operator
 app/services/exam_service.py:union-attr
 app/services/external_meta.py:no-any-return
@@ -37,8 +36,6 @@ app/services/video_seed_service.py:misc
 app/services/video_service.py:attr-defined
 app/services/video_service.py:return-value
 app/services/video_url_guard.py:misc
-app/services/vocabulary_service.py:arg-type
-app/services/vocabulary_service.py:var-annotated
 app/services/word_notes.py:assignment
 app/tasks/pipeline_helpers.py:no-any-return
 app/tasks/video_processing.py:no-any-return

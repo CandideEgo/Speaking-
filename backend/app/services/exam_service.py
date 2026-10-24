@@ -635,7 +635,7 @@ async def list_papers(
     # question counts instead of a hard-coded "3 部分 / 30 题".
     sections_by_paper: dict[str, list[dict]] = {}
     if paper_ids:
-        rows = (
+        section_rows = (
             await db.execute(
                 select(ExamQuestion.paper_id, ExamQuestion.section, func.count(ExamQuestion.id))
                 .where(ExamQuestion.paper_id.in_(paper_ids))
@@ -643,7 +643,7 @@ async def list_papers(
                 .order_by(ExamQuestion.paper_id, ExamQuestion.section)
             )
         ).all()
-        for paper_id, section, count in rows:
+        for paper_id, section, count in section_rows:
             sections_by_paper.setdefault(paper_id, []).append({"section": section, "question_count": count})
 
     items: list[dict] = []

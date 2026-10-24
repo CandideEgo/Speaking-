@@ -245,7 +245,7 @@ async def channel_subscriptions(db: AsyncSession, user: User) -> list[dict]:
                 "latest_video": channel_service.latest_video_payload(latest_video),
                 "continue_video": (
                     {
-                        **channel_service.latest_video_payload(continuation[1]),
+                        **(channel_service.latest_video_payload(continuation[1]) or {}),
                         "id": continuation[1].id,
                         "title": continuation[1].title,
                         "title_zh": continuation[1].title_zh,

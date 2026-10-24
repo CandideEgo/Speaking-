@@ -299,8 +299,8 @@ async def get_video_detail(
         like_count=video.like_count,
         favorite_count=video.favorite_count,
         view_count=video.view_count,
-        upload_date=video.upload_date,
-        published_at=video.published_at,
+        upload_date=video.upload_date.isoformat() if video.upload_date else None,
+        published_at=video.published_at.isoformat() if video.published_at else None,
         # 详情页保留完整简介（列表卡片才截断到 CARD_DESCRIPTION_LIMIT）。
         description=video.description,
         processing_mode=video.processing_mode,

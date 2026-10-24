@@ -13,7 +13,7 @@ and the exam block reuses ``exam_service.exam_stats``.
 from __future__ import annotations
 
 from datetime import UTC, date, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select
 
@@ -84,7 +84,7 @@ async def build_overview(db: AsyncSession, user: User) -> dict:
     total_minutes = int(total_seconds) // 60
 
     week_event_dates = {day for day in event_dates if day >= this_monday}
-    daily = []
+    daily: list[dict[str, Any]] = []
     for i in range(7):
         day_date = this_monday + timedelta(days=i)
         minutes = seconds_by_day.get(day_date, 0) // 60

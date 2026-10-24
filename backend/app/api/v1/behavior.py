@@ -59,7 +59,9 @@ async def post_batch(
     )
     if current_user and complete_applied:
         completed_video_ids = {
-            event.get("video_id") for event in events if event.get("event_type") == "complete" and event.get("video_id")
+            str(event["video_id"])
+            for event in events
+            if event.get("event_type") == "complete" and event.get("video_id")
         }
         for video_id in completed_video_ids:
             await invalidate_view_caches(video_id)

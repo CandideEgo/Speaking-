@@ -210,7 +210,7 @@ async def get_stats(db: AsyncSession, user_id: str) -> dict:
         .group_by(Vocabulary.mastery_level)
     )
     result = await db.execute(stmt)
-    level_counts = dict(result.all())
+    level_counts: dict[str, int] = {level: count for level, count in result.all()}
 
     # Mastered words have exited review (tri-state semantics) and don't
     # count toward the due queue.
@@ -267,8 +267,10 @@ async def attach_word_sources(db: AsyncSession, words: list[Vocabulary]) -> list
         titles = {vid: (zh or en or "") for vid, en, zh in rows}
     starts: dict[str, float] = {}
     if subtitle_ids:
-        rows = (await db.execute(select(Subtitle.id, Subtitle.start_time).where(Subtitle.id.in_(subtitle_ids)))).all()
-        starts = dict(rows)
+        subtitle_rows = (
+            await db.execute(select(Subtitle.id, Subtitle.start_time).where(Subtitle.id.in_(subtitle_ids)))
+        ).all()
+        starts = {sid: float(start) for sid, start in subtitle_rows}
 
     payloads: list[dict] = []
     for word in words:
