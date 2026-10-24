@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.limiter import rate_limit
+from app.models.behavior import BehaviorEvent
 from app.models.learning import LearningRecord
 from app.models.learning_plan import LearningEvent
 from app.models.user import User
@@ -260,7 +261,11 @@ async def stats_weekly(
 ):
     """Aggregated weekly activity for the profile 学习进度 page.
 
-    - this_week_minutes: total watched minutes (LearningRecord.time_spent_seconds)
+    - this_week_minutes: watched seconds from ``behavior_events.watch_time``,
+      bucketed by the event's server timestamp. ``LearningRecord
+      .time_spent_seconds`` is a cumulative counter on the record and cannot
+      be sliced by ``last_accessed_at`` (that would attribute all history to
+      the last visit).
     - last_week_minutes: same for the prior Monday–Sunday window
     - week_delta_pct: 0.0 when last week is 0 (handle "first week" UI)
     - this_week_words/videos: counted from LearningEvent (learned_words /
@@ -270,15 +275,18 @@ async def stats_weekly(
     now = datetime.now(UTC)
     this_monday, last_monday, _ = _week_bounds(now)
 
+    watch_seconds = BehaviorEvent.event_payload["delta_s"].as_float()
+
     async def _minutes_since(start: datetime, end: datetime) -> int:
         result = await db.execute(
-            select(func.coalesce(func.sum(LearningRecord.time_spent_seconds), 0)).where(
-                LearningRecord.user_id == current_user.id,
-                LearningRecord.last_accessed_at >= start,
-                LearningRecord.last_accessed_at < end,
+            select(func.coalesce(func.sum(watch_seconds), 0.0)).where(
+                BehaviorEvent.user_id == current_user.id,
+                BehaviorEvent.event_type == "watch_time",
+                BehaviorEvent.server_ts >= start,
+                BehaviorEvent.server_ts < end,
             )
         )
-        return result.scalars().one() // 60
+        return int(result.scalars().one() or 0) // 60
 
     this_week_minutes = await _minutes_since(this_monday, now)
     last_week_minutes = await _minutes_since(last_monday, this_monday)
@@ -301,22 +309,24 @@ async def stats_weekly(
     this_week_words = await _event_count("learned_words", this_monday)
     this_week_videos = await _event_count("completed_video", this_monday)
 
-    # Daily minutes for the 7 days of this week, Mon→Sun.
+    # Daily minutes for the 7 days of this week, Mon→Sun, from watch_time
+    # behavior events (same source as the weekly totals).
     daily_minutes: list[dict] = []
     rows = (
         await db.execute(
             select(
-                func.date(LearningRecord.last_accessed_at).label("d"),
-                func.coalesce(func.sum(LearningRecord.time_spent_seconds), 0).label("s"),
+                func.date(BehaviorEvent.server_ts).label("d"),
+                func.coalesce(func.sum(watch_seconds), 0.0).label("s"),
             )
             .where(
-                LearningRecord.user_id == current_user.id,
-                LearningRecord.last_accessed_at >= this_monday,
+                BehaviorEvent.user_id == current_user.id,
+                BehaviorEvent.event_type == "watch_time",
+                BehaviorEvent.server_ts >= this_monday,
             )
-            .group_by(func.date(LearningRecord.last_accessed_at))
+            .group_by(func.date(BehaviorEvent.server_ts))
         )
     ).all()
-    by_day = {str(r.d): int(r.s) // 60 for r in rows}
+    by_day = {str(r.d): int(r.s or 0) // 60 for r in rows}
     for i in range(7):
         d = (this_monday + timedelta(days=i)).date().isoformat()
         daily_minutes.append({"date": d, "minutes": by_day.get(d, 0)})

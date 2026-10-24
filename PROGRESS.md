@@ -197,3 +197,10 @@
 - 错题本：新增 `_latest_wrong_answers`（`row_number()` 窗口取每题最新作答，只保留最新为错的题）与 `_wrong_counts`（SQL `GROUP BY` 统计错次），替换“载入全部历史作答再在 Python 聚合”。
 - `exam_stats`：改为 3 条 SQL（本月 count/sum、最近一次 daily、近 7 天 daily count），不再加载用户全部已提交 session。
 - `test_exams_api.py` 21 + `test_exam_corpus.py` 9 通过；全量 1350 passed / 16 skipped。
+
+### 学习计数原子化与周统计正确数据源（BE-08）
+
+- `_update_daily_progress` / `_update_streak` 改为条件 SQL `UPDATE`：计数用 `col = col + :delta`，换日用 `today_date IS NULL OR != today` 的条件 UPDATE 重置，streak 只在 `last_active_date` 仍为「空 / 昨天 / 更早」时翻转；同一天第二个事件不会再加 streak。
+- 目标达成用 `today_goal_met=false` 条件 UPDATE 抢占，两个并发事件越过目标线时只写一条 `met_daily_goal`。
+- `/learning/stats/weekly` 的 `this_week_minutes`、`last_week_minutes`、`daily_minutes` 改用 `behavior_events.watch_time` 的 `delta_s` 按 `server_ts` 分日/分周聚合；`LearningRecord.time_spent_seconds` 明确标注为累计值、不可按 `last_accessed_at` 切片。
+- 新增 `test_learning_weekly_stats.py` 3 项（周归属、同日 streak 只加一次、goal meta 只发一次）通过；全量后端 1353 passed / 16 skipped。

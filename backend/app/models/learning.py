@@ -60,6 +60,9 @@ class LearningRecord(Base):
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Enhanced tracking
+    # Cumulative per record — never slice this by last_accessed_at. Daily /
+    # weekly watched-minute aggregates come from behavior_events.watch_time
+    # (see app/api/v1/learning.py::stats_weekly, BE-08).
     time_spent_seconds: Mapped[int] = mapped_column(Integer, default=0)
     last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     progress_percentage: Mapped[float] = mapped_column(Float, default=0.0)
