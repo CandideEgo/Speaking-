@@ -78,8 +78,9 @@ for (const vp of VIEWPORTS) {
   for (const route of ROUTES) {
     const url = `${BASE}${route}`;
     try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-      await page.waitForTimeout(600);
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.locator("main h1, [role=alert]").first().waitFor({ timeout: 20000 });
+      await page.waitForTimeout(1800);
       const slug =
         route === "/"
           ? "home"
