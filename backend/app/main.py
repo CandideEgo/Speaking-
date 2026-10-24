@@ -322,6 +322,9 @@ def create_app() -> FastAPI:
     app.include_router(learning_plan.router, prefix="/api/v1")
     app.include_router(shadowing.router, prefix="/api/v1")
     app.include_router(behavior.router, prefix="/api/v1")
+    from app.api.v1 import listening
+
+    app.include_router(listening.router, prefix="/api/v1")
     app.include_router(exams.router, prefix="/api/v1")
     # 原卷 PDF 单独一个 router：exams 的末尾 catch-all GET /{paper_id} 会把
     # /exams/pdfs 当 paper_id 吃掉。

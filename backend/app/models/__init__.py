@@ -13,6 +13,7 @@ from app.models.home_content import HomeContentDraft, HomeContentRevision, HomeP
 from app.models.jinshuju_payment import JinshujuPayment
 from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
 from app.models.learning_plan import LearningEvent, UserLearningProfile
+from app.models.listening import ListeningSession
 from app.models.milestone import MasterySnapshot, UserMilestone
 from app.models.notification import Notification
 from app.models.order import Order
