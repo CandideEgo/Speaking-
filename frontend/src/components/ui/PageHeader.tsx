@@ -39,9 +39,14 @@ export function PageHeader({
   return (
     <header className={cn("user-page-header", centered && "text-center", className)}>
       <div className="min-w-0">
-        {crumb && !(typeof crumb === "string" && crumb === title) && (
-          <div className="user-page-crumb">{crumb}</div>
-        )}
+        {/* eyebrow = 设计稿的列表页眉标，设计里它上面没有 crumb；字符串 crumb
+            多是和标题重复的层级名（我的 / 频道），会变成第二行噪音。
+            真正的面包屑（带链接的 ReactNode）仍然保留。 */}
+        {crumb &&
+          !(variant === "eyebrow" && typeof crumb === "string") &&
+          !(typeof crumb === "string" && crumb === title) && (
+            <div className="user-page-crumb">{crumb}</div>
+          )}
         <h1 className={cn("user-page-title", variant === "eyebrow" && "is-eyebrow")}>{title}</h1>
         {meta && <div className="user-page-meta mt-2 text-meta text-body">{meta}</div>}
       </div>

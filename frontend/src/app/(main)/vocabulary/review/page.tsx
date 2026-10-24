@@ -152,6 +152,7 @@ export default function VocabularyReviewPage() {
           </>
         }
         title="复习到期词"
+        variant="eyebrow"
       />
 
       {loading ? (

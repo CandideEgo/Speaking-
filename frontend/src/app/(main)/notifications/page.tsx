@@ -204,6 +204,7 @@ export default function NotificationsPage() {
           crumb="我的"
           title="通知"
 
+          variant="eyebrow"
           actions={
             <Button
               variant="primary"

@@ -197,6 +197,7 @@ export default function HistoryPage() {
           crumb="我的"
           title="观看历史"
 
+          variant="eyebrow"
           actions={
             resume ? (
               <LinkButton

@@ -20,6 +20,8 @@ import {
   History,
   GraduationCap,
   Bell,
+  Phone,
+  Crown,
 } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
@@ -30,6 +32,8 @@ import {
   type EventDistributionItem,
 } from "@/components/profile/EventDistributionChart";
 import { useProfileStore } from "@/stores/profileStore";
+import { useNotificationStore } from "@/stores/notificationStore";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 import { EXAM_LEVELS } from "@/lib/examLevels";
 import { cn } from "@/lib/utils";
@@ -117,6 +121,8 @@ export default function ProfilePage() {
   const [vocabStats, setVocabStats] = useState<VocabStats | null>(null);
   const [recordsTotal, setRecordsTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  // 顶栏/侧栏已经在轮询未读数，这里直接复用同一个 store，避免再加一个请求。
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   // Every path that lands a `/users/me` payload — the initial load below, plus the
   // PATCH / upload / phone-change handlers wired through `onUpdate` — publishes it to
@@ -205,7 +211,7 @@ export default function ProfilePage() {
         </p>
       )}
       <div className="user-page">
-        <PageHeader crumb="我的" title={TAB_HEADERS[activeTab].title} />
+        <PageHeader crumb="我的" title={TAB_HEADERS[activeTab].title} variant="eyebrow" />
 
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
         <Card padding={5} className="mt-6 flex items-center gap-4">
@@ -507,6 +513,92 @@ export default function ProfilePage() {
           </div>
 
           <aside className="user-page-aside">
+            {/* 设计 me 页右栏：深色会员卡 + 账户卡。数据全部来自当前用户。 */}
+            <section
+              className="rounded-lg bg-ink p-5 text-canvas"
+              aria-labelledby="member-mini-title"
+            >
+              <p className="text-caption font-semibold tracking-[0.12em] uppercase text-on-dark/60">
+                {isProUser(user) ? "会员" : "免费体验"}
+              </p>
+              <h2
+                id="member-mini-title"
+                className="mt-2 text-title font-semibold tracking-tight text-canvas"
+              >
+                所有视频与逐句字幕
+              </h2>
+              <p className="mt-2 text-meta text-on-dark/70">
+                {isProUser(user) && user.plan_expires_at
+                  ? `有效期至 ${new Date(user.plan_expires_at).toLocaleDateString("zh-CN", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}`
+                  : "升级后解锁完整片库与精听功能"}
+              </p>
+              <LinkButton href="/upgrade" variant="secondary" size="sm" className="mt-4">
+                查看会员
+              </LinkButton>
+            </section>
+
+            <section
+              className="user-aside-sec rounded-md border border-hairline p-4"
+              aria-labelledby="account-title"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="account-title" className="user-aside-title mb-0">
+                  账户
+                </h2>
+                <Link
+                  href="/profile?tab=settings"
+                  className="text-meta font-semibold text-muted transition-colors hover:text-ink"
+                >
+                  设置
+                </Link>
+              </div>
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <Phone size={15} className="flex-none text-muted" aria-hidden />
+                  <div className="min-w-0">
+                    <p className="text-caption text-muted">手机号</p>
+                    <p className="truncate text-meta text-ink">
+                      {user.phone ? maskPhone(user.phone) : "未绑定"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Crown size={15} className="flex-none text-muted" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-caption text-muted">会员状态</p>
+                    <p className="text-meta text-ink">{isProUser(user) ? "会员" : "免费版"}</p>
+                  </div>
+                  <Link
+                    href="/upgrade"
+                    aria-label="查看会员权益"
+                    className="inline-flex min-h-9 items-center text-caption font-semibold text-brand-700 hover:underline"
+                  >
+                    查看
+                  </Link>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Bell size={15} className="flex-none text-muted" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-caption text-muted">通知</p>
+                    <p className="text-meta text-ink">
+                      {unreadCount > 0 ? `${unreadCount} 条未读` : "没有未读"}
+                    </p>
+                  </div>
+                  <Link
+                    href="/notifications"
+                    aria-label="查看通知"
+                    className="inline-flex min-h-9 items-center text-caption font-semibold text-brand-700 hover:underline"
+                  >
+                    查看
+                  </Link>
+                </div>
+              </div>
+            </section>
+
             <section className="user-aside-sec">
               <h2 className="user-aside-title">相关页面</h2>
               <ul className="space-y-2">

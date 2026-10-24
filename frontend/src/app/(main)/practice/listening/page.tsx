@@ -83,6 +83,7 @@ export default function ListeningLibrary() {
         crumb={<Link href="/practice">← 全部练习</Link>}
         title="逐句听力"
 
+        variant="eyebrow"
         actions={
           <label className="flex items-center gap-2 text-meta text-body">
             每组题数

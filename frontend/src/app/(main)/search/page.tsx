@@ -218,6 +218,7 @@ export default function SearchPage() {
           crumb="搜索"
           title="搜索视频与频道"
 
+          variant="eyebrow"
           actions={
             <LinkButton variant="outline" icon={Compass} href="/">
               不想搜，按分类挑

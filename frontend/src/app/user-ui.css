@@ -1429,11 +1429,12 @@
   overflow-wrap: anywhere;
 }
 .user-ui .user-page-title.is-eyebrow {
-  font-size: 1.25rem;
-  line-height: 1.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
   font-weight: 600;
-  letter-spacing: -0.015em;
-  color: var(--ink);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-c);
 }
 .user-ui .user-page-header:has(.is-eyebrow) {
   align-items: center;
@@ -1603,6 +1604,11 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 1rem;
+  }
+  /* `:has(.is-eyebrow)` 在桌面用 align-items:center 做垂直居中；列方向下
+     它会把眉标横向居中，而设计里的列表眉标始终左对齐。 */
+  .user-ui .user-page-header:has(.is-eyebrow) {
+    align-items: flex-start;
   }
   .user-ui .user-page-desc {
     font-size: 0.9375rem;

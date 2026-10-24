@@ -209,7 +209,7 @@ export default function UpgradePage() {
   return (
     <PageTransition>
       <div className="py-6 sm:py-12">
-        <PageHeader crumb="会员" title="升级 SeeWord 会员" />
+        <PageHeader crumb="会员" title="升级 SeeWord 会员" variant="eyebrow" />
 
         {/* items-start：右侧收款卡比权益卡高一大截，默认 stretch 会把左侧卡片
             撑成同高，下半张全是空白。 */}

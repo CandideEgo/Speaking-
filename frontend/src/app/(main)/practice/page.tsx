@@ -105,6 +105,8 @@ export default function PracticePage() {
   const [wrongs, setWrongs] = useState<Wrong[]>([]);
   const [wrongTotal, setWrongTotal] = useState(0);
   const [papers, setPapers] = useState<PaperItem[]>([]);
+  // 设计稿「选择试卷」：3 列 paper-card，选中后底部出现已选条。
+  const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
 
@@ -116,7 +118,7 @@ export default function PracticePage() {
       api<{ items: Wrong[]; total: number }>("/api/v1/exams/wrong?page=1&page_size=5", {
         signal: controller.signal,
       }),
-      api<{ items: PaperItem[]; total: number }>("/api/v1/exams?level=cet6&page=1&page_size=3", {
+      api<{ items: PaperItem[]; total: number }>("/api/v1/exams?page=1&page_size=6", {
         signal: controller.signal,
       }),
     ])
@@ -147,6 +149,9 @@ export default function PracticePage() {
         questionCount: summary.types[t.key]?.question_count ?? 0,
       }))
     : [];
+
+  // 默认选中第一套（与设计一致：进入页面就有一张可作答的卷被选中）。
+  const selectedPaper = papers.find((p) => p.id === selectedPaperId) ?? papers[0] ?? null;
 
   return (
     <div className="user-page">
@@ -291,55 +296,106 @@ export default function PracticePage() {
                 </ul>
               </section>
 
-              {/* 按套卷练 */}
+              {/* 按套卷练（设计 paper-library：3 列 paper-card + 已选条） */}
               <section aria-labelledby="practice-papers-title">
                 <div className="user-sec-head">
                   <h2 id="practice-papers-title" className="user-sec-title">
-                    按套卷练
+                    选择试卷
                   </h2>
                   <Link href="/practice/exams" className="user-sec-sub hover:text-ink">
                     全部套卷 →
                   </Link>
                 </div>
                 {papers.length ? (
-                  <ul className="divide-y divide-hairline">
-                    {papers.map((p) => (
-                      <li
-                        key={p.id}
-                        className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5"
-                      >
+                  <>
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                      {papers.map((p) => {
+                        const active = selectedPaper?.id === p.id;
+                        const available = p.total_questions > 0;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => setSelectedPaperId(p.id)}
+                            className={`flex min-h-[168px] flex-col gap-1.5 rounded-lg border p-[17px] text-left transition-colors ${
+                              active
+                                ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500"
+                                : "border-hairline bg-canvas hover:border-hairline-strong"
+                            }`}
+                          >
+                            <span className="flex items-center justify-between gap-2">
+                              <span className="text-caption text-muted">
+                                {p.year} 年 {p.month} 月 · {subjectLabel(p.level)}
+                              </span>
+                              <span
+                                className={`flex-none rounded-pill px-1.5 py-0.5 text-caption font-semibold ${
+                                  available
+                                    ? "bg-brand-50 text-brand-700"
+                                    : "bg-surface-card text-muted"
+                                }`}
+                              >
+                                {available ? "可作答" : "未接入"}
+                              </span>
+                            </span>
+                            <span className="mt-1 line-clamp-2 text-copy font-semibold text-ink">
+                              {p.year} 年 {p.month} 月{subjectLabel(p.level)}真题（第 {p.set_no}{" "}
+                              套）
+                            </span>
+                            <span className="text-meta text-muted">
+                              阅读部分 · {p.total_questions} 题
+                            </span>
+                            <span className="line-clamp-2 text-caption leading-relaxed text-muted">
+                              {sectionSummary(p)}
+                            </span>
+                            <span className="mt-auto flex items-center justify-between border-t border-hairline pt-3 text-caption text-muted">
+                              <span>建议 {suggestedMinutesFor(p.total_questions)} 分钟</span>
+                              <span
+                                aria-hidden
+                                className={`h-3.5 w-3.5 rounded-full border ${
+                                  active
+                                    ? "border-[5px] border-brand-500"
+                                    : "border-hairline-strong"
+                                }`}
+                              />
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedPaper && (
+                      <div className="mt-3 flex flex-col gap-3 rounded-md bg-surface-soft p-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
-                          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted">
-                            <span>
-                              {p.year} 年 {p.month} 月
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <span>{subjectLabel(p.level)}</span>
-                            <span aria-hidden="true">·</span>
-                            <span>第 {p.set_no} 套</span>
+                          <p className="text-caption font-semibold tracking-caption-wide text-muted">
+                            已选择
                           </p>
-                          <h3 className="mt-1 flex flex-wrap items-center gap-2 text-copy-lg font-semibold text-ink">
-                            阅读部分 · {p.total_questions} 题
-                            <span className="rounded-sm bg-brand-50 px-1.5 py-0.5 text-caption font-semibold text-brand-700">
-                              {p.total_questions > 0 ? "可作答" : "未接入"}
-                            </span>
-                          </h3>
-                          <p className="mt-1 text-caption text-muted">
-                            {sectionSummary(p)} · 建议用时约{" "}
-                            {suggestedMinutesFor(p.total_questions)} 分钟
+                          <p className="mt-1 truncate text-copy font-semibold text-ink">
+                            {selectedPaper.year} 年 {selectedPaper.month} 月
+                            {subjectLabel(selectedPaper.level)}真题（第 {selectedPaper.set_no} 套）
+                          </p>
+                          <p className="mt-0.5 text-caption text-muted">
+                            阅读部分 · {selectedPaper.total_questions} 题 · 建议{" "}
+                            {suggestedMinutesFor(selectedPaper.total_questions)} 分钟
                           </p>
                         </div>
-                        <div className="flex flex-none items-center gap-3">
-                          <LinkButton href={`/practice/exams/${p.id}`} variant="outline" size="sm">
-                            开始作答
-                          </LinkButton>
-                          <Link href="/practice/exams" className={LINK_TEXT}>
+                        <div className="flex flex-none items-center gap-2">
+                          <LinkButton href="/practice/exams" variant="ghost" size="sm">
                             看构成
-                          </Link>
+                          </LinkButton>
+                          {selectedPaper.total_questions > 0 ? (
+                            <LinkButton href={`/practice/exams/${selectedPaper.id}`} size="sm">
+                              开始作答
+                            </LinkButton>
+                          ) : (
+                            <Button variant="secondary" size="sm" disabled>
+                              暂不可作答
+                            </Button>
+                          )}
                         </div>
-                      </li>
-                    ))}
-                  </ul>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <p className="mt-4 text-copy text-muted">
                     当前级别暂无可用套卷，可以在套卷列表切换级别。

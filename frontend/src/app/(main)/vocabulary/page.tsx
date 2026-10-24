@@ -22,6 +22,7 @@ import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Image } from "@/components/ui/Image";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VocabularyToday } from "@/components/vocabulary/VocabularyToday";
+import { VocabOverview } from "@/components/vocabulary/VocabOverview";
 import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVocabSets } from "@/hooks/useVocabSets";
@@ -179,6 +180,7 @@ export default function VocabularyPage() {
     due: 0,
     mastered: 0,
     learning: 0,
+    fresh: 0,
   });
   const [dueOnly, setDueOnly] = useState(false);
   const [masteryFilter, setMasteryFilter] = useState<string>("all");
@@ -232,6 +234,7 @@ export default function VocabularyPage() {
         due: data.due_review_count ?? data.due_count,
         mastered: data.mastered_count,
         learning: data.learning_count + data.reviewing_count,
+        fresh: data.new_count,
       });
     } catch (error) {
       setStatsError(error instanceof Error ? error.message : "词库统计加载失败");
@@ -309,7 +312,23 @@ export default function VocabularyPage() {
       <div className="user-page">
         {/* Page head: crumb → h1 → desc；视图切换紧贴页头左对齐，
             「词单」不再单列按钮——它就是「词库」视图的入口。 */}
-        <PageHeader crumb="词汇" title="词汇" />
+        <PageHeader crumb="词汇" title="词汇" variant="eyebrow" />
+
+        {/* 设计稿首屏：今日到期卡 + 四项统计 + 词单网格；训练/管理视图保留在下方。 */}
+        {statsLoaded && !statsError && stats.total > 0 && (
+          <VocabOverview
+            total={stats.total}
+            due={stats.due}
+            learning={stats.learning}
+            mastered={stats.mastered}
+            fresh={stats.fresh}
+            sets={setsView.sets}
+            setsLoading={setsView.loading}
+            setsError={setsView.error}
+            onRetrySets={setsView.refresh}
+          />
+        )}
+
         <div className="mt-4">
           <TabPills
             tabs={[

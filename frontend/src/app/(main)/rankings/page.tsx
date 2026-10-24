@@ -49,7 +49,7 @@ export default function RankingsPage() {
   return (
     <PageTransition>
       <div className="user-page">
-        <PageHeader crumb="视频排行" title="排行" />
+        <PageHeader crumb="视频排行" title="排行" variant="eyebrow" />
         <TabPills
           tabs={TABS}
           activeKey={scope}

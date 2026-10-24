@@ -103,6 +103,7 @@ export default function VocabSetsPage() {
         }
         title="词单：按视频、按考试、按自己收的词"
 
+        variant="eyebrow"
         actions={
           !emptyLib && (
             <LinkButton href="/vocabulary/drill" size="md">

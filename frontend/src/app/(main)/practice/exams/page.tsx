@@ -130,6 +130,7 @@ export default function ExamPapersPage() {
           </Link>
         }
         title="历年真题 · 阅读部分"
+        variant="eyebrow"
       />
       <nav aria-label="真题科目" className="mt-5 flex gap-2 overflow-x-auto pb-2">
         {PAPER_LEVELS.map((key) => (

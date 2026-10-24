@@ -211,6 +211,7 @@ export default function FavoritesPage() {
           crumb="我的"
           title="我的收藏"
 
+          variant="eyebrow"
           actions={
             allEmpty ? undefined : (
               <LinkButton href="/" variant="outline" icon={Play}>
