@@ -14,6 +14,8 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exam_levels import EXAM_LEVELS, level_order
@@ -39,13 +41,43 @@ _CEFR_ORDER = {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}
 
 
 async def get_or_create_profile(db: AsyncSession, user_id: str) -> UserLearningProfile:
-    """Get or create the user's learning profile. Auto-creates on first access."""
+    """Get or create the user's learning profile. Auto-creates on first access.
+
+    First access is racy: one page mount fires several requests at once (stats,
+    daily session, session start) and each sees "no profile" before any of
+    them commits. A plain INSERT then makes every loser of that race raise a
+    unique-violation, which surfaces to the page as a 500.
+
+    So the insert is an ``ON CONFLICT DO NOTHING`` (which waits for the
+    concurrent inserter instead of failing) followed by a re-read. The
+    dialect-specific inserts keep the unit-test SQLite path working.
+    """
     result = await db.execute(select(UserLearningProfile).where(UserLearningProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
-    if not profile:
-        profile = UserLearningProfile(user_id=user_id)
-        db.add(profile)
-        await db.flush()
+    if profile:
+        return profile
+
+    bind = db.get_bind() if hasattr(db, "get_bind") else getattr(db, "bind", None)
+    dialect_name = getattr(getattr(bind, "dialect", None), "name", "")
+    if dialect_name == "postgresql":
+        stmt = pg_insert(UserLearningProfile).values(user_id=user_id)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["user_id"])
+    elif dialect_name == "sqlite":
+        stmt = sqlite_insert(UserLearningProfile).values(user_id=user_id)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["user_id"])
+    else:  # pragma: no cover — 未知方言，单进程下退回朴素写法
+        stmt = None
+    if stmt is not None:
+        await db.execute(stmt)
+        result = await db.execute(select(UserLearningProfile).where(UserLearningProfile.user_id == user_id))
+        profile = result.scalar_one_or_none()
+        if profile is None:  # pragma: no cover — 插入被跳过却没读到：不变量被破坏
+            raise RuntimeError("learning profile insert was ignored but the row is missing")
+        return profile
+
+    profile = UserLearningProfile(user_id=user_id)
+    db.add(profile)
+    await db.flush()
     return profile
 
 

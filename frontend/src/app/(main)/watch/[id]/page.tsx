@@ -51,6 +51,7 @@ import {
   X,
   AlertCircle,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
@@ -113,56 +114,95 @@ function VideoActions({
   onToggleFavorite: () => void;
   onNotes: () => void;
 }) {
-  // 移动端一律 44px 触控目标（#24/#28 的触控基线），桌面端维持原有的 36px 紧凑档。
-  const box = compact ? "w-11 h-11" : "w-9 h-9";
+  // 移动端一律 44px 触控目标（#24/#28 的触控基线）；桌面端是带文字的 pill，
+  // 与首页/频道页的描边按钮同一套语言。
+  if (compact) {
+    const box = "w-11 h-11";
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          className={cn(
+            box,
+            "px-2 rounded-lg flex items-center gap-1 text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+          )}
+          onClick={onToggleLike}
+          aria-label={isLiked ? `取消点赞（${likeCount}）` : `点赞（${likeCount}）`}
+          title={isLiked ? "取消点赞" : "点赞"}
+        >
+          <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
+        </button>
+        <button
+          className={cn(
+            box,
+            "rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+          )}
+          onClick={onToggleFavorite}
+          aria-label={isFavorited ? "取消收藏" : "收藏视频"}
+          title={isFavorited ? "取消收藏" : "收藏"}
+        >
+          <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
+        </button>
+        <button
+          className={cn(
+            box,
+            "rounded-lg flex items-center justify-center transition-colors cursor-pointer",
+            noteOpen
+              ? "bg-brand-50 text-brand-500"
+              : "text-muted hover:bg-surface-card hover:text-ink"
+          )}
+          onClick={onNotes}
+          aria-label="笔记"
+          title="笔记"
+        >
+          <Pencil size={18} />
+        </button>
+      </div>
+    );
+  }
+
+  const pill =
+    "inline-flex h-8 items-center gap-1.5 rounded-pill border px-3 text-meta font-semibold transition-colors cursor-pointer";
   return (
-    <div className={cn("flex items-center", compact ? "gap-1" : "gap-1 shrink-0")}>
+    <div className="flex flex-wrap items-center gap-2">
       <button
         className={cn(
-          box,
-          "px-2 rounded-lg flex items-center gap-1 text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer",
-          !compact && "h-9 w-auto"
+          pill,
+          isLiked
+            ? "border-error/30 bg-red-soft text-error"
+            : "border-hairline text-body hover:border-ink hover:text-ink"
         )}
         onClick={onToggleLike}
+        aria-pressed={isLiked}
         aria-label={isLiked ? `取消点赞（${likeCount}）` : `点赞（${likeCount}）`}
-        title={isLiked ? "取消点赞" : "点赞"}
       >
-        <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
-        {!compact && (
-          <span
-            className={cn(
-              "text-meta font-semibold tabular-nums",
-              isLiked ? "text-error" : "text-muted"
-            )}
-          >
-            {likeCount > 0 ? likeCount : "点赞"}
-          </span>
-        )}
+        <Heart size={14} className={cn(isLiked && "fill-current")} />
+        {likeCount > 0 ? likeCount : "点赞"}
       </button>
       <button
         className={cn(
-          box,
-          "rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+          pill,
+          isFavorited
+            ? "border-brand-200 bg-brand-50 text-brand-700"
+            : "border-hairline text-body hover:border-ink hover:text-ink"
         )}
         onClick={onToggleFavorite}
-        aria-label={isFavorited ? "取消收藏" : "收藏视频"}
-        title={isFavorited ? "取消收藏" : "收藏"}
+        aria-pressed={isFavorited}
       >
-        <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
+        <Bookmark size={14} className={cn(isFavorited && "fill-current")} />
+        {isFavorited ? "已收藏" : "收藏"}
       </button>
       <button
         className={cn(
-          box,
-          "rounded-lg flex items-center justify-center transition-colors cursor-pointer",
+          pill,
           noteOpen
-            ? "bg-brand-50 text-brand-500"
-            : "text-muted hover:bg-surface-card hover:text-ink"
+            ? "border-brand-200 bg-brand-50 text-brand-700"
+            : "border-hairline text-body hover:border-ink hover:text-ink"
         )}
         onClick={onNotes}
-        aria-label="笔记"
-        title="笔记"
+        aria-expanded={noteOpen}
       >
-        <Pencil size={18} />
+        <Pencil size={14} />
+        笔记
       </button>
     </div>
   );
@@ -971,32 +1011,21 @@ export default function WatchPage() {
       {/* 移动端页头整块不渲染（#24/#28 乙 → DEC-069）：标题/返回/级别进壳顶栏，
           动作行进 ⋯ 面板，首屏不再有这块 355px 的次要信息；桌面端原样保留。 */}
       <div className={cn("mb-4", isMobile && "hidden")}>
-        {/* 顶部细行：返回 + 标题 + 操作图标 */}
-        <div className="flex items-center gap-3">
+        {/* 顶部细行：返回 + 频道 */}
+        <div className="flex flex-wrap items-center gap-2 text-meta text-muted">
           <button
-            className="inline-flex items-center gap-1.5 text-copy font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1.5 font-semibold transition-colors cursor-pointer hover:text-ink"
             onClick={back.go}
           >
             <ArrowLeft size={14} />
             {back.label}
           </button>
-          <div className="h-4 w-px bg-hairline shrink-0" />
-          <VideoTitle
-            video={video}
-            as="h1"
-            className="flex-1 min-w-0"
-            clampZh={1}
-            zhClassName="text-copy-lg font-semibold text-ink"
-          />
-        </div>
-
-        {/* meta 细行：作者名链到作者页（ADR-0014 修订），未挂频道显示 SeeWord */}
-        <div className="mt-2 flex items-center gap-2 text-meta text-muted">
+          <span aria-hidden>·</span>
           {video.channel_name ? (
             video.channel_slug ? (
               <Link
                 href={`/channels/${video.channel_slug}`}
-                className="inline-flex items-center gap-1 rounded-full border border-hairline px-2.5 py-0.5 font-semibold text-ink hover:border-brand-500/40 hover:text-brand-700 transition-colors"
+                className="inline-flex items-center gap-0.5 font-semibold text-ink transition-colors hover:text-brand-700"
               >
                 {video.channel_name}
                 <ChevronRight size={12} />
@@ -1007,17 +1036,46 @@ export default function WatchPage() {
           ) : (
             <span className="font-semibold text-ink">SeeWord</span>
           )}
-          <span>·</span>
-          {/* CEFR 附考试体系对照，与引导/筛选统一语言；难度为 null 时显示「难度待评估」
-             而不是硬回退 B2（与移动端 PageHeader 同口径，audit D-watch P1 #12）。 */}
+        </div>
+
+        {/* 英文标题为主，中文标题退居第二行（与首页卡片的信息口径一致）。 */}
+        <h1
+          lang="en"
+          className="mt-2 text-balance text-title font-semibold leading-snug tracking-tight text-ink sm:text-display-sm"
+        >
+          {video.title}
+        </h1>
+        {video.title_zh?.trim() && video.title_zh.trim() !== video.title.trim() && (
+          <p className="mt-1 text-copy leading-snug text-body">{video.title_zh}</p>
+        )}
+
+        {/* 事实行：难度 / 时长 / 字幕句数；难度为 null 时说明待评估，不硬回退 B2。 */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-meta text-muted">
           <span>
             {video.difficulty_level ? cefrWithExamHint(video.difficulty_level) : "难度待评估"}
           </span>
-          <span>·</span>
+          <span aria-hidden>·</span>
           <span>{formatDuration(video.duration)}</span>
+          {video.subtitles.length > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{video.subtitles.length} 句字幕</span>
+            </>
+          )}
         </div>
 
-        {/* 笔记抽屉 */}
+        <div className="mt-3">
+          <VideoActions
+            compact={false}
+            isLiked={isLiked}
+            likeCount={likeCount}
+            isFavorited={isFavorited}
+            noteOpen={noteOpen}
+            onToggleLike={toggleLike}
+            onToggleFavorite={toggleFavorite}
+            onNotes={() => setNoteOpen((v) => !v)}
+          />
+        </div>
       </div>
 
       {/* ===== 双列：左视频+当前句，右字幕面板（可折叠） ===== */}
@@ -1099,6 +1157,8 @@ export default function WatchPage() {
                         // 头，统一用 ?token= 携带。
                         withToken: true,
                       })}
+                      // 首帧解码前显示封面，避免加载瞬间是一块黑屏。
+                      poster={video.thumbnail_url ? mediaUrl(video.thumbnail_url) : undefined}
                       className="h-full w-full object-contain"
                       // 不再挂 onTimeUpdate（BUG-14）：250ms 轮询已是唯一 tick 源，
                       // 两条路径各跑一遍二分查找属冗余。轮询同时负责 iOS 的
@@ -1180,16 +1240,6 @@ export default function WatchPage() {
               />
             )}
             {isMobile && <WatchBottomBar chrome={chrome} inline />}
-            {currentSubtitle && (
-              <div className="flex items-center justify-between border-t border-hairline py-1.5">
-                <span className="text-meta text-muted">
-                  当前句 · {displayedIndex + 1} / {video.subtitles.length}
-                  {" · "}
-                  {formatTime(currentSubtitle.start_time)}
-                </span>
-                <SaveSentenceButton subtitleId={currentSubtitle.id} />
-              </div>
-            )}
             {isMobile && (
               <div className="flex flex-wrap items-center gap-3 py-2 text-meta">
                 <label>
@@ -1221,6 +1271,15 @@ export default function WatchPage() {
                 </Button>
                 <Button variant="text" size="sm" onClick={toggleFullscreen}>
                   全屏
+                </Button>
+                {/* 笔记入口放在这条工具栏：动作行已经被四个按钮占满，再塞一个就换行。 */}
+                <Button
+                  variant="text"
+                  size="sm"
+                  onClick={() => setNoteOpen((v) => !v)}
+                  aria-expanded={noteOpen}
+                >
+                  笔记
                 </Button>
               </div>
             )}
@@ -1269,12 +1328,42 @@ export default function WatchPage() {
               <Button variant="text" onClick={play}>
                 继续播放
               </Button>
+              {currentSubtitle && <SaveSentenceButton subtitleId={currentSubtitle.id} />}
               {temporaryMode !== null && (
                 <Button variant="outline" onClick={() => setTemporaryMode(null)}>
                   恢复辅助
                 </Button>
               )}
             </div>
+            {/* 手机端的笔记编辑器就开在动作行下方：按钮点完立刻看见输入框，
+                不跟着「视频信息」折叠区一起跑到页尾。 */}
+            {isMobile && noteOpen && <div className="mt-3">{notesPanel}</div>}
+            {!isMobile && (
+              <section aria-label="我的笔记" className="mt-4 border-t border-hairline pt-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-copy font-semibold text-ink">我的笔记</h2>
+                  <Button
+                    variant="text"
+                    size="sm"
+                    onClick={() => setNoteOpen((v) => !v)}
+                    aria-expanded={noteOpen}
+                  >
+                    {noteOpen ? "收起" : noteDraft.trim() ? "编辑" : "记一条"}
+                  </Button>
+                </div>
+                {noteOpen ? (
+                  notesPanel
+                ) : noteDraft.trim() ? (
+                  <p className="mt-2 whitespace-pre-line text-copy leading-relaxed text-body">
+                    {noteDraft}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-meta text-muted">
+                    还没有笔记。记下重点句型、生词或心得，存成整段视频的笔记。
+                  </p>
+                )}
+              </section>
+            )}
             {focusIssue && (
               <div role="alert" className="py-2 text-meta text-muted">
                 {focusIssue.message}
@@ -1353,15 +1442,27 @@ export default function WatchPage() {
                   <h2 className="text-copy font-bold text-ink">文稿</h2>
                   <p className="text-caption text-muted">{video.subtitles.length} 句 · 整段</p>
                 </div>
-                <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted">
-                  <input
-                    type="checkbox"
-                    checked={followEnabled}
-                    onChange={(e) => setFollowEnabled(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-brand-500"
-                  />
-                  跟随
-                </label>
+                <div className="flex shrink-0 items-center gap-3">
+                  {/* 右栏文稿是跟随播放的窄列表；通读整段、按考试词定位在文档视图里
+                      更顺手。带上 id 过去，文稿页的「回到视频」才能按 from=transcript
+                      回到本页（而不是丢回首页）。 */}
+                  <Link
+                    href={`/watch/${id}/transcript`}
+                    className="inline-flex items-center gap-0.5 whitespace-nowrap text-caption font-semibold text-brand-700 transition-colors hover:text-brand-800"
+                  >
+                    <FileText size={13} aria-hidden />
+                    看全文
+                  </Link>
+                  <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted">
+                    <input
+                      type="checkbox"
+                      checked={followEnabled}
+                      onChange={(e) => setFollowEnabled(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-brand-500"
+                    />
+                    跟随
+                  </label>
+                </div>
               </div>
               {/* 头部：模式切换 + 折叠按钮 常驻同一行，切换模式不跳位 */}
               <div className="border-b border-hairline">
@@ -1379,15 +1480,27 @@ export default function WatchPage() {
                   <h2 className="text-copy font-bold text-ink">文稿</h2>
                   <p className="text-caption text-muted">{video.subtitles.length} 句 · 整段</p>
                 </div>
-                <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted">
-                  <input
-                    type="checkbox"
-                    checked={followEnabled}
-                    onChange={(e) => setFollowEnabled(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-brand-500"
-                  />
-                  跟随
-                </label>
+                <div className="flex shrink-0 items-center gap-3">
+                  {/* 右栏文稿是跟随播放的窄列表；通读整段、按考试词定位在文档视图里
+                      更顺手。带上 id 过去，文稿页的「回到视频」才能按 from=transcript
+                      回到本页（而不是丢回首页）。 */}
+                  <Link
+                    href={`/watch/${id}/transcript`}
+                    className="inline-flex items-center gap-0.5 whitespace-nowrap text-caption font-semibold text-brand-700 transition-colors hover:text-brand-800"
+                  >
+                    <FileText size={13} aria-hidden />
+                    看全文
+                  </Link>
+                  <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted">
+                    <input
+                      type="checkbox"
+                      checked={followEnabled}
+                      onChange={(e) => setFollowEnabled(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-brand-500"
+                    />
+                    跟随
+                  </label>
+                </div>
               </div>
 
               {/* 字幕列表 —— 隐藏模式时提示，其余按模式渲染 */}
@@ -1421,9 +1534,9 @@ export default function WatchPage() {
                         }}
                         className={cn(
                           "flex w-full items-start gap-2 rounded-lg border-l-[3px] border-transparent cursor-pointer text-left transition-colors duration-100 hover:bg-surface-soft p-3",
-                          // R5（DEC-070 定案②）：文稿里的当前项**降级**为淡底 + 保留 3px 橙色左
-                          // 竖线，文字回到 ink —— 「正在读的那一句」的唯一橙色锚点留给字幕带。
-                          i === currentSubtitleIndex && "bg-surface-soft border-l-brand-500"
+                          // R5（DEC-070 定案②）：当前项用淡蓝底 + 3px 蓝色左竖线，
+                          // 文字回到 ink；「正在读的那一句」的唯一强调色留给当前句卡。
+                          i === currentSubtitleIndex && "bg-brand-50 border-l-brand-500"
                         )}
                       >
                         {/* 设计 .w-sub-time：每行左侧时间点（12px 等宽、tabular-nums）。
@@ -1457,7 +1570,7 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      <details className="mt-6 border-t border-hairline py-3" open={noteOpen || undefined}>
+      <details className="mt-6 border-t border-hairline py-3">
         <summary className="cursor-pointer text-copy font-semibold text-ink">视频信息</summary>
         <div className="mt-3 space-y-3">
           {video.description?.trim() && (
@@ -1480,16 +1593,19 @@ export default function WatchPage() {
             viewCount={video.view_count}
             favoriteCount={video.favorite_count}
           />
-          <VideoActions
-            compact={isMobile}
-            isLiked={isLiked}
-            likeCount={likeCount}
-            isFavorited={isFavorited}
-            noteOpen={noteOpen}
-            onToggleLike={toggleLike}
-            onToggleFavorite={toggleFavorite}
-            onNotes={() => setNoteOpen((v) => !v)}
-          />
+          {/* 桌面端点赞/收藏/笔记已在页头动作行；这里只保留移动端入口。 */}
+          {isMobile && (
+            <VideoActions
+              compact={isMobile}
+              isLiked={isLiked}
+              likeCount={likeCount}
+              isFavorited={isFavorited}
+              noteOpen={noteOpen}
+              onToggleLike={toggleLike}
+              onToggleFavorite={toggleFavorite}
+              onNotes={() => setNoteOpen((v) => !v)}
+            />
+          )}
           <LearningActions
             compact={isMobile}
             vocabSet={vocabSet}
@@ -1497,7 +1613,6 @@ export default function WatchPage() {
             onVocabSet={handleVocabSetClick}
             onDrill={() => router.push("/vocabulary")}
           />
-          {notesPanel}
         </div>
       </details>
       <PublishedVideoEditorial key={video.id} video={video} />

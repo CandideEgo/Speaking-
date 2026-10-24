@@ -52,16 +52,18 @@ export function ChannelStartCard({ video, basis, slug }: ChannelStartCardProps) 
         isIntro ? "border-brand-200 bg-brand-50" : "bg-surface-soft"
       )}
     >
-      <div className="grid grid-cols-[7rem_minmax(0,1fr)] sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
+      {/* 手机整宽 16:9 + 下方正文：7rem 的侧栏裁出来只剩一条竖窄带，
+          封面里的标题字被切掉一半，读不出这是什么视频。宽屏回到左右分栏。 */}
+      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
         <Link
           href={href}
           aria-label={`打开《${video.title}》`}
-          className="group relative block h-full min-h-[4.5rem] overflow-hidden bg-surface-card"
+          className="group relative block aspect-video overflow-hidden bg-surface-card sm:aspect-auto sm:h-full sm:min-h-[4.5rem]"
         >
           <Image
             src={video.thumbnail_url}
             alt=""
-            sizes="(max-width: 639px) 112px, 272px"
+            sizes="(max-width: 639px) 100vw, 272px"
             loading="eager"
             fallback={
               <span className="absolute inset-0 flex items-center justify-center">

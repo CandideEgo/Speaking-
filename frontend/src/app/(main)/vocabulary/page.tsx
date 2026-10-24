@@ -11,7 +11,6 @@ import { useDailySession } from "@/hooks/useDailySession";
 import { BookOpen, Search, ChevronLeft, ChevronRight, Layers } from "lucide-react";
 import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
-import { LinkButton } from "@/components/ui/LinkButton";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/common/SkeletonCard";
 import { type BadgeTone } from "@/components/common/Badge";
@@ -37,6 +36,7 @@ interface VocabStatsResponse {
   reviewing_count: number;
   mastered_count: number;
   due_count: number;
+  due_review_count?: number;
 }
 
 const PAGE_SIZE = 24;
@@ -229,7 +229,7 @@ export default function VocabularyPage() {
       const data = await api<VocabStatsResponse>(`/api/v1/vocabulary/stats`);
       setStats({
         total: data.total,
-        due: data.due_count,
+        due: data.due_review_count ?? data.due_count,
         mastered: data.mastered_count,
         learning: data.learning_count + data.reviewing_count,
       });
@@ -307,20 +307,14 @@ export default function VocabularyPage() {
   return (
     <PageTransition>
       <div className="user-page">
-        {/* Page head: crumb → h1 → desc → actions（桌面 actions 右对齐），视图切换单独一行 */}
+        {/* Page head: crumb → h1 → desc；视图切换紧贴页头左对齐，
+            「词单」不再单列按钮——它就是「词库」视图的入口。 */}
         <PageHeader
           crumb="词汇"
           title="词汇"
           description="带着原句复习，再回到内容中遇见这些词。"
-          actions={
-            <>
-              <LinkButton href="/vocabulary/sets" variant="outline" size="md">
-                词单
-              </LinkButton>
-            </>
-          }
         />
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4">
           <TabPills
             tabs={[
               { key: "today", label: "复习" },

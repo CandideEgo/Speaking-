@@ -258,6 +258,9 @@ export interface VocabularyWord {
   difficulty_level: string | null;
   context_sentence: string | null;
   video_id: string | null;
+  /** Display-only enrichment from the backend list/daily-session endpoints. */
+  video_title?: string | null;
+  subtitle_start_time?: number | null;
   /** 来源字幕（D3b）：存在时闪卡/词卡可「回看原句」深链回播放页。 */
   subtitle_id: string | null;
   next_review_at: string | null;
@@ -353,6 +356,10 @@ export interface VocabSetWord {
   definition: string | null;
   mastery_level: MasteryLevel | null;
   context_sentence: string | null;
+  /** 来源句的中文翻译；来自视频时随字幕一起返回，考试/自建词单为 null。 */
+  context_sentence_zh?: string | null;
+  /** 词的考试级别（取自 ECDICT 标记里的最高级），未知时为 null。 */
+  exam_level?: string | null;
   /** Source sentence for 「回到对应句子」 (S7). Null → deep link hidden. */
   subtitle_id?: string | null;
   start_time?: number | null;

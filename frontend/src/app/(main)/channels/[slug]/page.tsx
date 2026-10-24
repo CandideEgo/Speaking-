@@ -72,10 +72,11 @@ function deriveDifficultyRange(
   return { min: CEFR_ORDER[Math.min(...indexes)], max: CEFR_ORDER[Math.max(...indexes)] };
 }
 
-/** 页头事实行里的小分隔点。 */
+/** 页头事实行里的小分隔点。手机上只靠间距分组：390px 一行放不下，
+ *  换行时圆点会孤零零地落到行首（`· 原平台粉丝…`），比没有更碍读。 */
 function FactSeparator() {
   return (
-    <span aria-hidden className="text-muted-soft">
+    <span aria-hidden className="hidden text-muted-soft sm:inline">
       ·
     </span>
   );
@@ -265,6 +266,12 @@ export default function ChannelDetailPage() {
   const headerFacts: { key: string; label: string; title?: string }[] = [
     { key: "collected", label: formatCollectedVideos(collectedCount) },
   ];
+  if (channel?.subscriber_count && channel.subscriber_count > 0) {
+    headerFacts.push({ key: "subscribers", label: `${channel.subscriber_count} 人订阅` });
+  }
+  if (channel?.recent_video_count && channel.recent_video_count > 0) {
+    headerFacts.push({ key: "recent", label: `近 30 天新增 ${channel.recent_video_count} 段` });
+  }
   if (difficultyText) headerFacts.push({ key: "difficulty", label: `难度 ${difficultyText}` });
   if (accentLabel) headerFacts.push({ key: "accent", label: `口音：${accentLabel}` });
   if (followerCount !== null) {
@@ -364,7 +371,7 @@ export default function ChannelDetailPage() {
                       ))}
                     </span>
                   )}
-                  <span className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta tabular-nums text-muted">
+                  <span className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta tabular-nums text-muted sm:gap-x-2">
                     {headerFacts.map((fact, index) => (
                       <span
                         key={fact.key}

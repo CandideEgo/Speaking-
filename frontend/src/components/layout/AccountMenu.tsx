@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bookmark, ChevronsUpDown, HelpCircle, History, LogOut, Moon, Sun } from "lucide-react";
+import { ChevronsUpDown, Crown, HelpCircle, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { useThemeContext } from "@/components/common/ThemeProvider";
 import { Avatar } from "@/components/ui/Avatar";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -12,8 +12,8 @@ import { useProfileStore } from "@/stores/profileStore";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
-  { label: "我的收藏", icon: Bookmark, href: "/favorites" },
-  { label: "学习记录", icon: History, href: "/history" },
+  { label: "账户设置", icon: Settings, href: "/profile?tab=settings" },
+  { label: "会员", icon: Crown, href: "/upgrade" },
 ];
 
 export function AccountMenu({
@@ -97,7 +97,7 @@ export function AccountMenu({
               <span className="block truncate text-meta font-medium text-ink">
                 {user?.name || "学习者"}
               </span>
-              <span className="block text-caption text-muted">账户与常用操作</span>
+              <span className="block text-caption text-muted">账户设置</span>
             </span>
             <ChevronsUpDown size={14} className="shrink-0 text-muted" aria-hidden />
           </>

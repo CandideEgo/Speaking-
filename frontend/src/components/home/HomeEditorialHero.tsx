@@ -10,13 +10,17 @@ export type HomeEditorialMode = "preview" | "live";
 
 /** 首页唯一页头；不与视频标题抢层级。 */
 export function HomeEditorialHeader(): ReactElement {
+  const now = new Date();
+  const label = `发现 · ${now.getMonth() + 1} 月 ${now.getDate()} 日`;
   return (
-    <header className="home-editorial-heading mb-4">
+    <header className="home-editorial-heading mb-3">
       <div className="min-w-0">
-        <h1 className="mt-1 text-display-sm font-bold tracking-tight text-ink sm:text-display">
-          发现视频
+        <h1
+          suppressHydrationWarning
+          className="text-caption font-semibold uppercase tracking-[0.09em] text-muted"
+        >
+          {label}
         </h1>
-        <p className="mt-1 text-meta text-muted">找一段感兴趣的英语内容。</p>
       </div>
     </header>
   );
@@ -32,7 +36,11 @@ export function HomeEditorialHero({
   if (!page.lead) return null;
   return (
     <section aria-label="精选推荐">
-      <FeaturedVideoCard video={page.lead.video} dek={page.lead.content.dek} />
+      <FeaturedVideoCard
+        video={page.lead.video}
+        dek={page.lead.content.dek}
+        content={page.lead.content}
+      />
     </section>
   );
 }

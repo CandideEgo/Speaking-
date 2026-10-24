@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   SECTION_LABELS,
   deriveOptions,
+  normalizePassageSpacing,
   stripWordBank,
   catalogReturnHref,
 } from "@/lib/examPresentation";
@@ -17,6 +19,7 @@ import type { ExamSubmitResultItem } from "@/components/exam/ExamRunner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { TabPills } from "@/components/ui/TabPills";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { cn } from "@/lib/utils";
 
 interface AttemptDetail {
   id: string;
@@ -81,12 +84,16 @@ export default function ExamResultPage() {
       : "/practice/exams/redo";
   return (
     <div className="user-page">
-      <Link href={returnTo} className="text-copy text-muted hover:text-ink">
-        返回真题目录
-      </Link>
       <PageHeader
-        className="mt-4"
-        crumb="作答结果"
+        crumb={
+          <Link
+            href={returnTo}
+            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+          >
+            <ArrowLeft size={13} aria-hidden />
+            返回真题目录
+          </Link>
+        }
         title={`答对 ${correct} / ${attempt.question_count} 题`}
         description="只记答对题数，不预测考试分数或换算等级。"
         actions={
@@ -153,25 +160,62 @@ export default function ExamResultPage() {
                   <span className="ml-3">{r.correct ? "✓ 答对" : "× 答错"}</span>
                 </p>
                 {options && (
-                  <ul className="mt-3 space-y-2 text-copy text-body">
-                    {Object.entries(options).map(([key, text]) => (
-                      <li key={key}>
-                        {key}. {text}
-                      </li>
-                    ))}
+                  <ul className="mt-3 space-y-1.5 text-copy text-body">
+                    {Object.entries(options).map(([key, text]) => {
+                      // 复盘时最想知道「哪个是对的、我点了哪个」：答案在上一行是字母，
+                      // 这里把对应选项直接染色，免得回头逐字比对。
+                      const isCorrect = key === r.correct_answer;
+                      const isPick = !isCorrect && key === r.user_answer;
+                      return (
+                        <li
+                          key={key}
+                          className={cn(
+                            "flex gap-2 rounded-md px-2.5 py-1.5",
+                            isCorrect && "bg-success-soft text-ink",
+                            isPick && "bg-error/10 text-ink"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "font-semibold",
+                              isCorrect
+                                ? "text-success-text"
+                                : isPick
+                                  ? "text-error-text"
+                                  : "text-muted"
+                            )}
+                          >
+                            {key}.
+                          </span>
+                          <span>{text}</span>
+                          {(isCorrect || isPick) && (
+                            <span
+                              className={cn(
+                                "ml-auto shrink-0 whitespace-nowrap text-caption font-semibold",
+                                isCorrect ? "text-success-text" : "text-error-text"
+                              )}
+                            >
+                              {isCorrect ? "正确答案" : "你的选择"}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
-                <p className="mt-4 whitespace-pre-wrap text-copy leading-relaxed text-body">
-                  <span className="font-semibold text-ink">解析：</span>
-                  {r.explanation || "本题暂无解析，可展开原文核对。"}
-                </p>
+                {r.explanation && (
+                  <p className="mt-4 whitespace-pre-wrap text-copy leading-relaxed text-body">
+                    <span className="font-semibold text-ink">解析：</span>
+                    {r.explanation}
+                  </p>
+                )}
                 {r.passage && (
                   <details className="mt-4">
                     <summary className="cursor-pointer text-meta font-semibold text-brand-700">
                       展开原文
                     </summary>
                     <p className="mt-3 whitespace-pre-wrap border-l-2 border-hairline pl-4 text-copy leading-loose text-body">
-                      {stripWordBank(r.passage)}
+                      {normalizePassageSpacing(stripWordBank(r.passage))}
                     </p>
                   </details>
                 )}

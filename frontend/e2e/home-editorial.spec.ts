@@ -404,7 +404,7 @@ async function openEditorial(page: Page, editorial: HomeEditorialPage = EDITORIA
 test.describe("已发布编排：完整视频发现", () => {
   test("双语标题与已发布导语介绍完整视频，入口不附带片段", async ({ page }) => {
     await openEditorial(page);
-    await expect(page.getByRole("heading", { name: "发现视频", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^发现 · / })).toBeVisible();
     const card = page.getByRole("article", { name: "精选视频", exact: true });
     await expect(card).toContainText(LEAD_SLOT.video.title);
     await expect(card).toContainText(LEAD_SLOT.video.title_zh!);
@@ -475,7 +475,7 @@ test.describe("已发布编排：完整视频发现", () => {
       route.fulfill({ json: { items: [] } })
     );
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "发现更多视频" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "继续发现" })).toBeVisible();
     await expect(page.getByRole("article", { name: "精选视频", exact: true })).toHaveCount(0);
     await expect(page.getByText("精选内容准备中，先去频道找找。")).toHaveCount(0);
   });

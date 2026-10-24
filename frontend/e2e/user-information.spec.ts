@@ -84,7 +84,7 @@ async function mockContent(page: Page) {
   );
 }
 
-test("我的默认提供个人内容入口，四个一级导航和旧设置链接可用", async ({ page }) => {
+test("我的默认提供个人内容入口，五个一级导航和旧设置链接可用", async ({ page }) => {
   await mockContent(page);
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
@@ -95,10 +95,10 @@ test("我的默认提供个人内容入口，四个一级导航和旧设置链�
         ? page.getByRole("navigation", { name: "学习导航", exact: true })
         : page.getByRole("navigation", { name: "底部导航", exact: true });
     const links = mainNav.getByRole("link");
-    // 桌面还包含次级入口；前四个必须与手机一致。
-    for (const [index, label] of ["发现", "频道", "词汇", "我的"].entries())
+    // 桌面还包含资料库入口；前五个必须与手机一致。
+    for (const [index, label] of ["发现", "频道", "练习", "词汇", "我的"].entries())
       await expect(links.nth(index)).toHaveAccessibleName(label);
-    if (width < 768) await expect(links).toHaveCount(4);
+    if (width < 768) await expect(links).toHaveCount(5);
     const hub = page.locator("#profile-panel-content");
     for (const href of [
       "/history",
@@ -331,15 +331,9 @@ test("词汇区分累计与本轮数量；词库按真实定位区分原句和�
     })
   );
   await page.goto("/vocabulary");
-  await expect(
-    page.getByText(
-      "累计到期 239 个；本轮复习 2 个、新词 0 个。这里预览复习词，当前展示 2/2 个；其余到期词留在后续轮次，进度会自动保存。"
-    )
-  ).toBeVisible();
-  const stats = page
-    .locator("details")
-    .filter({ has: page.locator("summary", { hasText: "词库统计" }) });
-  await expect(stats).not.toHaveAttribute("open", "");
+  // 累计到期（239）与本轮队列（2）必须分开表述：一个是大盘，一个是本轮。
+  await expect(page.getByText("本轮复习 2 个 · 新词 0 个", { exact: true })).toBeVisible();
+  await expect(page.getByText("累计还有 239 个到期词", { exact: false })).toBeVisible();
   await page.goto("/vocabulary?tab=library&sub=words");
   await expect(page.getByText("原句：Then I walk home.")).toBeVisible();
   await expect(page.getByRole("link", { name: "去原句 →", exact: true })).toHaveAttribute(

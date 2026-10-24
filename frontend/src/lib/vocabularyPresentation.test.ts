@@ -5,6 +5,11 @@ describe("词汇展示", () => {
   it("词性比例不进入展示，也不按占比猜语境", () => {
     expect(partOfSpeechLabel("v:100")).toBe("动词");
     expect(partOfSpeechLabel("v:15/n:85")).toBe("动词 / 名词");
+    // ECDICT 单字母缩写（j=形容词、r=副词、i=介词）：不映射会显示成「—」。
+    expect(partOfSpeechLabel("j:100")).toBe("形容词");
+    expect(partOfSpeechLabel("j:28/n:72")).toBe("形容词 / 名词");
+    expect(partOfSpeechLabel("r:100")).toBe("副词");
+    expect(partOfSpeechLabel("i:100")).toBe("介词");
     expect(partOfSpeechLabel(null)).toBe("");
   });
   it("明确单一词性时优先同词性的已有释义，保留完整词典", () => {

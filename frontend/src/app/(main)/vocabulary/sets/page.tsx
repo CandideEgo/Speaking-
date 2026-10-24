@@ -92,20 +92,23 @@ export default function VocabSetsPage() {
   return (
     <div className="user-page">
       <PageHeader
-        crumb="词汇 · 词单"
-        title="词单：按视频、按考试、按自己收的词"
-        description="一个词单就是一批要过筛的词。点进词单看词表、来源句和进度，也可以直接开始训练。"
-        actions={
+        crumb={
           <>
-            <Link href="/vocabulary" className="text-copy text-muted hover:text-ink">
-              回到词汇 · 今日
+            <Link href="/vocabulary" className="hover:text-ink">
+              词汇
             </Link>
-            {!emptyLib && (
-              <LinkButton href="/vocabulary/drill" size="md">
-                开始今日训练
-              </LinkButton>
-            )}
+            <span aria-hidden>·</span>
+            <span>词单</span>
           </>
+        }
+        title="词单：按视频、按考试、按自己收的词"
+        description="一个词单是一批要过筛的词。点进词单看词表、来源句和进度。"
+        actions={
+          !emptyLib && (
+            <LinkButton href="/vocabulary/drill" size="md">
+              开始今日训练
+            </LinkButton>
+          )
         }
       />
 

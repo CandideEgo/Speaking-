@@ -215,7 +215,9 @@ export default function UpgradePage() {
           description="查看会员权益与价格，选择适合自己的学习方式。"
         />
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        {/* items-start：右侧收款卡比权益卡高一大截，默认 stretch 会把左侧卡片
+            撑成同高，下半张全是空白。 */}
+        <div className="grid items-start gap-6 lg:grid-cols-2">
           <Card padding={5}>
             <div className="flex items-center gap-3">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-brand-50 text-brand-600">
@@ -350,6 +352,32 @@ export default function UpgradePage() {
                 会员状态暂时未能更新，请稍后重试。
               </p>
             )}
+          </Card>
+
+          {/* 宽屏时落在左栏第二行，补上权益卡下方的空白；手机按 DOM 顺序排在付款卡之后。 */}
+          <Card padding={5} className="lg:col-start-1 lg:row-start-2">
+            <p className="text-copy font-semibold text-ink">购买说明</p>
+            <dl className="mt-4 space-y-3">
+              {[
+                {
+                  term: "怎么付款",
+                  detail: "微信内扫码或打开支付链接完成付款；本站不收集银行卡信息。",
+                },
+                {
+                  term: "何时开通",
+                  detail: "付款成功后按支付记录自动同步到当前账号，通常几分钟内生效。",
+                },
+                {
+                  term: "到期之后",
+                  detail: "自动回到免费版；已保存的收藏、词库与学习记录都会保留。",
+                },
+              ].map((item) => (
+                <div key={item.term}>
+                  <dt className="text-meta font-semibold text-body">{item.term}</dt>
+                  <dd className="mt-0.5 text-copy leading-relaxed text-muted">{item.detail}</dd>
+                </div>
+              ))}
+            </dl>
           </Card>
         </div>
       </div>

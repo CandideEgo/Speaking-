@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Volume2 } from "lucide-react";
+import { BookOpen, Volume2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { vocabularySource, partOfSpeechLabel } from "@/lib/vocabularyPresentation";
 import { DictionaryMeaning } from "./DictionaryMeaning";
@@ -10,6 +10,7 @@ import { HighlightedSentence } from "./HighlightedSentence";
 import { toastApiError } from "@/lib/errors";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { useSpeech } from "@/hooks/useSpeech";
 import type { DailySession } from "@/hooks/useDailySession";
@@ -90,13 +91,13 @@ export function VocabularyToday({
     );
   if (stats.total === 0)
     return (
-      <section className="space-y-4 py-8">
-        <h2 className="text-title font-semibold text-ink">词库还是空的</h2>
-        <p className="text-copy text-body">
-          去看一段视频，点字幕里的生词，再选择加入词库。单词会连同原句保存在这里。
-        </p>
-        <LinkButton href="/">去看视频</LinkButton>
-      </section>
+      <EmptyState
+        icon={BookOpen}
+        title="词库还是空的"
+        description="去看一段视频，点字幕里的生词，再选择加入词库。单词会连同原句保存在这里。"
+        action={<LinkButton href="/">去看视频</LinkButton>}
+        className="py-14"
+      />
     );
 
   const hasWords = reviews.length + newWords.length > 0;
@@ -129,9 +130,19 @@ export function VocabularyToday({
             个词
           </p>
         </div>
-        <LinkButton href={hasWords ? "/vocabulary/drill?start=1" : "/"}>
-          {hasWords ? label : "去看视频"}
-        </LinkButton>
+        <div className="flex flex-wrap gap-2">
+          {reviews.length > 0 && (
+            <LinkButton href="/vocabulary/review" data-testid="start-review">
+              开始复习
+            </LinkButton>
+          )}
+          <LinkButton
+            href={hasWords ? "/vocabulary/drill?start=1" : "/"}
+            variant={reviews.length > 0 ? "outline" : "primary"}
+          >
+            {hasWords ? label : "去看视频"}
+          </LinkButton>
+        </div>
       </section>
       <div className="user-page-layout has-aside">
         <div className="user-page-main">

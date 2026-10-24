@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Target } from "lucide-react";
 import { api } from "@/lib/api";
 import { subjectLabel } from "@/lib/examSubjects";
 import { toastApiError } from "@/lib/errors";
@@ -221,15 +220,7 @@ export default function DailyCheckPage() {
                   </span>
                 </div>
 
-                <p className="mt-4 flex items-start gap-2 rounded-md border border-hairline bg-surface-soft p-4 text-copy leading-relaxed text-body">
-                  <Target size={18} className="mt-0.5 flex-none text-muted" />
-                  <span>
-                    <strong className="text-ink">为什么推荐这一组：</strong>
-                    {recommendation.reason}
-                  </span>
-                </p>
-
-                <ol className="mt-5 divide-y divide-hairline border-y border-hairline">
+                <ol className="mt-4 divide-y divide-hairline border-y border-hairline">
                   <li className="flex items-baseline justify-between gap-4 py-4">
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-baseline gap-2 text-caption text-muted">
@@ -270,22 +261,6 @@ export default function DailyCheckPage() {
                 </details>
               </section>
             )}
-
-            <section aria-labelledby="daily-scope-title">
-              <div className="user-sec-head">
-                <h2 id="daily-scope-title" className="user-sec-title">
-                  这一组怎么来的
-                </h2>
-                <span className="user-sec-sub">根据最近练习推荐</span>
-              </div>
-              <ul className="mt-4 flex flex-col gap-2 text-copy leading-relaxed text-body">
-                <li>
-                  · 题量按完整题组给（{typeLabel} · {recommendation.question_count} 题）。
-                </li>
-                <li>· 换一组可以选择同类型的其他练习。</li>
-                <li>· 不预测考试分数、不给等级换算；答完只看这组答对多少题。</li>
-              </ul>
-            </section>
           </div>
 
           <aside className="user-page-aside" aria-label="推荐依据与最近记录">
@@ -342,14 +317,6 @@ export default function DailyCheckPage() {
               </ul>
               <p className="mt-3 text-caption leading-relaxed text-muted">
                 题量随完整文章变化。只有交卷后才计入学习统计。
-              </p>
-            </section>
-
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">关于每日练</h2>
-              <p className="text-meta leading-relaxed text-body">
-                不是每日任务，也不做连击惩罚：这里不显示连续天数，也不会因为断一天就清零——连续学习天数在首页和「我的」看。
-                这一组没有倒数计时，跳过后不扣分、也不补练，只是「今天可以先练这些」的建议。
               </p>
             </section>
           </aside>

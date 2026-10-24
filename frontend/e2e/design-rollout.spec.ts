@@ -118,7 +118,12 @@ test("每日推荐换组不开始会话，显式开始后进入真实答题", as
   await expect.poll(() => starts).toBe(1);
   await expect(page.getByText("文章预览", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /交卷/ }).first()).toBeVisible();
-  const cards = page.locator("div.rounded-md:has(button[data-testid='exam-option'])");
+  // 单栏布局默认先展示原文（双栏布局没有这组切换）；切到「题目」才能点到选项。
+  const questionsToggle = page
+    .getByRole("group", { name: "阅读视图" })
+    .getByRole("button", { name: "题目" });
+  if (await questionsToggle.isVisible()) await questionsToggle.click();
+  const cards = page.getByTestId("exam-question");
   const count = await cards.count();
   expect(count).toBeGreaterThan(0);
   for (let i = 0; i < count; i++) await cards.nth(i).getByTestId("exam-option").first().click();
@@ -131,10 +136,11 @@ test("每日推荐换组不开始会话，显式开始后进入真实答题", as
 test("四类搜索和词单旧入口可用", async ({ page }) => {
   await page.goto("/search?q=habit");
   for (const group of ["视频", "字幕", "词汇", "频道"]) {
+    // 分组 pill 的可访问名带结果计数（「视频 8」），所以按前缀匹配而不是 exact。
     await expect(
       page
         .getByRole("navigation", { name: "搜索类型" })
-        .getByRole("link", { name: group, exact: true })
+        .getByRole("link", { name: new RegExp(`^${group}`) })
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: group, exact: true })).toBeVisible();
   }

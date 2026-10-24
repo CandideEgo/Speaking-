@@ -3,7 +3,7 @@
 from typing import Literal
 
 import structlog
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,7 +35,12 @@ async def list_categories(request: Request):
     return {"categories": CATEGORIES}
 
 
-@cached(ttl=300, key=f"browse:feed:v{CARD_SHAPE_VERSION}:{{category}}:{{level_key}}:{{sort}}:{{page}}:{{page_size}}")
+@cached(
+    ttl=300,
+    key=(
+        f"browse:feed:v{CARD_SHAPE_VERSION}:{{category}}:{{level_key}}:{{sort}}:{{duration_key}}:{{page}}:{{page_size}}"
+    ),
+)
 async def _browse_feed_query(
     *,
     db: AsyncSession,
@@ -43,6 +48,9 @@ async def _browse_feed_query(
     level: str | None,
     level_key: str,
     sort: str,
+    duration_min: int | None,
+    duration_max: int | None,
+    duration_key: str,
     page: int,
     page_size: int,
 ) -> dict:
@@ -96,6 +104,13 @@ async def _browse_feed_query(
     if level:
         stmt = stmt.where(Video.difficulty_level == level)
 
+    # Duration buckets (seconds). Videos without a duration can't satisfy a
+    # duration filter, so they drop out only when one is requested.
+    if duration_min is not None:
+        stmt = stmt.where(Video.duration.is_not(None), Video.duration >= duration_min)
+    if duration_max is not None:
+        stmt = stmt.where(Video.duration.is_not(None), Video.duration <= duration_max)
+
     # Count total for pagination
     count_stmt = select(func.count()).select_from(stmt.subquery())
     count_result = await db.execute(count_stmt)
@@ -125,6 +140,8 @@ async def browse_feed(
     category: str = Query("all"),
     level: str | None = Query(None, max_length=2),
     sort: Literal["latest", "hot", "favorite", "weekly_favorite"] = Query("latest"),
+    duration_min: int | None = Query(None, ge=0, le=86400),
+    duration_max: int | None = Query(None, ge=0, le=86400),
     page: int = Query(1, ge=1, le=100),
     page_size: int = Query(20, ge=4, le=50),
 ):
@@ -135,13 +152,24 @@ async def browse_feed(
     ``favorite`` = all-time favorite count, ``weekly_favorite`` = favorites
     created since this Monday 00:00 Asia/Shanghai (same window as the
     ``weekly_favorites`` scope of ``/videos/rankings``).
+    ``duration_min`` / ``duration_max`` filter by media length in seconds.
     """
+    if duration_min is not None and duration_max is not None and duration_min > duration_max:
+        raise HTTPException(status_code=400, detail="duration_min 不能大于 duration_max")
+    duration_key = (
+        f"{duration_min if duration_min is not None else ''}-{duration_max if duration_max is not None else ''}"
+        if duration_min is not None or duration_max is not None
+        else "all"
+    )
     return await _browse_feed_query(
         db=db,
         category=category,
         level=level,
         level_key=level or "all",
         sort=sort,
+        duration_min=duration_min,
+        duration_max=duration_max,
+        duration_key=duration_key,
         page=page,
         page_size=page_size,
     )

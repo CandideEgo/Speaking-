@@ -157,10 +157,6 @@ export default function HistoryPage() {
       .filter((g) => g.items.length > 0);
   }, [records]);
 
-  const todayCount = useMemo(
-    () => records.filter((r) => dayBucket(r.last_accessed_at || r.created_at) === "今天").length,
-    [records]
-  );
   const wordsLearned = useMemo(
     () => records.reduce((sum, r) => sum + (r.words_learned || 0), 0),
     [records]
@@ -248,13 +244,12 @@ export default function HistoryPage() {
           </div>
         )}
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-6">
           <TabPills
             tabs={tabs}
             activeKey={filter}
             onChange={(key) => setFilter(key as FilterKey)}
           />
-          <span className="text-meta text-muted">共 {overallTotal} 段记录</span>
         </div>
 
         <div className="user-page-layout has-aside">
@@ -267,7 +262,7 @@ export default function HistoryPage() {
               <EmptyState
                 icon={Calendar}
                 title="暂无学习记录"
-                description="看完第一个视频就会出现在这里"
+                description="看完第一个视频就会出现在这里。"
                 action={
                   <Link
                     href="/"
@@ -326,28 +321,12 @@ export default function HistoryPage() {
           <aside className="user-page-aside" aria-label="记录说明">
             <section className="user-aside-sec">
               <h2 className="user-aside-title">这些数字怎么算</h2>
+              {/* 记录条数 / 今天 / 连续学习 / 本周时长 都在页面顶部与分组小标题里出现过，
+                  这里只留顶部没有的那一项，别让同一组数字一屏说两遍。 */}
               <div className="user-kv">
-                <div className="user-kv-row">
-                  <span className="user-kv-key">记录条数</span>
-                  <span className="user-kv-val">{overallTotal} 段</span>
-                </div>
-                <div className="user-kv-row">
-                  <span className="user-kv-key">今天</span>
-                  <span className="user-kv-val">{todayCount} 段</span>
-                </div>
                 <div className="user-kv-row">
                   <span className="user-kv-key">生词合计</span>
                   <span className="user-kv-val">{wordsLearned} 个</span>
-                </div>
-                <div className="user-kv-row">
-                  <span className="user-kv-key">连续学习</span>
-                  <span className="user-kv-val">{profile?.current_streak ?? 0} 天</span>
-                </div>
-                <div className="user-kv-row">
-                  <span className="user-kv-key">本周时长</span>
-                  <span className="user-kv-val">
-                    {week.value} {week.unit}
-                  </span>
                 </div>
               </div>
               <p className="mt-3 text-meta leading-relaxed text-body">

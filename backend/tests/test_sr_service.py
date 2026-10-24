@@ -191,3 +191,32 @@ class TestApplyReviewBands:
         apply_review(vocab, QUALITY_CORRECT, now=now)
         apply_review(vocab, QUALITY_WRONG, now=now)
         assert vocab.ease_factor == 2.7
+
+
+class TestThreeLevelSelfRating:
+    """三档自评：认识=5、模糊=3、不认识=1，调度必须互相区分。"""
+
+    def test_hard_schedules_two_days_without_wrong_count(self):
+        vocab = _vocab()
+        now = datetime.now(UTC)
+        interval, next_at = apply_review(vocab, 3, now=now)
+        assert interval == 2
+        assert next_at == now + timedelta(days=2)
+        assert vocab.wrong_count == 0
+        assert vocab.last_wrong_at is None
+        assert vocab.correct_count == 1
+
+    def test_easy_uses_clean_ladder(self):
+        vocab = _vocab()
+        assert apply_review(vocab, 5, now=datetime.now(UTC))[0] == 3
+
+    def test_unknown_schedules_tomorrow_and_counts_wrong(self):
+        vocab = _vocab()
+        interval, _ = apply_review(vocab, 1, now=datetime.now(UTC))
+        assert interval == 1
+        assert vocab.wrong_count == 1
+
+    def test_hard_does_not_override_recent_wrong(self):
+        assert (
+            calculate_review_interval(correct=True, wrong_count=1, interval_days=1, wrong_recent=True, hard=True) == 1
+        )

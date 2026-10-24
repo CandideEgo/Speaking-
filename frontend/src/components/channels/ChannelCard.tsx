@@ -1,12 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Play } from "lucide-react";
-import { Badge } from "@/components/common/Badge";
+import { ArrowRight, Check, Play, Plus } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { VideoTitle } from "@/components/video/VideoTitle";
+import { api } from "@/lib/api";
 import { userInitial } from "@/lib/avatar";
+import { toastApiError } from "@/lib/errors";
 import {
   directionLabels,
   formatCollectedVideos,
@@ -30,10 +33,40 @@ import type { ChannelSummary } from "@/types/channels";
 export function ChannelCard({
   channel,
   subscribed = false,
+  onSubscriptionChange,
 }: {
   channel: ChannelSummary;
   subscribed?: boolean;
+  /** 订阅状态变化后回传，让页面的「已订阅 N 个」与订阅列表同步。 */
+  onSubscriptionChange?: (channel: ChannelSummary, subscribed: boolean) => void;
 }) {
+  const [isSubscribed, setIsSubscribed] = useState(subscribed);
+  const [subscribing, setSubscribing] = useState(false);
+
+  // 列表页的订阅集合是异步取的；它到达后覆盖本地状态（用户点过之后
+  // 父层也会带着新值回来，两边最终一致）。
+  useEffect(() => {
+    setIsSubscribed(subscribed);
+  }, [subscribed]);
+
+  async function toggleSubscription() {
+    if (subscribing) return;
+    setSubscribing(true);
+    const next = !isSubscribed;
+    try {
+      const result = await api<{ subscribed: boolean }>(
+        `/api/v1/discovery/subscriptions/${encodeURIComponent(channel.slug)}`,
+        { method: next ? "PUT" : "DELETE" }
+      );
+      setIsSubscribed(result.subscribed);
+      onSubscriptionChange?.(channel, result.subscribed);
+    } catch (error) {
+      toastApiError(error, next ? "订阅失败，请重试" : "取消订阅失败，请重试");
+    } finally {
+      setSubscribing(false);
+    }
+  }
+
   const latest = channel.latest_video;
   // 服务端的 cover_url 在没有真实频道图时会回退成最新视频缩略图；那种图套进
   // 圆形头像就是视频画面被裁一刀，还和下面的缩略图重复。没有独立头像时用首字母。
@@ -45,6 +78,9 @@ export function ChannelCard({
   // 「本站已收录 N 段」是本站事实；不写成原频道的全部视频数。
   const facts = [
     formatCollectedVideos(channel.video_count),
+    channel.subscriber_count && channel.subscriber_count > 0
+      ? `${channel.subscriber_count} 人订阅`
+      : null,
     difficulty ? `难度 ${difficulty}` : null,
     channel.accent_label || null,
   ].filter((fact): fact is string => Boolean(fact));
@@ -85,11 +121,6 @@ export function ChannelCard({
                 {channel.name}
               </Link>
             </h2>
-            {subscribed && (
-              <Badge tone="brand" icon={Check} className="shrink-0">
-                已订阅
-              </Badge>
-            )}
           </div>
           {intro && (
             <p className="mt-1 line-clamp-2 text-meta leading-relaxed text-body" title={intro}>
@@ -146,7 +177,18 @@ export function ChannelCard({
           </Link>
         )}
 
-        <div className="flex items-center justify-end border-t border-hairline px-4 py-2.5">
+        <div className="flex items-center justify-between gap-2 border-t border-hairline px-4 py-2.5">
+          <Button
+            variant={isSubscribed ? "outline" : "tonal"}
+            size="sm"
+            icon={isSubscribed ? Check : Plus}
+            onClick={toggleSubscription}
+            disabled={subscribing}
+            aria-pressed={isSubscribed}
+            className="h-7 rounded-pill px-2.5 text-caption"
+          >
+            {isSubscribed ? "已订阅" : "订阅"}
+          </Button>
           <Link
             href={`/channels/${channel.slug}`}
             className="inline-flex items-center gap-1 text-meta font-semibold text-body transition-colors group-hover:text-ink hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"

@@ -17,12 +17,13 @@ import { HighlightedSentence } from "@/components/vocabulary/HighlightedSentence
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { api } from "@/lib/api";
+import { levelMeta } from "@/lib/examLevels";
+import { dictionaryPreview, partOfSpeechLabel } from "@/lib/vocabularyPresentation";
 import { watchHref, watchSentenceHref } from "@/lib/watchEntry";
 import { relativeTime } from "@/lib/utils";
 import type { Paginated, VocabSetWord, VocabularyWord } from "@/types";
 
-/** 后端集合词行暂不返回等级；前端用词库第一页做 best-effort 补全，缺失时显示「—」。 */
-type SetWord = VocabSetWord & { difficulty_level?: string | null };
+type SetWord = VocabSetWord;
 
 interface VocabStats {
   total: number;
@@ -40,16 +41,9 @@ const SCOPE_TABS = [
 
 type ScopeKey = (typeof SCOPE_TABS)[number]["key"];
 
-const LEVEL_LABEL: Record<string, string> = {
-  cet4: "四级",
-  cet6: "六级",
-  kaoyan: "考研",
-  ielts: "雅思",
-};
-
 function levelLabel(level: string | null | undefined): string | null {
   if (!level) return null;
-  return LEVEL_LABEL[level] || level.toUpperCase();
+  return levelMeta(level)?.label ?? level.toUpperCase();
 }
 
 function ipaText(ipa: string | null | undefined): string | null {
@@ -81,8 +75,8 @@ function sourceLabel(source: string | null | undefined): string {
  * 页头（类型徽标 + 标题 + 说明 + 动作）→ 封面/进度/facts → 左：来源视频 + 5 列表格
  * （词/音标、词性、词义、级别、来源句，分批加载）；右：这个词单 / 词库口径 / 下一步。
  *
- * 产品数据缺口：集合词行没有 `difficulty_level`（后端待补），前端用词库第一页补全；
- * 原句中文与句号也没有，来源句只展示英文原句并在有 `subtitle_id` 时给「回到原句」。
+ * 级别与来源句都来自后端：`exam_level` 是收词时写下的 ECDICT 最高级，
+ * `context_sentence` 在词条没存句子时用关联字幕补上，中文由 `context_sentence_zh` 给出。
  */
 export default function VocabSetDetailPage() {
   const params = useParams<{ id: string }>();
@@ -96,35 +90,8 @@ export default function VocabSetDetailPage() {
   );
   const [scope, setScope] = useState<ScopeKey>("all");
   const [batch, setBatch] = useState(1);
-  const [levelMap, setLevelMap] = useState<Record<string, string>>({});
   const [stats, setStats] = useState<VocabStats | null>(null);
   const [dueWords, setDueWords] = useState<Set<string> | null>(null);
-
-  // 等级补全：集合词都来自用户词库，词库列表带 difficulty_level（最多取前 100 词）。
-  useEffect(() => {
-    if (!isAuthenticated || isLoading) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await api<Paginated<VocabularyWord>>(
-          "/api/v1/vocabulary?page=1&page_size=100"
-        );
-        if (cancelled) return;
-        setLevelMap(
-          Object.fromEntries(
-            data.items
-              .filter((w) => w.difficulty_level)
-              .map((w) => [w.word.toLowerCase(), w.difficulty_level as string])
-          )
-        );
-      } catch {
-        /* 拿不到等级就显示「—」，不阻塞页面 */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, isLoading]);
 
   // 右栏「词库口径」与「这个词单 · 今天到期」需要词库统计与到期词集合。
   useEffect(() => {
@@ -237,9 +204,12 @@ export default function VocabSetDetailPage() {
           }
         />
 
-        {/* 封面 + 进度 + facts（设计 .vt-detail-head） */}
+        {/* 封面 + 进度 + facts（设计 .vt-detail-head）。
+            手机上封面撑不满一行、也放不进 14rem 的正文列，只会变成左侧一张 176px
+            的小图 + 下方通栏进度条；而来源视频卡里本来就有同一张 72px 封面，
+            所以窄屏直接收起这块图，让进度和事实行占满宽度。 */}
         <div className="mt-5 flex flex-wrap items-start gap-5">
-          <div className="relative aspect-video w-44 flex-none overflow-hidden rounded-md bg-surface-card">
+          <div className="relative hidden aspect-video w-44 flex-none overflow-hidden rounded-md bg-surface-card sm:block">
             {detail.thumbnail_url ? (
               <Image src={detail.thumbnail_url} alt="" sizes="176px" />
             ) : (
@@ -280,7 +250,7 @@ export default function VocabSetDetailPage() {
                 <span className="user-sec-sub">词和原句都来自这里</span>
               </div>
               {detail.video_id ? (
-                <div className="mt-3 flex items-center gap-3 rounded-md border border-hairline bg-surface-soft p-3">
+                <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-hairline bg-surface-soft p-3">
                   <div className="relative aspect-video w-[4.5rem] flex-none overflow-hidden rounded-sm bg-surface-card">
                     {detail.thumbnail_url ? (
                       <Image src={detail.thumbnail_url} alt="" sizes="72px" />
@@ -290,8 +260,10 @@ export default function VocabSetDetailPage() {
                       </span>
                     )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-copy font-semibold text-ink">{detail.title}</p>
+                  {/* 手机上「缩略图 + 标题 + 按钮」挤不下：标题只留两行，
+                      按钮换到下一行并占满宽度，而不是把标题压成五行窄条。 */}
+                  <div className="min-w-0 flex-1 basis-[10rem]">
+                    <p className="line-clamp-2 text-copy font-semibold text-ink">{detail.title}</p>
                     <p className="mt-0.5 text-meta text-muted">
                       {sourceLabel(detail.source_type)}
                       {detail.exam_level ? ` · ${detail.exam_level.toUpperCase()}` : ""}
@@ -299,7 +271,7 @@ export default function VocabSetDetailPage() {
                   </div>
                   <Link
                     href={watchHref(detail.video_id, { from: "set", extra: { set: id } })}
-                    className="inline-flex flex-none items-center gap-1.5 rounded-sm border border-hairline bg-canvas px-3 py-1.5 text-meta font-semibold text-ink hover:border-ink"
+                    className="inline-flex w-full flex-none items-center justify-center gap-1.5 rounded-sm border border-hairline bg-canvas px-3 py-1.5 text-meta font-semibold text-ink hover:border-ink sm:w-auto"
                   >
                     <Play size={13} />
                     回看原视频
@@ -349,7 +321,16 @@ export default function VocabSetDetailPage() {
               </div>
 
               <div className="mt-4 overflow-x-auto overscroll-x-contain rounded-lg border border-hairline">
-                <table className="w-full min-w-[46rem] border-collapse text-copy">
+                <table className="w-full min-w-[46rem] table-fixed border-collapse text-copy">
+                  {/* 固定列宽：默认布局会把宽度全给「词 / 音标」，把「级别」挤成
+                      竖排两个字、「来源句」挤成窄条。 */}
+                  <colgroup>
+                    <col className="w-[20%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[36%]" />
+                  </colgroup>
                   <caption className="border-b border-hairline-soft px-4 py-3 text-left text-meta text-muted">
                     词、音标、词性、词义、级别与来源句。
                   </caption>
@@ -377,11 +358,15 @@ export default function VocabSetDetailPage() {
                       </tr>
                     ) : (
                       visible.map((word) => {
-                        const level = levelLabel(
-                          word.difficulty_level ?? levelMap[word.word.toLowerCase()]
-                        );
+                        // 词的级别优先用它自己的 ECDICT 级别；缺失时退回词单的级别
+                        // （视频词单里的词确实都属于这个筛选级别）。
+                        const level = levelLabel(word.exam_level ?? detail.exam_level);
                         const ipa = ipaText(word.ipa);
-                        const meaning = word.translation || word.definition || "—";
+                        const meaning = dictionaryPreview(
+                          word.translation,
+                          word.definition,
+                          word.part_of_speech
+                        );
                         const sentenceHref =
                           detail.video_id && word.subtitle_id
                             ? watchSentenceHref(
@@ -425,10 +410,22 @@ export default function VocabSetDetailPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-meta italic text-muted">
-                              {word.part_of_speech || "—"}
+                            <td className="whitespace-nowrap px-4 py-3 text-meta italic text-muted">
+                              {partOfSpeechLabel(word.part_of_speech) || "—"}
                             </td>
-                            <td className="px-4 py-3 text-body">{meaning}</td>
+                            <td className="px-4 py-3 text-body">
+                              {meaning.summary}
+                              {meaning.expandable && (
+                                <details className="mt-1">
+                                  <summary className="cursor-pointer text-caption text-muted hover:text-ink">
+                                    完整释义
+                                  </summary>
+                                  <p className="mt-1 whitespace-pre-line text-meta leading-relaxed text-muted">
+                                    {meaning.full}
+                                  </p>
+                                </details>
+                              )}
+                            </td>
                             <td className="px-4 py-3">
                               {level ? (
                                 <span className="inline-flex items-center gap-1 text-meta text-muted">
@@ -453,6 +450,11 @@ export default function VocabSetDetailPage() {
                                     />
                                     ”
                                   </span>
+                                  {word.context_sentence_zh && (
+                                    <span className="mt-0.5 block text-caption leading-relaxed text-muted">
+                                      {word.context_sentence_zh}
+                                    </span>
+                                  )}
                                   {sentenceHref && (
                                     <Link
                                       href={sentenceHref}
@@ -464,7 +466,9 @@ export default function VocabSetDetailPage() {
                                 </>
                               ) : (
                                 <span className="text-meta text-muted">
-                                  这个词单没有原句（考试词单或自建词单）。
+                                  {detail.source_type === "exam" || detail.source_type === "custom"
+                                    ? "考试词单与自建词单不绑定原句。"
+                                    : "这段视频里没有取到这个词所在的句子。"}
                                 </span>
                               )}
                             </td>

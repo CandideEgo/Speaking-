@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
 
 type Cell = ReactNode | { content: ReactNode; colSpan?: number; rowHeader?: boolean };
 
@@ -15,8 +14,13 @@ function normalize(cell: Cell): { content: ReactNode; colSpan: number; rowHeader
 }
 
 /**
- * 协议页表格（设计 `.legal-table`：1px 发丝线、表头浅底、窄屏内部横向滚动）。
- * 窄屏保底宽 40rem 并给「表格可左右滑动」提示，不逐字断行、不裁切。
+ * 协议页表格。
+ *
+ * 协议正文列按阅读宽（约 24rem）排版，横向塞不下四列表格：原来的做法是
+ * 「保底 40rem + 横向滚动」，结果每一行都要左右拖动才能读全，表头还会滚出视野。
+ * 所以这里不渲染 `<table>`，改成一行一张卡：首列当标题，其余列按「列名 + 内容」
+ * 竖排。列名只在超过两列时显示——「项目 / 说明」这类两列表再挂一个「说明」
+ * 纯属噪音。手机上（更窄）与桌面（正文列同样窄）用同一套版式。
  */
 export function LegalTable({
   caption,
@@ -27,51 +31,34 @@ export function LegalTable({
   columns: string[];
   rows: Cell[][];
 }) {
+  const showLabels = columns.length > 2;
+
   return (
     <div className="mt-4">
-      <div className="overflow-x-auto overscroll-x-contain md:overflow-visible">
-        <table className="w-full min-w-[40rem] border-collapse text-copy md:min-w-0">
-          <caption className="pb-3 text-left text-meta text-muted">{caption}</caption>
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th
-                  key={column}
-                  scope="col"
-                  className="border border-hairline-soft bg-surface-soft px-3 py-3 text-left text-meta font-semibold text-ink"
-                >
-                  {column}
-                </th>
+      <p className="pb-3 text-meta text-muted">{caption}</p>
+      <ul className="flex flex-col gap-2">
+        {rows.map((row, rowIndex) => {
+          const cells = row.map(normalize);
+          return (
+            <li
+              key={rowIndex}
+              className="rounded-md border border-hairline-soft bg-canvas px-3 py-2.5"
+            >
+              <p className="text-copy font-semibold leading-relaxed text-ink">{cells[0].content}</p>
+              {cells.slice(1).map((cell, i) => (
+                <div key={i} className="mt-1.5 flex gap-2 text-copy leading-relaxed">
+                  {showLabels && (
+                    <span className="w-20 shrink-0 text-meta leading-relaxed text-muted">
+                      {columns[i + 1]}
+                    </span>
+                  )}
+                  <span className="min-w-0 text-body">{cell.content}</span>
+                </div>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, rowIndex) => (
-              <tr key={rowIndex}>
-                {row.map((cell, cellIndex) => {
-                  const { content, colSpan, rowHeader } = normalize(cell);
-                  const isRowHeader = rowHeader || cellIndex === 0;
-                  const Tag = isRowHeader ? "th" : "td";
-                  return (
-                    <Tag
-                      key={cellIndex}
-                      scope={isRowHeader ? "row" : undefined}
-                      colSpan={colSpan > 1 ? colSpan : undefined}
-                      className={cn(
-                        "border border-hairline-soft px-3 py-3 text-left align-top",
-                        isRowHeader ? "font-semibold text-ink" : "text-body"
-                      )}
-                    >
-                      {content}
-                    </Tag>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-2 text-caption text-muted md:hidden">表格可左右滑动查看完整内容。</p>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

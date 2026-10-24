@@ -19,15 +19,13 @@ export const RANKING_METRIC_LABELS: Record<RankingScope, string> = {
 };
 
 /**
- * 名次数字配色：1 品牌橙 / 2 琥珀 / 3 深橙（暗色下提亮），其余中性。
- * 文字色一律用加深档（brand-700/brand-800/warning-text/muted）——
- * 原始主色（brand-500 3.12:1、accent-amber 1.95:1）做 16px 文字对比不足。
+ * 名次数字配色：只有第 1 名用品牌蓝，其余中性。
+ * 文字色一律用加深档（brand-700 / body / muted）——
+ * 原始主色（brand-500 3.12:1）做 16px 文字对比不足。
  */
 function rankClass(rank: number): string {
   if (rank === 1) return "text-brand-700";
-  if (rank === 2) return "text-warning-text";
-  if (rank === 3) return "text-brand-800";
-  return "text-muted";
+  return "text-body";
 }
 
 /** NEW 只表示“刚上架”：48 小时内；更早的条目只给相对时间，避免满屏 NEW。 */

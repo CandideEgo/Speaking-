@@ -182,8 +182,10 @@ async def search_videos(
     """
     user_id = current_user.id if current_user else None
     results = await _search_videos(db, query=q, limit=limit, user_id=user_id)
-    # D7: 搜索热度计数（best-effort，Redis 故障静默）
-    await _record_search_query(q)
+    # D7: 搜索热度只记「搜到了内容」的词。搜不到的词（拼错、试玩、爬虫探测）
+    # 挂上热搜栏只会让下一个人照着搜一遍空结果；Redis 故障仍然静默。
+    if results:
+        await _record_search_query(q)
     return results
 
 
@@ -910,6 +912,53 @@ async def list_video_rankings(
             detail=f"Invalid scope: {scope!r} (expected one of: {', '.join(RANKING_SCOPES)})",
         )
     return await get_rankings(db, scope)
+
+
+# Related videos for the watch page: same channel first, then the same first
+# topic tag, then recent published videos. Public; excludes the current video.
+@router.get("/{video_id}/related", response_model=dict)
+@rate_limit("30/minute")
+async def list_related_videos(
+    request: Request,
+    video_id: str,
+    limit: int = Query(6, ge=1, le=12),
+    db: AsyncSession = Depends(get_db),
+):
+    source = await db.get(Video, video_id)
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    from app.services.channel_service import channel_slugs_for
+    from app.services.discovery_service import public_video_filters
+    from app.services.video_card import video_card_payload
+
+    picked: list[Video] = []
+    seen = {video_id}
+
+    async def _take(stmt) -> None:
+        for video in (await db.execute(stmt.limit(limit))).scalars().all():
+            if video.id not in seen and len(picked) < limit:
+                seen.add(video.id)
+                picked.append(video)
+
+    base = (
+        select(Video)
+        .where(Video.id != video_id, *public_video_filters())
+        .order_by(Video.favorite_count.desc().nullslast(), Video.created_at.desc(), Video.id.desc())
+    )
+    if source.channel_ref:
+        await _take(base.where(Video.channel_ref == source.channel_ref))
+    first_tag = next((tag.strip() for tag in (source.topic_tags or "").split(",") if tag.strip()), None)
+    if first_tag and len(picked) < limit:
+        await _take(base.where(Video.topic_tags.ilike(f"%{first_tag}%")))
+    if len(picked) < limit:
+        await _take(base)
+
+    slug_map = await channel_slugs_for(db, picked)
+    return {
+        "items": [video_card_payload(v, slug_map.get(v.channel_ref) if v.channel_ref else None) for v in picked],
+        "total": len(picked),
+    }
 
 
 # Phase 1 B0 — list the current user's vocabulary for a single video, used by

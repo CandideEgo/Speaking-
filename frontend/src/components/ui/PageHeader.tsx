@@ -10,6 +10,12 @@ export interface PageHeaderProps {
   title: ReactNode;
   /** Subtitle / description below the title. */
   description?: ReactNode;
+  /**
+   * `eyebrow` is the design system's list-page kicker (small caps), while
+   * `display` is the large detail-page title. Defaults to `display` so pages
+   * that have not been migrated keep their previous hierarchy.
+   */
+  variant?: "eyebrow" | "display";
   /** Center-align all content. Default false (left-aligned). */
   centered?: boolean;
   /** Additional className for the outer wrapper. */
@@ -29,6 +35,7 @@ export function PageHeader({
   crumb,
   title,
   description,
+  variant = "display",
   centered = false,
   className,
   actions,
@@ -37,7 +44,7 @@ export function PageHeader({
     <header className={cn("user-page-header", centered && "text-center", className)}>
       <div className="min-w-0">
         {crumb && <div className="user-page-crumb">{crumb}</div>}
-        <h1 className="user-page-title">{title}</h1>
+        <h1 className={cn("user-page-title", variant === "eyebrow" && "is-eyebrow")}>{title}</h1>
         {description && <p className="user-page-desc">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}

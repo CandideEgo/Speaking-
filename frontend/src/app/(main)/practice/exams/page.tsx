@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { api, mediaUrl } from "@/lib/api";
 import { subjectLabel, PAPER_LEVELS } from "@/lib/examSubjects";
 import { suggestedMinutesFor } from "@/lib/examPresentation";
@@ -118,12 +119,16 @@ export default function ExamPapersPage() {
   const visiblePdfs = subjectPdfs.filter((p) => !pdfYear || String(p.year) === pdfYear);
   return (
     <div className="user-page">
-      <Link href="/practice" className="text-copy text-muted hover:text-ink">
-        返回练习
-      </Link>
       <PageHeader
-        className="mt-4"
-        crumb="历年真题"
+        crumb={
+          <Link
+            href="/practice"
+            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+          >
+            <ArrowLeft size={13} aria-hidden />
+            返回练习
+          </Link>
+        }
         title="历年真题 · 阅读部分"
         description="在线练习阅读客观题，交卷后核对答案。听力、写作、翻译暂未接入。"
       />
@@ -208,7 +213,9 @@ export default function ExamPapersPage() {
                               : " · 未完成"}
                           </p>
                         </div>
-                        <div className="flex gap-2">
+                        {/* ml-auto：手机上标题占满一行时这组按钮换到下一行，
+                            否则会贴左显示，与其它行的右对齐动作对不上。 */}
+                        <div className="ml-auto flex gap-2">
                           {p.last_session_id ? (
                             <>
                               <LinkButton

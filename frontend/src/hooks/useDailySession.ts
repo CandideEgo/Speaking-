@@ -49,9 +49,9 @@ export function useDailySession(enabled: boolean) {
         today?: TodayTrainingSummary;
       }>("/api/v1/vocabulary/daily-session");
       setSession({
-        activeSessionId: data.training_preview.active_session_id,
-        newWords: data.training_preview.new_words,
-        reviewWords: data.training_preview.review_words,
+        activeSessionId: data.training_preview?.active_session_id ?? null,
+        newWords: data.training_preview?.new_words ?? data.new_words ?? [],
+        reviewWords: data.training_preview?.review_words ?? data.review_words ?? [],
         totals: data.totals ?? { new_total: 0, due_total: 0 },
         preferences: data.preferences ?? null,
         today: data.today ?? { words_learned: 0, rounds: 0 },

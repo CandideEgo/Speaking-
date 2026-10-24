@@ -1,7 +1,7 @@
 import { test, expect, type Locator } from "@playwright/test";
 
 /**
- * 壳层持有唯一正文容器：正文封顶 1320px 并在滚动区居中；顶栏铺满主壳。
+ * 壳层持有唯一正文容器：正文封顶 1760px 并在滚动区居中；顶栏铺满主壳。
  * 验证桌面侧栏下的容器宽度、内边距和居中参照。
  * 本地登录票配合 API 空响应，不依赖内容数量。
  */
@@ -17,7 +17,7 @@ function mintToken(): string {
 const BAR_CONTAINER = ".user-topbar .container-page";
 const PAGE_CONTAINER = "#main-scroll > .container-page";
 
-const CONTAINER_MAX = 1320;
+const CONTAINER_MAX = 1760;
 
 const VIEWPORTS = [
   // 宽屏：容器封顶 1320，两侧留白 —— 上限与对齐都在这里最容易穿帮
@@ -73,17 +73,13 @@ for (const vp of VIEWPORTS) {
     expect(pageBox.width).toBeLessThanOrEqual(CONTAINER_MAX + 1);
     expect(Math.abs(pageBox.width - Math.min(CONTAINER_MAX, clientWidth))).toBeLessThanOrEqual(1);
 
-    // 2) gutter 是 .container-page 的三档响应式 padding（stage-3 设计稿 .page 同值）：
-    //    <768 = px-4、768–1279 = px-6、≥1280 = px-8。
-    //    Tailwind v4 的 px-N = --spacing(0.25rem) × N，随根字号缩放（≥1536px 时 16→17px），
-    //    所以期望值从 DOM 的根字号推出来，而不是钉死 px。
+    // 2) gutter 是 .user-ui .container-page 的三档固定 padding：
+    //    <768 = 16px、768–1279 = 28px、≥1280 = 40px（2026-10 设计稿）。
     const { padding, expectedGutter } = await pageContainer.evaluate((el) => {
       const cs = getComputedStyle(el);
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-      const steps = window.innerWidth >= 1280 ? 8 : window.innerWidth >= 768 ? 6 : 4;
       return {
         padding: parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight),
-        expectedGutter: steps * 0.25 * rem,
+        expectedGutter: window.innerWidth >= 1280 ? 40 : window.innerWidth >= 768 ? 28 : 16,
       };
     });
     expect(padding).toBeCloseTo(expectedGutter * 2, 1);

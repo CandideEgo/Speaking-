@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bell, Check, ChevronRight, Settings } from "lucide-react";
+import { Bell, Check, ChevronRight, Settings, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -53,8 +53,12 @@ const TYPE_LABELS: Record<string, string> = {
   announcement: "公告",
 };
 
-/** 通知设置预览（与 profile→设置里的 NotificationPreferences 同一组开关）。 */
-const PREF_PREVIEW = ["系统通知", "视频就绪", "词汇复习提醒"];
+/** 通知设置预览（与 profile→设置里的 NotificationPreferences 同一组开关：
+ *  推送总开关 + 词汇复习提醒，后端只认这两个 key）。 */
+const PREF_PREVIEW: { label: string; key: string }[] = [
+  { label: "推送通知", key: "push_notifications" },
+  { label: "词汇复习提醒", key: "vocabulary_reminder" },
+];
 
 function formatNotifyTime(iso: string): string {
   const d = new Date(iso);
@@ -81,6 +85,8 @@ export default function NotificationsPage() {
   const [unread, setUnread] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [markingAll, setMarkingAll] = useState(false);
+  // 设置预览要显示真实开关状态，而不是一律打勾。
+  const [prefs, setPrefs] = useState<Record<string, boolean> | null>(null);
 
   const fetcher = useCallback(
     (page: number) => {
@@ -121,6 +127,22 @@ export default function NotificationsPage() {
     if (!isAuthenticated || isLoading) return;
     void refreshMeta();
   }, [isAuthenticated, isLoading, refreshMeta]);
+
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+    let cancelled = false;
+    api<Record<string, boolean>>("/api/v1/notifications/preferences")
+      .then((data) => {
+        if (!cancelled) setPrefs(data);
+      })
+      .catch(() => {
+        // 读不到偏好时预览不显示开关状态，而不是替用户默认「已开启」。
+        if (!cancelled) setPrefs({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isLoading]);
 
   async function markRead(notification: Notification) {
     if (notification.is_read) return;
@@ -185,23 +207,26 @@ export default function NotificationsPage() {
               disabled={unread === 0 || markingAll}
               onClick={() => void markAllRead()}
             >
-              {unread === 0 ? "已全部已读" : `全部已读（${unread}）`}
+              {unread === 0 ? "全部已读" : `全部已读（${unread}）`}
             </Button>
           }
         />
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <TabPills
-            tabs={visibleItems}
-            activeKey={activeTabKey}
-            onChange={(key) => {
-              const tab = TYPE_TABS.find((t) => t.key === key);
-              setType(tab?.value ?? null);
-            }}
-          />
-          <span className="text-meta text-muted">
-            共 {type === null ? (counts.all ?? 0) : total} 条 · 未读 {sectionUnread} 条
-          </span>
+        {/* 计数只出现在 tab 与列表小标题里，不再在工具条右侧重复一遍。 */}
+        <div className="mt-6">
+          {/* 手机上五个筛选一排放不下：整条横向滚动，而不是让胶囊容器折成两行。 */}
+          <div className="overflow-x-auto">
+            <TabPills
+              className="flex-nowrap"
+              size="sm"
+              tabs={visibleItems}
+              activeKey={activeTabKey}
+              onChange={(key) => {
+                const tab = TYPE_TABS.find((t) => t.key === key);
+                setType(tab?.value ?? null);
+              }}
+            />
+          </div>
         </div>
 
         <div className="user-page-layout has-aside">
@@ -337,24 +362,35 @@ export default function NotificationsPage() {
                   <Settings size={17} className="text-muted" />
                   通知设置
                 </h2>
-                <span className="user-sec-sub">入口在「我的」</span>
               </div>
               <div className="mt-4 flex flex-wrap items-start justify-between gap-4 rounded-lg border border-hairline bg-surface-soft p-5">
                 <div className="min-w-0">
                   <p className="text-copy font-semibold text-ink">哪些通知要推给我</p>
                   <p className="mt-1 max-w-[46ch] text-meta leading-relaxed text-body">
-                    5 类通知可以分别开关；开关在「我的 → 设置 → 通知设置」里保存。
+                    两项开关都在「我的 → 设置 → 通知设置」里保存；关掉总开关就不再推送。
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {PREF_PREVIEW.map((label) => (
-                      <span
-                        key={label}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-pill border border-hairline-strong bg-canvas px-3 text-meta text-body"
-                      >
-                        <Check size={12} className="text-success-text" />
-                        {label}
-                      </span>
-                    ))}
+                    {PREF_PREVIEW.map(({ label, key }) => {
+                      const on = prefs?.[key];
+                      return (
+                        <span
+                          key={key}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-pill border border-hairline-strong bg-canvas px-3 text-meta text-body"
+                        >
+                          {on === false ? (
+                            <X size={12} className="text-muted" />
+                          ) : on === true ? (
+                            <Check size={12} className="text-success-text" />
+                          ) : null}
+                          {label}
+                          {on !== undefined && (
+                            <span className="text-caption text-muted">
+                              {on ? "已开启" : "已关闭"}
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
                 <LinkButton
@@ -366,9 +402,6 @@ export default function NotificationsPage() {
                   去「我的」设置
                 </LinkButton>
               </div>
-              <p className="mt-3 text-meta leading-relaxed text-body">
-                下面这排只是让你先看一遍这 5 类分别是什么，改动请到「我的 → 设置」里保存。
-              </p>
             </section>
           </div>
 

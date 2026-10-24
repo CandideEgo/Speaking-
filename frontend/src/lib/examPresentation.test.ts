@@ -4,6 +4,8 @@ import {
   deriveOptions,
   paperIdentity,
   stripWordBank,
+  normalizePassageSpacing,
+  formatNumberRanges,
   catalogReturnHref,
 } from "./examPresentation";
 import type { ExamQuestionPublic } from "@/components/exam/ExamRunner";
@@ -41,6 +43,23 @@ describe("exam presentation", () => {
   it("displays real months only for CET papers", () => {
     expect(paperIdentity({ level: "ky1", year: 2025, month: 12, set_no: 1 })).not.toContain("月");
     expect(paperIdentity({ level: "cet6", year: 2025, month: 6, set_no: 1 })).toContain("6 月");
+  });
+  it("restores spaces lost when the PDF line break was dropped", () => {
+    expect(normalizePassageSpacing("can only stretch so far.Whether or not")).toBe(
+      "can only stretch so far. Whether or not"
+    );
+    expect(normalizePassageSpacing("Food Agriculture.Science won't")).toBe(
+      "Food Agriculture. Science won't"
+    );
+    // 全大写缩写（U.S.A）与小数不补空格。
+    expect(normalizePassageSpacing("in the U.S.A and 3.14")).toBe("in the U.S.A and 3.14");
+    expect(normalizePassageSpacing("asked Mr.Smith")).toBe("asked Mr. Smith");
+  });
+  it("collapses consecutive question numbers into ranges", () => {
+    expect(formatNumberRanges([1, 2, 3, 4, 5])).toBe("1–5");
+    expect(formatNumberRanges([5, 3, 4, 9, 7, 8])).toBe("3–5、7–9");
+    expect(formatNumberRanges([12, 14])).toBe("12、14");
+    expect(formatNumberRanges([])).toBe("");
   });
   it("returns only to the catalog", () => {
     expect(catalogReturnHref("/practice/exams?level=ky1&page=2")).toBe(

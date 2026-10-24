@@ -5,10 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { PublicTopBar } from "@/components/layout/PublicTopBar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { UnreadCountSync } from "@/components/layout/UnreadCountSync";
 import { ShellSkeleton } from "@/components/common/ShellSkeleton";
 import { DeletionBanner } from "@/components/profile/DeletionBanner";
 import { useAuthStore } from "@/stores/authStore";
+import { useVocabularyStore } from "@/stores/vocabularyStore";
 import { api } from "@/lib/api";
 import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
 
@@ -20,6 +23,13 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
 
   const pathname = usePathname();
   const isWatch = pathname.startsWith("/watch/");
+  const fetchVocabStats = useVocabularyStore((s) => s.fetchStats);
+
+  // Vocab due badges live in three chrome surfaces. Refresh once per shell
+  // mount here; the surfaces only read the store.
+  useEffect(() => {
+    if (isAuthenticated) void fetchVocabStats();
+  }, [isAuthenticated, fetchVocabStats]);
 
   // Onboarding gate: the server flag is the only source of truth. Resolve it
   // before rendering the shell so a new user never sees the home page flash
@@ -73,6 +83,7 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
     return (
       <div className="user-ui min-h-dvh bg-canvas">
         <div className="container-page">
+          <PublicTopBar />
           {children}
           <SiteFooter />
         </div>
@@ -90,6 +101,7 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
       }}
     >
       <Sidebar />
+      <UnreadCountSync />
       <div className="user-shell-main">
         <TopBar />
         <DeletionBanner />

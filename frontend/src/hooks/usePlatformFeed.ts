@@ -105,6 +105,18 @@ function homeVideoToItem(v: VideoCard): VideoItem {
 
 const PAGE_SIZE = 20;
 
+export type DurationFilter = "all" | "short" | "medium" | "long";
+
+const DURATION_PARAMS: Record<Exclude<DurationFilter, "all">, { min?: number; max?: number }> = {
+  short: { max: 300 },
+  medium: { min: 301, max: 900 },
+  long: { min: 901 },
+};
+
+function isDurationFilter(value: string | null): value is DurationFilter {
+  return value === "all" || value === "short" || value === "medium" || value === "long";
+}
+
 /**
  * 首页下滑流（原 `/browse` 的能力并入首页）。
  *
@@ -130,9 +142,15 @@ export function usePlatformFeed() {
   // 非法档位当作「全部」：否则下拉显示第一个选项、请求却按非法值筛，页面会
   // 一直空着且看不出为什么（旧链接 / 手改 URL 都能触发）。
   const activeLevel = rawLevel === "all" || isCefrLevel(rawLevel) ? rawLevel : "all";
+  const rawDuration = searchParams.get("duration");
+  const activeDuration: DurationFilter = isDurationFilter(rawDuration) ? rawDuration : "all";
   const sort: FeedSort = isFeedSort(sortParam) ? sortParam : DEFAULT_SORT;
 
-  const isHomeDefault = sort === "recommended" && activeCategory === "all" && activeLevel === "all";
+  const isHomeDefault =
+    sort === "recommended" &&
+    activeCategory === "all" &&
+    activeLevel === "all" &&
+    activeDuration === "all";
   const effectiveSort: FeedSort = isHomeDefault
     ? "recommended"
     : sort === "recommended"
@@ -150,7 +168,7 @@ export function usePlatformFeed() {
 
   /** 写回 URL；非默认值的才写，未筛选时 URL 保持干净。 */
   const updateFilters = useCallback(
-    (patch: { category?: string; level?: string; sort?: FeedSort }) => {
+    (patch: { category?: string; level?: string; duration?: DurationFilter; sort?: FeedSort }) => {
       const next = new URLSearchParams(pendingQueryRef.current);
       const apply = (key: string, value: string | undefined, fallback: string) => {
         if (value === undefined) return;
@@ -159,6 +177,7 @@ export function usePlatformFeed() {
       };
       apply("category", patch.category, "all");
       apply("level", patch.level, "all");
+      apply("duration", patch.duration, "all");
       apply("sort", patch.sort, DEFAULT_SORT);
       const nextQuery = next.toString();
       pendingQueryRef.current = nextQuery;
@@ -176,9 +195,13 @@ export function usePlatformFeed() {
     [updateFilters]
   );
   const setSort = useCallback((value: FeedSort) => updateFilters({ sort: value }), [updateFilters]);
-  /** 清掉分类与难度（排序保留用户显式选过的值；默认推荐会自动回到个性化流）。 */
+  const setDuration = useCallback(
+    (value: DurationFilter) => updateFilters({ duration: value }),
+    [updateFilters]
+  );
+  /** 清掉分类、难度与时长（排序保留用户显式选过的值；默认推荐会自动回到个性化流）。 */
   const clearFilters = useCallback(
-    () => updateFilters({ category: "all", level: "all" }),
+    () => updateFilters({ category: "all", level: "all", duration: "all" }),
     [updateFilters]
   );
 
@@ -214,12 +237,17 @@ export function usePlatformFeed() {
         page_size: String(PAGE_SIZE),
       });
       if (activeLevel !== "all") params.set("level", activeLevel);
+      const duration = DURATION_PARAMS[activeDuration as Exclude<DurationFilter, "all">];
+      if (activeDuration !== "all" && duration) {
+        if (duration.min != null) params.set("duration_min", String(duration.min));
+        if (duration.max != null) params.set("duration_max", String(duration.max));
+      }
       const browseSort = browseSortParam(sort);
       if (browseSort) params.set("sort", browseSort);
       return api<Paginated<VideoItem>>(`/api/v1/browse/feed?${params.toString()}`);
     },
     mode: "append",
-    filters: [activeCategory, activeLevel, sort],
+    filters: [activeCategory, activeLevel, activeDuration, sort],
   });
 
   // Fetch categories on mount - only once. The feed and the browse filter bar
@@ -273,11 +301,13 @@ export function usePlatformFeed() {
     setActiveCategory,
     activeLevel,
     setActiveLevel,
+    activeDuration,
+    setDuration,
     sort,
     effectiveSort,
     setSort,
     clearFilters,
-    isFiltered: activeCategory !== "all" || activeLevel !== "all",
+    isFiltered: activeCategory !== "all" || activeLevel !== "all" || activeDuration !== "all",
     videos,
     loading,
     hasMore,

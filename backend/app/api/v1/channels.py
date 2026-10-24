@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_admin_user
+from app.api.dependencies import get_admin_user, get_optional_user
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.channel import Channel
@@ -41,11 +41,15 @@ async def list_channels(
     request: Request,
     page: int = Query(1, ge=1, le=100),
     page_size: int = Query(50, ge=4, le=100),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Visible non-empty channels (curated first, auto author pages by video
-    count) as a paginated envelope."""
-    return await channel_service.list_public_channels(db, page, page_size)
+    count) as a paginated envelope. Signed-in viewers also get
+    ``is_subscribed`` / local ``subscriber_count``."""
+    return await channel_service.list_public_channels(
+        db, page, page_size, viewer_id=current_user.id if current_user else None
+    )
 
 
 @router.get("/{slug}")
@@ -55,10 +59,13 @@ async def channel_detail(
     slug: str,
     page: int = Query(1, ge=1, le=100),
     page_size: int = Query(20, ge=4, le=50),
+    current_user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Channel detail + paginated published videos inside it."""
-    detail = await channel_service.get_channel_detail(db, slug, page, page_size)
+    detail = await channel_service.get_channel_detail(
+        db, slug, page, page_size, viewer_id=current_user.id if current_user else None
+    )
     if detail is None:
         raise HTTPException(status_code=404, detail="频道不存在")
     return detail

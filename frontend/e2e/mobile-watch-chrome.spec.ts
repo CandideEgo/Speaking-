@@ -206,7 +206,7 @@ test.describe("判据（414×896）：零文字画面 / 完整首屏 / 1 次点�
 test.describe("桌面端守卫（DEC-069 不动 ≥1024px）", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("1280：观看页两栏不渲染，全局 TopBar（64px）与 5 Tab 行为不变", async ({
+  test("1280：观看页两栏不渲染，全局 TopBar（56px）与 5 Tab 行为不变", async ({
     page,
     request,
   }) => {
@@ -217,10 +217,10 @@ test.describe("桌面端守卫（DEC-069 不动 ≥1024px）", () => {
     await expect(page.locator(BAR)).toHaveCount(0);
     await expect(page.locator(`${TOP_BAR} [data-testid="level-selector"]`)).toHaveCount(0);
 
-    // ② 全局顶栏照旧：h-16 = 64px、可见。
+    // ② 全局顶栏照旧：2026-10 设计稿统一 56px、可见。
     const header = page.locator(TOP_BAR);
     await expect(header, "桌面端仍是全局 TopBar").toBeVisible();
-    expect(Math.round((await header.boundingBox())!.height), "桌面顶栏仍是 64px").toBe(64);
+    expect(Math.round((await header.boundingBox())!.height), "桌面顶栏是 56px").toBe(56);
 
     // ③ 桌面端播放页的底栏槽位不渲染 5 Tab（`WatchBottomBar` 在 ≥1024px 返回 null，
     //    而壳已经不再渲染 `MobileTabBar`）—— 桌面控制条在画面里，由 VideoControls 负责。

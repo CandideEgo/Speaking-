@@ -256,7 +256,7 @@ test.describe("首页下滑流 · 筛选", () => {
     fs.mkdirSync(directory, { recursive: true });
     await loginViaToken(page, token);
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "发现视频" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^发现 · / })).toBeVisible();
     await expect(page.locator(".home-editorial-lead")).toBeVisible();
     await expect(page.locator(".home-personal")).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "我的学习入口" })).toHaveCount(0);

@@ -26,9 +26,13 @@ _HOT_CACHE_TTL = 3600  # 1h
 
 
 async def record_search_query(query: str) -> None:
-    """Best-effort 搜索热度计数（ZINCRBY）。任何异常静默 —— 计数不影响搜索本身。"""
+    """Best-effort 搜索热度计数（ZINCRBY）。任何异常静默 —— 计数不影响搜索本身。
+
+    单字符查询不计：它们多半是打字过程中的半截输入（本地实测热搜栏被
+    ``he`` / ``an`` 这类碎片占满），对别人没有参考价值。
+    """
     q = (query or "").strip()
-    if not q or len(q) > 50:
+    if len(q) < 2 or len(q) > 50:
         return
     try:
         from app.core.redis import get_redis

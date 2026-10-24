@@ -53,6 +53,14 @@ export interface ChannelSummary {
   latest_video?: ChannelLatestVideo | null;
   /** 上游平台粉丝快照（详情响应携带；页面必须标注来源，不与本站订阅混用）。 */
   follower_count?: number | null;
+  /** 本站订阅人数（ChannelSubscription 聚合；游客也可见）。 */
+  subscriber_count?: number;
+  /** 当前登录用户是否已订阅；游客恒为 false。 */
+  is_subscribed?: boolean;
+  /** 最近一条公开视频的发布时间（详情响应携带）。 */
+  latest_published_at?: string | null;
+  /** 近 30 天新增公开视频数（详情响应携带）。 */
+  recent_video_count?: number;
   /** 上游平台认证标记（详情响应携带；页面不得暗示 SeeWord 官方认证）。 */
   is_verified?: boolean | null;
 }

@@ -173,6 +173,17 @@ export default function ChannelsPage() {
     [subscriptions]
   );
 
+  // 卡片内直接订阅/取消后，重新拉一次订阅集合：摘要里还有未学数量、最近视频等
+  // 卡片不需要但列表顶部会展示的字段，按服务端形状刷新比本地拼一份更可靠。
+  const refreshSubscriptions = useCallback(() => {
+    api<ChannelSubscriptionSummary[]>("/api/v1/discovery/subscriptions")
+      .then((items) => {
+        setSubscriptions(Array.isArray(items) ? items : []);
+        setSubscriptionStatus("ready");
+      })
+      .catch(() => setSubscriptionStatus("failed"));
+  }, []);
+
   const activeDirectionLabel =
     directionOptions.find((option) => option.id === direction)?.label ?? "";
   const trimmedQuery = query.trim();
@@ -191,7 +202,11 @@ export default function ChannelsPage() {
   return (
     <PageTransition>
       <div className="user-page">
-        <PageHeader title="全部频道" description="认识这些作者与频道，看看他们在讲什么。" />
+        <PageHeader
+          crumb="频道"
+          title="全部频道"
+          description="认识这些作者与频道，看看他们在讲什么。"
+        />
 
         {/* 一行事实：加载完成前用占位条，不闪「0 个频道」 */}
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta tabular-nums text-muted">
@@ -311,6 +326,7 @@ export default function ChannelsPage() {
                   key={channel.id}
                   channel={channel}
                   subscribed={subscribedSlugs.has(channel.slug)}
+                  onSubscriptionChange={refreshSubscriptions}
                 />
               ))}
             </div>

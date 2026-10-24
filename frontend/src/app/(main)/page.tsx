@@ -1,8 +1,10 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { HomeEditorialHeader, HomeEditorialHero } from "@/components/home/HomeEditorialHero";
-import { ContinueLearningLink } from "@/components/home/ContinueLearningLink";
+import { DiscoverContinue, DiscoverRail } from "@/components/home/DiscoverRail";
 import { FeaturedListening } from "@/components/home/FeaturedListening";
 import { HomeFeed } from "@/components/home/HomeFeed";
 import { VideoCardSkeleton } from "@/components/ui/VideoCard";
@@ -101,15 +103,18 @@ export default function HomePage() {
   return (
     <div className="home-compact pt-4 pb-18">
       <HomeEditorialHeader />
-      <ContinueLearningLink state={continueLearning} />
+      <DiscoverContinue />
 
-      {editorial.status === "editorial" && editorial.page.lead ? (
-        <HomeEditorialHero page={editorial.page} />
-      ) : editorial.status === "loading" ? (
-        <EditorialSkeleton />
-      ) : (
-        <FeaturedListening onSettled={markFeaturedSettled} />
-      )}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
+        {editorial.status === "editorial" && editorial.page.lead ? (
+          <HomeEditorialHero page={editorial.page} />
+        ) : editorial.status === "loading" ? (
+          <EditorialSkeleton />
+        ) : (
+          <FeaturedListening onSettled={markFeaturedSettled} />
+        )}
+        <DiscoverRail />
+      </div>
 
       {/* id 锚点：站内「去浏览」类入口统一落到 `/`，需要时可 #feed 定位 */}
       <section
@@ -117,9 +122,18 @@ export default function HomePage() {
         aria-label="视频列表"
         className="home-video-feed mt-8 scroll-mt-6 border-t border-hairline pt-5"
       >
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-title font-bold tracking-tight text-ink">发现更多视频</h2>
-          <p className="text-meta text-muted">按话题挑选，也可以筛选适合自己的难度。</p>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+          <div className="min-w-0">
+            <h2 className="text-title font-semibold tracking-tight text-ink">继续发现</h2>
+            <p className="mt-1 text-meta text-muted">按主题、难度和时长挑一段今天愿意听的。</p>
+          </div>
+          <Link
+            href="/channels"
+            className="inline-flex items-center gap-1 text-meta font-semibold text-body transition-colors hover:text-ink"
+          >
+            全部频道
+            <ArrowRight size={13} aria-hidden />
+          </Link>
         </div>
         <Suspense fallback={<FeedSkeleton />}>
           <HomeFeed layoutReady={layoutReady} />
@@ -147,7 +161,7 @@ function EditorialSkeleton() {
 
 function FeedSkeleton() {
   return (
-    <div className="user-content-list">
+    <div className="mt-5 grid grid-cols-1 gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3 min-[2100px]:grid-cols-4">
       {Array.from({ length: 8 }).map((_, i) => (
         <VideoCardSkeleton key={i} />
       ))}

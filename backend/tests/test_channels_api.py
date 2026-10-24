@@ -615,3 +615,28 @@ async def test_subscriptions_carry_continue_video_and_unlearned_count(client, au
     assert row["continue_video"]["progress_percentage"] == 40.5
     assert row["continue_video"]["position_seconds"] == 121.5
     assert row["unlearned_count"] == 1
+
+
+async def test_channel_subscription_state_is_viewer_scoped(client, db_session, auth_headers):
+    from app.models.user_content import ChannelSubscription
+
+    me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+    channel = await _make_channel(db_session, name="Subscribed", slug="subscribed-one")
+    await _make_video(db_session, channel_ref=channel.id)
+    db_session.add(ChannelSubscription(user_id=me["id"], channel_id=channel.id))
+    await db_session.commit()
+
+    anonymous = (await client.get("/api/v1/channels")).json()["items"][0]
+    assert anonymous["is_subscribed"] is False
+    # Subscriber count is public; only the viewer-specific flag changes.
+    assert anonymous["subscriber_count"] == 1
+
+    signed_in = (await client.get("/api/v1/channels", headers=auth_headers)).json()["items"][0]
+    assert signed_in["is_subscribed"] is True
+    assert signed_in["subscriber_count"] == 1
+
+    detail = (await client.get(f"/api/v1/channels/{channel.slug}", headers=auth_headers)).json()["channel"]
+    assert detail["is_subscribed"] is True
+    assert detail["subscriber_count"] == 1
+    assert "latest_published_at" in detail
+    assert "recent_video_count" in detail

@@ -119,14 +119,15 @@ async def emit_event(
 
 
 async def _get_or_create_profile(db: AsyncSession, user_id: str) -> UserLearningProfile:
-    """Get or create the user's learning profile. Auto-creates on first access."""
-    result = await db.execute(select(UserLearningProfile).where(UserLearningProfile.user_id == user_id))
-    profile = result.scalar_one_or_none()
-    if not profile:
-        profile = UserLearningProfile(user_id=user_id)
-        db.add(profile)
-        await db.flush()
-    return profile
+    """Get or create the user's learning profile.
+
+    The implementation (and its first-access race handling) lives in
+    ``profile_service``; this alias only keeps the call sites in this module
+    reading as before.
+    """
+    from app.services.profile_service import get_or_create_profile
+
+    return await get_or_create_profile(db, user_id)
 
 
 # 「用户本地日」的唯一正文在 app.services.local_time（BUG-16 / DEC-079），本模块

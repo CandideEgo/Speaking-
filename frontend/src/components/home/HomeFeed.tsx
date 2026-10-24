@@ -11,7 +11,12 @@ import { VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { HomeFeedCard } from "@/components/home/HomeFeedCard";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
-import { FEED_SORT_OPTIONS, usePlatformFeed, type FeedSort } from "@/hooks/usePlatformFeed";
+import {
+  FEED_SORT_OPTIONS,
+  usePlatformFeed,
+  type DurationFilter,
+  type FeedSort,
+} from "@/hooks/usePlatformFeed";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { SCROLL_CONTAINER_ID, saveScroll, scrollKey } from "@/lib/scrollMemory";
 import { CEFR_LEVELS, cefrWithExamHint } from "@/lib/cefrLevels";
@@ -29,6 +34,13 @@ const DIFFICULTY_OPTIONS = [
   ...CEFR_LEVELS.map((level) => ({ id: level, label: cefrWithExamHint(level) })),
 ];
 
+const DURATION_OPTIONS: { id: DurationFilter; label: string }[] = [
+  { id: "all", label: "全部时长" },
+  { id: "short", label: "5 分钟以内" },
+  { id: "medium", label: "5–15 分钟" },
+  { id: "long", label: "15 分钟以上" },
+];
+
 export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -38,6 +50,8 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
     setActiveCategory,
     activeLevel,
     setActiveLevel,
+    activeDuration,
+    setDuration,
     setSort,
     effectiveSort,
     clearFilters,
@@ -75,17 +89,21 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
   const categoryLabel =
     categories.find((category) => category.id === activeCategory)?.label ?? activeCategory;
   const levelLabel = activeLevel === "all" ? "全部档位" : cefrWithExamHint(activeLevel);
+  const durationLabel =
+    DURATION_OPTIONS.find((option) => option.id === activeDuration)?.label ?? "全部时长";
   const activeFilters = [
     activeCategory !== "all" ? `分类「${categoryLabel}」` : null,
     activeLevel !== "all" ? `难度「${levelLabel}」` : null,
+    activeDuration !== "all" ? `时长「${durationLabel}」` : null,
   ].filter(Boolean);
   const remaining = Math.max(0, total - uniqueVideos.length);
 
   return (
     <>
-      {/* 筛选工具条：分类横滚；难度 / 排序 / 计数在右，窄屏换行 */}
-      <div className="flex flex-col gap-3 border-b border-hairline pb-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto scrollbar-none">
+      {/* 筛选工具条：一行放完。分类横向滚动，难度 / 时长 / 排序固定在右侧；
+          窄屏（<lg）才允许换行，避免 1440 宽度下「排序」单独掉到第二行。 */}
+      <div className="flex flex-col gap-3 border-b border-hairline pb-4 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto scrollbar-none">
           <TabPills
             tabs={categories.map((category) => ({ key: category.id, label: category.label }))}
             activeKey={activeCategory}
@@ -94,14 +112,14 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
             className="flex-nowrap"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <label htmlFor="feed-level" className="flex items-center gap-1.5 text-meta text-muted">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 lg:flex-nowrap">
+          <label htmlFor="feed-level" className="flex items-center gap-1.5 text-caption text-muted">
             难度
             <Select
               id="feed-level"
               value={activeLevel}
               onChange={(event) => setActiveLevel(event.target.value)}
-              className="h-8 w-auto rounded-pill border-hairline-strong py-0 pl-3 pr-8 text-meta"
+              className="h-8 w-[5.7rem] rounded-pill border-hairline-strong py-0 pl-2.5 pr-7 text-caption"
             >
               {DIFFICULTY_OPTIONS.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -110,13 +128,31 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
               ))}
             </Select>
           </label>
-          <label htmlFor="feed-sort" className="flex items-center gap-1.5 text-meta text-muted">
+          <label
+            htmlFor="feed-duration"
+            className="flex items-center gap-1.5 text-caption text-muted"
+          >
+            时长
+            <Select
+              id="feed-duration"
+              value={activeDuration}
+              onChange={(event) => setDuration(event.target.value as DurationFilter)}
+              className="h-8 w-[5.2rem] rounded-pill border-hairline-strong py-0 pl-2.5 pr-7 text-caption"
+            >
+              {DURATION_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label htmlFor="feed-sort" className="flex items-center gap-1.5 text-caption text-muted">
             排序
             <Select
               id="feed-sort"
               value={effectiveSort}
               onChange={(event) => setSort(event.target.value as FeedSort)}
-              className="h-8 w-auto rounded-pill border-hairline-strong py-0 pl-3 pr-8 text-meta"
+              className="h-8 w-[4.8rem] rounded-pill border-hairline-strong py-0 pl-2.5 pr-7 text-caption"
             >
               {sortOptions.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -126,7 +162,7 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
             </Select>
           </label>
           {total > 0 && (
-            <span className="hidden text-meta text-muted tabular-nums sm:inline" aria-live="polite">
+            <span className="text-caption text-muted tabular-nums" aria-live="polite">
               {total} 个视频
             </span>
           )}
@@ -140,7 +176,7 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
 
       {uniqueVideos.length > 0 && (
         <div
-          className="user-content-list"
+          className="mt-5 grid min-w-0 grid-cols-1 gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3 min-[2100px]:grid-cols-4"
           onClickCapture={() => {
             const container = document.getElementById(SCROLL_CONTAINER_ID);
             if (container)
@@ -167,7 +203,7 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
       )}
 
       {loading && uniqueVideos.length === 0 && (
-        <div className="user-content-list">
+        <div className="mt-5 grid min-w-0 grid-cols-1 gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3 min-[2100px]:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <VideoCardSkeleton key={i} />
           ))}

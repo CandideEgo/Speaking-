@@ -3,8 +3,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Play } from "lucide-react";
+import { Bookmark, Heart, Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
+import { formatCount } from "@/lib/utils";
 import { Image } from "@/components/ui/Image";
 import { Card } from "@/components/ui/Card";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
@@ -55,6 +56,7 @@ export type VideoCardData = Pick<VideoCardDTO, "title" | "thumbnail_url" | "dura
   exam_word_count?: number | null;
   sample_text_en?: string | null;
   sample_text_zh?: string | null;
+  status?: string | null;
 };
 
 export interface VideoCardProps {
@@ -74,6 +76,11 @@ export interface VideoCardProps {
   showTopic?: boolean;
   /** 来源标记：播放页据此回到本页（连同 URL 状态）。不传则 href 不带参数。 */
   entry?: WatchEntry;
+  /**
+   * `default`：带卡面/简介的行内卡；`poster`：设计稿首页的封面网格卡
+   * （16:9 封面 + 频道/主题行 + 中英标题 + 站内互动数）。
+   */
+  variant?: "default" | "poster";
 }
 
 function clickSource(): string {
@@ -94,6 +101,7 @@ export function VideoCard({
   className,
   entry,
   showTopic = true,
+  variant = "default",
 }: VideoCardProps) {
   const router = useRouter();
   // topic_tags 存 canonical id（LLM 分类产出），展示时映射为中文标签；
@@ -110,6 +118,118 @@ export function VideoCard({
     e.preventDefault();
     e.stopPropagation();
     if (channelLink) router.push(channelLink);
+  }
+
+  if (variant === "poster") {
+    return (
+      <Card
+        as={Link}
+        href={watchHref(videoId, entry)}
+        onClick={() => trackClick(videoId, clickSource())}
+        padding={0}
+        className={cn("group min-w-0 border-0 bg-transparent transition-none", className)}
+      >
+        <div className="relative aspect-video overflow-hidden rounded-md bg-surface-card">
+          <Image
+            src={video.thumbnail_url}
+            alt=""
+            sizes="(min-width: 2100px) 25vw, (min-width: 768px) 33vw, 100vw"
+            imgClassName="transition-transform duration-500 ease-out group-hover:scale-[1.025]"
+            fallback={
+              <div className="absolute inset-0 flex items-center justify-center bg-surface-card">
+                <Play className="size-7 text-muted" aria-hidden />
+              </div>
+            }
+          />
+          {video.difficulty_level && (
+            <span className="absolute top-2 left-2 inline-flex h-6 items-center rounded-sm bg-ink/72 px-1.5 text-caption font-semibold tabular-nums text-canvas backdrop-blur-sm">
+              {video.difficulty_level}
+            </span>
+          )}
+          {video.status === "ready" && (
+            <span className="absolute top-2 right-2 inline-flex h-6 items-center rounded-sm bg-ink/72 px-1.5 text-caption font-semibold text-canvas backdrop-blur-sm">
+              双语
+            </span>
+          )}
+          {video.storage_mode === "offline" && (
+            <span className="absolute bottom-2 left-2 inline-flex h-6 items-center rounded-sm bg-ink/85 px-1.5 text-caption font-semibold text-canvas">
+              已下架
+            </span>
+          )}
+          {video.duration != null && video.duration > 0 && (
+            <span className="absolute right-2 bottom-2 inline-flex h-6 items-center rounded-sm bg-ink/80 px-1.5 font-mono text-caption font-semibold tabular-nums text-canvas">
+              {formatDuration(video.duration)}
+            </span>
+          )}
+        </div>
+
+        <div className="min-w-0 pt-2.5">
+          <p className="flex min-w-0 items-center gap-1.5 text-caption text-muted">
+            {channelName && (
+              <span
+                role={channelLink ? "link" : undefined}
+                tabIndex={channelLink ? 0 : undefined}
+                onClick={channelLink ? onChannelClick : undefined}
+                onKeyDown={
+                  channelLink
+                    ? (e) => {
+                        if (e.key === "Enter") onChannelClick(e);
+                      }
+                    : undefined
+                }
+                className={cn("max-w-[10rem] truncate", channelLink && "hover:text-ink")}
+                title={channelName}
+              >
+                {channelName}
+              </span>
+            )}
+            {showTopic && video.topic_tags?.trim() && (
+              <>
+                <span aria-hidden className="text-hairline-strong">
+                  ·
+                </span>
+                <span className="truncate">{category}</span>
+              </>
+            )}
+          </p>
+          <p
+            lang="en"
+            className="mt-1 line-clamp-2 text-copy font-semibold leading-snug tracking-tight text-ink transition-colors group-hover:text-brand-700"
+            title={video.title}
+          >
+            {video.title}
+          </p>
+          {video.title_zh?.trim() && video.title_zh.trim() !== video.title.trim() && (
+            <p className="mt-0.5 line-clamp-1 text-meta leading-snug text-muted">
+              {video.title_zh}
+            </p>
+          )}
+          <div className="mt-1 flex items-center gap-3 text-caption tabular-nums text-muted">
+            {(video.like_count ?? 0) > 0 && (
+              <span
+                className="inline-flex items-center gap-1"
+                title={`本站点赞 ${video.like_count}`}
+              >
+                <Heart size={11} aria-hidden />
+                {formatCount(video.like_count ?? 0)}
+              </span>
+            )}
+            {(video.favorite_count ?? 0) > 0 && (
+              <span
+                className="inline-flex items-center gap-1"
+                title={`本站收藏 ${video.favorite_count}`}
+              >
+                <Bookmark size={11} aria-hidden />
+                {formatCount(video.favorite_count ?? 0)}
+              </span>
+            )}
+            {video.difficulty_level && (
+              <span className="ml-auto text-caption text-muted">{video.difficulty_level}</span>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
   }
 
   return (

@@ -9,11 +9,10 @@ import type { RankingRowMode } from "@/components/rankings/RankingRow";
 import { isFreshPublished } from "@/components/rankings/RankingRow";
 import type { VideoCard } from "@/types";
 
-/** 名次配色：1 品牌橙 / 2 琥珀 / 3 深橙（文字色用加深档，保证对比度）。 */
+/** 名次配色：只有第 1 名用品牌蓝，2/3 名用中性墨色，避免旧橙色残留。 */
 function rankClass(rank: number): string {
   if (rank === 1) return "text-brand-700";
-  if (rank === 2) return "text-warning-text";
-  return "text-brand-800";
+  return "text-body";
 }
 
 /** 榜单指标块：微标签 + 数值；time 模式显示 NEW 标签 + 相对时间。 */
@@ -140,12 +139,13 @@ function PodiumCard({ video, rank, mode, metricLabel, featured = false }: Podium
         </div>
       </div>
 
-      {/* 巨型背景名次数字（编辑排版水印，不抢信息） */}
+      {/* 巨型背景名次数字（编辑排版水印，不抢信息）。手机上的 2/3 名卡片只有
+          半屏宽，88px 的数字会被裁成半个字形，读起来像内容没加载完——窄屏干脆不画。 */}
       <span
         aria-hidden
         className={cn(
           "pointer-events-none absolute -bottom-3 right-1 select-none text-ink/[0.05]",
-          featured ? "display-num-xl" : "display-num-lg"
+          featured ? "display-num-xl" : "hidden display-num-lg sm:block"
         )}
       >
         {rank}

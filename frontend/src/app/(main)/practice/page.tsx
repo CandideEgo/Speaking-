@@ -27,6 +27,7 @@ interface PaperItem {
   month: number;
   set_no: number;
   total_questions: number;
+  sections?: { section: string; question_count: number }[];
 }
 
 const TYPES = [
@@ -70,6 +71,25 @@ function suggestedMinutesFor(count: number): number {
   return Math.max(4, Math.round((count * 40) / 30));
 }
 
+const SECTION_LABELS: Record<string, string> = {
+  reading_A: "选词填空",
+  reading_B: "段落匹配",
+  reading_C: "仔细阅读",
+  listening_A: "听力 A",
+  listening_B: "听力 B",
+  listening_C: "听力 C",
+  writing: "写作",
+  translation: "翻译",
+};
+
+function sectionSummary(paper: PaperItem): string {
+  const sections = paper.sections ?? [];
+  if (!sections.length) return "卷面构成为空";
+  return sections
+    .map((row) => `${SECTION_LABELS[row.section] ?? row.section} ${row.question_count} 题`)
+    .join(" / ");
+}
+
 /**
  * 练习专题（stage-3 保真版）。
  *
@@ -77,7 +97,7 @@ function suggestedMinutesFor(count: number): number {
  * 页头（自由练习 / 日期）→ 上次练习（日期 + 标题 + 题量/用时口径 + 成绩 + 回看/再做）
  * → 按题型练（序号 + 标题 + 推荐 tag + 描述 + 题组规模 + 级别/开始）
  * → 按套卷练（最近一套的年份/级别/套/题量/建议用时 + 开始作答）
- * → 右栏（最近练习 / 这一版包含 / 关于结果）。
+ * → 右栏（更早的练习 / 这一版包含 / 关于结果；没有更早记录时首块省略）。
  */
 export default function PracticePage() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -113,6 +133,8 @@ export default function PracticePage() {
   }, [retry]);
 
   const latest = summary?.recent[0];
+  /** 右栏的「更早的练习」：`recent[0]` 已由页面上方的大块占用。 */
+  const olderRecent = summary?.recent.slice(1) ?? [];
   const today = new Date();
   const todayLabel = `${today.getMonth() + 1} 月 ${today.getDate()} 日 星期${
     "日一二三四五六"[today.getDay()]
@@ -141,6 +163,15 @@ export default function PracticePage() {
           </div>
         }
       />
+
+      {/* 桌面把「自由练习 / 日期 / 今日推荐」放在页头右侧；窄屏收成一行，
+          否则推荐入口在手机上完全消失。 */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-hairline pb-3 md:hidden">
+        <span className="text-caption text-muted">自由练习 · {todayLabel}</span>
+        <Link href="/practice/daily" className="text-meta font-medium text-brand-700">
+          今天推荐的一组 →
+        </Link>
+      </div>
 
       {error ? (
         <ErrorState title={error} onRetry={() => setRetry((v) => v + 1)} />
@@ -271,11 +302,14 @@ export default function PracticePage() {
                             <span aria-hidden="true">·</span>
                             <span>第 {p.set_no} 套</span>
                           </p>
-                          <h3 className="mt-1 text-copy-lg font-semibold text-ink">
+                          <h3 className="mt-1 flex flex-wrap items-center gap-2 text-copy-lg font-semibold text-ink">
                             阅读部分 · {p.total_questions} 题
+                            <span className="rounded-sm bg-brand-50 px-1.5 py-0.5 text-caption font-semibold text-brand-700">
+                              {p.total_questions > 0 ? "可作答" : "未接入"}
+                            </span>
                           </h3>
                           <p className="mt-1 text-caption text-muted">
-                            选词填空 / 段落匹配 / 仔细阅读 · 建议用时约{" "}
+                            {sectionSummary(p)} · 建议用时约{" "}
                             {suggestedMinutesFor(p.total_questions)} 分钟
                           </p>
                         </div>
@@ -302,14 +336,16 @@ export default function PracticePage() {
             </div>
 
             <aside className="user-page-aside" aria-label="练习信息">
-              <section className="user-aside-sec">
-                <div className="mb-3 flex items-baseline justify-between gap-3">
-                  <h2 className="user-aside-title mb-0">最近练习</h2>
-                  <span className="text-caption text-muted">只记答对题数</span>
-                </div>
-                {summary.recent.length ? (
+              {/* 最新一条已经在上方「上次练习」里（标题/分数/日期都在），
+                  这里只列更早的记录；只有一条时整块不出现，别一屏说两遍。 */}
+              {olderRecent.length > 0 && (
+                <section className="user-aside-sec">
+                  <div className="mb-3 flex items-baseline justify-between gap-3">
+                    <h2 className="user-aside-title mb-0">更早的练习</h2>
+                    <span className="text-caption text-muted">只记答对题数</span>
+                  </div>
                   <ul className="flex flex-col gap-3">
-                    {summary.recent.map((s) => (
+                    {olderRecent.map((s) => (
                       <li key={s.id}>
                         <Link href={`/practice/exams/result/${s.id}`} className="group block">
                           <p className="flex items-baseline justify-between gap-3 text-meta">
@@ -327,13 +363,8 @@ export default function PracticePage() {
                       </li>
                     ))}
                   </ul>
-                ) : (
-                  <p className="text-copy text-muted">开始第一组后，结果会保存在这里。</p>
-                )}
-                <p className="mt-3 text-caption leading-relaxed text-muted">
-                  只记答对题数，不折算等级。
-                </p>
-              </section>
+                </section>
+              )}
 
               <details className="user-aside-sec">
                 <summary className="cursor-pointer text-meta font-semibold text-body">

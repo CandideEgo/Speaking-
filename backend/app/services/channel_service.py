@@ -18,12 +18,14 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 
 from app.core.errors import BadRequestError
 from app.models.channel import Channel
+from app.models.user_content import ChannelSubscription
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import paginated
 from app.services import channel_learning
@@ -103,6 +105,44 @@ async def public_video_counts(db: AsyncSession, channel_ids: list[str]) -> dict[
     return {cid: n for cid, n in rows}
 
 
+async def subscriber_stats(
+    db: AsyncSession,
+    channel_ids: list[str],
+    viewer_id: str | None = None,
+) -> tuple[dict[str, int], set[str]]:
+    """Local subscriber counts + which of these channels the viewer follows.
+
+    ``subscriber_count`` is SeeWord's own number (ChannelSubscription rows),
+    deliberately separate from ``follower_count`` (an upstream YouTube
+    snapshot). One grouped query plus one viewer query; no N+1.
+    """
+    if not channel_ids:
+        return {}, set()
+    rows = (
+        await db.execute(
+            select(ChannelSubscription.channel_id, func.count(ChannelSubscription.id))
+            .where(ChannelSubscription.channel_id.in_(channel_ids))
+            .group_by(ChannelSubscription.channel_id)
+        )
+    ).all()
+    counts = {channel_id: count for channel_id, count in rows}
+    subscribed: set[str] = set()
+    if viewer_id:
+        subscribed = set(
+            (
+                await db.execute(
+                    select(ChannelSubscription.channel_id).where(
+                        ChannelSubscription.user_id == viewer_id,
+                        ChannelSubscription.channel_id.in_(channel_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return counts, subscribed
+
+
 async def latest_public_videos(db: AsyncSession, channel_ids: list[str]) -> dict[str, Video]:
     """Return each channel's newest publicly playable video in one query."""
     if not channel_ids:
@@ -167,7 +207,12 @@ async def _public_videos_by_channel(db: AsyncSession, channel_ids: list[str]) ->
     return grouped
 
 
-async def list_public_channels(db: AsyncSession, page: int = 1, page_size: int = 50) -> dict:
+async def list_public_channels(
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 50,
+    viewer_id: str | None = None,
+) -> dict:
     """Visible non-empty channels as a standard paginated envelope.
 
     Curated channels (``is_auto=False``) lead by sort_order/name; auto-created
@@ -198,6 +243,7 @@ async def list_public_channels(db: AsyncSession, page: int = 1, page_size: int =
     page_entries = entries[start : start + page_size]
     page_channels = [channel for _, channel, _ in page_entries]
     videos_by_channel = await _public_videos_by_channel(db, [channel.id for channel in page_channels])
+    subscriber_counts, subscribed = await subscriber_stats(db, [channel.id for channel in page_channels], viewer_id)
     items = []
     for _, channel, video_count in page_entries:
         videos = videos_by_channel.get(channel.id, [])
@@ -210,11 +256,19 @@ async def list_public_channels(db: AsyncSession, page: int = 1, page_size: int =
             facts,
         )
         item["latest_video"] = latest_video_payload(latest_video)
+        item["subscriber_count"] = subscriber_counts.get(channel.id, 0)
+        item["is_subscribed"] = channel.id in subscribed
         items.append(item)
     return paginated(items, page=page, page_size=page_size, total=total)
 
 
-async def get_channel_detail(db: AsyncSession, slug: str, page: int, page_size: int) -> dict | None:
+async def get_channel_detail(
+    db: AsyncSession,
+    slug: str,
+    page: int,
+    page_size: int,
+    viewer_id: str | None = None,
+) -> dict | None:
     channel = (await db.execute(select(Channel).where(Channel.slug == slug))).scalar_one_or_none()
     if channel is None or not channel.is_visible:
         return None
@@ -244,6 +298,28 @@ async def get_channel_detail(db: AsyncSession, slug: str, page: int, page_size: 
     channel_dict = _channel_public(channel, total, cover_fallback, facts)
     channel_dict["follower_count"] = upstream_stats.get("follower_count")
     channel_dict["is_verified"] = upstream_stats.get("is_verified")
+    subscriber_counts, subscribed = await subscriber_stats(db, [channel.id], viewer_id)
+    channel_dict["subscriber_count"] = subscriber_counts.get(channel.id, 0)
+    channel_dict["is_subscribed"] = channel.id in subscribed
+    # Real recency facts replace the prototype's invented cadence label.
+    if newest is not None:
+        channel_dict["latest_published_at"] = (
+            (newest.published_at or newest.created_at).isoformat()
+            if (newest.published_at or newest.created_at)
+            else None
+        )
+    else:
+        channel_dict["latest_published_at"] = None
+    recent_cutoff = datetime.now(UTC) - timedelta(days=30)
+
+    def _aware(value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+    channel_dict["recent_video_count"] = sum(
+        1 for v in fact_videos if (stamp := _aware(v.published_at or v.created_at)) and stamp >= recent_cutoff
+    )
 
     recommended_start = None
     start_video, basis = await _recommended_start_video(db, channel.id)

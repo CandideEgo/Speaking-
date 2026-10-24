@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { X } from "lucide-react";
+import { BookOpen, X } from "lucide-react";
 import { toast } from "sonner";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useDailySession } from "@/hooks/useDailySession";
@@ -20,6 +20,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LinkButton } from "@/components/ui/LinkButton";
 import {
   applyAnswer,
   buildDrillScheduler,
@@ -224,6 +226,24 @@ function DailyTraining({ directStart }: { directStart: boolean }) {
   const loading = round.loading || daily.loading;
   const error = round.error ?? daily.error;
 
+  // 词库总数：用来区分「词库整体为空」与「今天的队列已经练完」。这两件事在
+  // 页面上的说法完全不同——新用户看到「今天的词都练完了」只会困惑。
+  // 统计拿不到（null）时按「有词」处理：宁可落回旧的完成态，也不误报空词库。
+  const [wordbankTotal, setWordbankTotal] = useState<number | null>(null);
+  useEffect(() => {
+    if (loading || error) return;
+    const controller = new AbortController();
+    api<{ total: number }>("/api/v1/vocabulary/stats", { signal: controller.signal })
+      .then((data) => {
+        if (!controller.signal.aborted) setWordbankTotal(data.total);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setWordbankTotal(-1);
+      });
+    return () => controller.abort();
+  }, [loading, error]);
+  const wordbankKnown = wordbankTotal !== null;
+
   // 入口页预览：到期复习词在前，本轮新词在后（与建队口径一致，去重）。
   const previewWords = useMemo(() => {
     const rows: VocabularyWord[] = [];
@@ -252,10 +272,15 @@ function DailyTraining({ directStart }: { directStart: boolean }) {
     setPhase(state.entries.length > 0 ? "drill" : "summary");
   }, [started, loading, error, phase, sched, round.round, daily.session]);
 
-  // 没有可练的词时不必停在入口页（直接给「今天的词都练完了」小结）。
+  // 没有可练的词时不必停在入口页（直接给「今天的词都练完了」小结）；
+  // 但先等词库计数回来——词库整体为空时那是另一句话（见下面的空态）。
   useEffect(() => {
-    if (!loading && !error && !started && previewWords.length === 0) setStarted(true);
-  }, [loading, error, started, previewWords.length]);
+    if (!loading && !error && !started && previewWords.length === 0 && wordbankKnown)
+      setStarted(true);
+  }, [loading, error, started, previewWords.length, wordbankKnown]);
+
+  // 空词库 ≠ 今天练完了：新用户第一次进训练页时词库里一个词都没有。
+  const wordbankEmpty = wordbankTotal === 0 && previewWords.length === 0;
 
   // 队首出题：按出现次序定题型，从词池造选项。构造失败（词池太小）则跳过该词。
   // 只在「记一次作答」时改 sched——反馈展示期间队列不动，「下一个」点了才推进。
@@ -388,8 +413,31 @@ function DailyTraining({ directStart }: { directStart: boolean }) {
     );
   }
 
+  // 词库为空时给收词引导，而不是「今天的词都练完了」——后者会让新用户以为
+  // 自己做完了什么，而实际上一个词都还没有。
+  if (!loading && wordbankEmpty) {
+    return (
+      <div className="min-h-full bg-surface-soft">
+        <DrillHeader label="今日训练" progressLabel="本轮" done={0} total={0} />
+        <div className="max-w-[880px] mx-auto px-4 py-16">
+          <EmptyState
+            icon={BookOpen}
+            title="词库还是空的"
+            description="训练用词库里的词出题。看视频时点字幕里的单词，就能把它收进词库；收满几个词再回来练。"
+            action={
+              <LinkButton href="/" size="md">
+                去发现视频
+              </LinkButton>
+            }
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (loading || !started) {
-    if (loading)
+    // 词库计数没回来之前先别落到入口页/完成页：空词库的判断依赖它。
+    if (loading || (previewWords.length === 0 && !wordbankKnown))
       return (
         <div className="min-h-full bg-surface-soft">
           <DrillHeader label="今日训练" progressLabel="本轮" done={0} total={0} />

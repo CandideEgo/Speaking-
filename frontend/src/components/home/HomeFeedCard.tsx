@@ -8,10 +8,12 @@ export function HomeFeedCard({
   video,
   entry,
   showTopic,
+  variant = "poster",
 }: {
   video: VideoCardData;
   entry?: WatchEntry;
   showTopic?: boolean;
+  variant?: "default" | "poster";
 }) {
-  return <VideoCard video={video} entry={entry} showTopic={showTopic} />;
+  return <VideoCard video={video} entry={entry} showTopic={showTopic} variant={variant} />;
 }

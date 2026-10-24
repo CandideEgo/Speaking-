@@ -18,6 +18,9 @@ MIN_EASE_FACTOR = 1.3
 # --- S6 (DEC-057): error-count banded intervals -----------------------------
 # 本轮内/复习时答错 → 次日。
 ROUND_INTERVAL_DAYS = 1
+# 三档自评里的「模糊」：记得但不牢，2 天后再来；不计入 wrong_count，
+# 也不占用「不认识」的次日档，否则三档评分在调度上无法区分。
+HARD_INTERVAL_DAYS = 2
 # 全对且 wrong_count = 0 的间隔阶梯：3 → 7 → 16 → 35（35 天封顶）。
 CLEAN_LADDER = (3, 7, 16, 35)
 # 全对但 wrong_count ≥ 1 的间隔阶梯：2 → 5 → 12 → 25（比干净词短一档）。
@@ -41,6 +44,7 @@ def calculate_review_interval(
     wrong_count: int,
     interval_days: int,
     wrong_recent: bool,
+    hard: bool = False,
 ) -> int:
     """Next review interval in days after one answer (S6, DEC-057).
 
@@ -56,6 +60,10 @@ def calculate_review_interval(
         Whether the word was answered wrong within the current learning
         round — approximated by the caller as "a wrong answer happened
         within the last 24h" (see ``vocabulary_service.WRONG_RECENT_WINDOW``).
+    hard : bool
+        The three-level self-rating's middle option ("模糊"): remembered, but
+        not confidently. Schedules two days out without touching
+        ``wrong_count``, so it stays distinct from both 认识 and 不认识.
 
     Returns
     -------
@@ -66,6 +74,8 @@ def calculate_review_interval(
     # 必须次日重现（设计 §5.4 情形 1），wrong_recent 就是那个信号。
     if not correct or wrong_recent:
         return ROUND_INTERVAL_DAYS
+    if hard:
+        return HARD_INTERVAL_DAYS
     if wrong_count >= WRONG_COUNT_CAP:
         return min(_next_ladder_step(ERROR_LADDER, interval_days), WRONG_INTERVAL_CAP)
     if wrong_count >= 1:

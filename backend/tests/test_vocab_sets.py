@@ -243,6 +243,26 @@ class TestCollectSet:
         assert by_word["cherry"]["start_time"] == 5.0
         assert by_word["apple"]["subtitle_id"] != by_word["cherry"]["subtitle_id"]
 
+    async def test_detail_exposes_source_sentence_and_word_level(
+        self, client: AsyncClient, auth_headers: dict, ecdict_only
+    ):
+        """来源句与级别不能靠前端猜。
+
+        从视频收来的词只带 ``subtitle_id``，词条上的 ``context_sentence`` 是空的；
+        详情必须用关联字幕的英文原句补上，否则每一行都显示「没有原句」。
+        级别取 ECDICT 标记里的最高级（cherry 同时是四级与六级词 → 六级）。
+        """
+        video_id = await _seed_video([{"apple": ["cet4"], "cherry": ["cet4"]}])
+
+        resp = await _collect(client, auth_headers, video_id, "cet4")
+        detail = (await client.get(f"/api/v1/vocab-sets/{resp.json()['id']}", headers=auth_headers)).json()
+
+        by_word = {w["word"]: w for w in detail["words"]}
+        assert by_word["apple"]["context_sentence"] == "apple cherry"
+        assert by_word["cherry"]["context_sentence"] == "apple cherry"
+        assert by_word["apple"]["exam_level"] == "cet4"
+        assert by_word["cherry"]["exam_level"] == "cet6"
+
     async def test_detail_words_without_subtitle_render_null_start_time(
         self, client: AsyncClient, auth_headers: dict, ecdict_only
     ):

@@ -259,6 +259,14 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
             style={{ width: "0%" }}
           />
         </div>
+        {/* 时间读数由 rAF 直写 textContent（不在 React 里）。放在 44px 热区底部：
+            这条进度只有 2px 细线，其余 42px 原本看起来就是一块空白，读数让它读得懂。 */}
+        <span
+          ref={textRef}
+          data-testid="watch-progress-time"
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-1 right-1 text-caption tabular-nums text-muted"
+        />
       </div>
 
       {/* 四个键：各占 1/4，各 ≥44×44（触控基线） */}
@@ -319,14 +327,6 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
           重听
         </button>
       </div>
-
-      {/* 时间读数由 rAF 直写 textContent（不在 React 里） */}
-      <span
-        ref={textRef}
-        data-testid="watch-progress-time"
-        className="sr-only"
-        aria-hidden="true"
-      />
     </nav>
   );
 }

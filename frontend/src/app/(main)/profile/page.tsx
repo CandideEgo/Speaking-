@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
+import { ProfileOverview } from "@/components/profile/ProfileOverview";
 import { MasteryTrend } from "@/components/profile/MasteryTrend";
 import {
   EventDistributionChart,
@@ -53,6 +54,12 @@ function daysSince(iso: string): number {
   return Math.max(0, Math.floor(diff / 86400000));
 }
 
+/** 头部文案：「加入 0 天」读着别扭，注册当天写「今天加入」。 */
+function joinedLabel(iso: string): string {
+  const days = daysSince(iso);
+  return days === 0 ? "今天加入" : `加入 ${days} 天`;
+}
+
 function targetLabel(preferences: UserPreferences | null): string | null {
   const key = preferences?.target_exam;
   if (!key) return null;
@@ -69,6 +76,15 @@ const TABS = [
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
+
+/** 每个 tab 各自说明自己：进度页顶着「账户与学习设置」会答非所问。 */
+const TAB_HEADERS: Record<TabKey, { title: string; description: string }> = {
+  content: { title: "我的内容", description: "找到看过、收藏的视频，以及保存的词。" },
+  profile: { title: "个人资料", description: "昵称、头像与学习身份。" },
+  progress: { title: "学习进度", description: "看过多少、记住多少，用数字说明。" },
+  account: { title: "账号与安全", description: "手机号、密码与数据导出。" },
+  settings: { title: "学习设置", description: "每日目标、提醒与默认播放偏好。" },
+};
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -191,12 +207,8 @@ export default function ProfilePage() {
       <div className="user-page">
         <PageHeader
           crumb="我的"
-          title={activeTab === "content" ? "我的内容" : "账户与学习设置"}
-          description={
-            activeTab === "content"
-              ? "找到看过、收藏的视频，以及保存的词。"
-              : "管理个人资料、学习偏好与账户安全。"
-          }
+          title={TAB_HEADERS[activeTab].title}
+          description={TAB_HEADERS[activeTab].description}
         />
 
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
@@ -217,19 +229,18 @@ export default function ProfilePage() {
                 {isProUser(user) ? "会员" : "免费版"}
               </span>
             </div>
-            {activeTab !== "content" && (
-              <div className="text-copy text-muted mt-1 flex items-center gap-2 flex-wrap">
-                {user.phone && <span>{maskPhone(user.phone)}</span>}
-                {targetLabel(preferences) && (
-                  <>
-                    <span>·</span>
-                    <span>目标：{targetLabel(preferences)}</span>
-                  </>
-                )}
-                <span>·</span>
-                <span>加入 {daysSince(user.created_at)} 天</span>
-              </div>
-            )}
+            {/* 身份副行在所有 tab 都显示：否则「我的内容」下这张卡只剩名字，右侧大片空白。 */}
+            <div className="text-copy text-muted mt-1 flex items-center gap-2 flex-wrap">
+              {user.phone && <span>{maskPhone(user.phone)}</span>}
+              {targetLabel(preferences) && (
+                <>
+                  <span>·</span>
+                  <span>目标：{targetLabel(preferences)}</span>
+                </>
+              )}
+              <span>·</span>
+              <span>{joinedLabel(user.created_at)}</span>
+            </div>
           </div>
           {activeTab === "progress" && (
             <div className="hidden sm:flex items-center gap-6">
@@ -272,7 +283,9 @@ export default function ProfilePage() {
                       : "border-transparent text-muted hover:text-ink"
                   )}
                 >
-                  <tab.icon size={16} />
+                  {/* 手机上五个 tab 带图标会超宽，把「设置」挤到横向滚动区外；
+                      窄屏只留文字，桌面再显示图标。 */}
+                  <tab.icon size={16} className="hidden sm:block" />
                   <span className="sm:hidden">{tab.label}</span>
                   <span className="hidden sm:inline">{tab.longLabel}</span>
                 </button>
@@ -281,12 +294,13 @@ export default function ProfilePage() {
 
             {/* Tab content */}
             <div className="mt-6">
+              {activeTab === "content" && <ProfileOverview />}
               {activeTab === "content" && (
                 <div
                   id="profile-panel-content"
                   role="tabpanel"
                   aria-labelledby="profile-tab-content"
-                  className="grid gap-3 sm:grid-cols-2"
+                  className="mt-4 grid gap-3 sm:grid-cols-2"
                 >
                   {[
                     {

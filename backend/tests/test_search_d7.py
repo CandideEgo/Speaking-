@@ -191,6 +191,22 @@ async def test_record_search_query_counts_and_skips_noise(fake_redis):
     await record_search_query("面试")
     await record_search_query("面试")
     await record_search_query("  ")  # blank → skipped
+    await record_search_query("x")  # 单字符（打字半截）→ skipped
     await record_search_query("x" * 51)  # over-long → skipped
 
     assert fake_redis.zset == {"面试": 2.0}
+
+
+async def test_search_records_hot_only_when_it_returns_results(client, db_session, fake_redis):
+    """搜不到东西的词不进热搜：否则热搜栏会被拼错与爬虫探测占满。"""
+    await _make_video(db_session, title="Listen Closely: A Speaking Lesson")
+
+    hit = await client.get("/api/v1/videos/search", params={"q": "Listen"})
+    assert hit.status_code == 200
+    assert hit.json()
+
+    miss = await client.get("/api/v1/videos/search", params={"q": "qwertyuiop"})
+    assert miss.status_code == 200
+    assert miss.json() == []
+
+    assert fake_redis.zset == {"Listen": 1.0}

@@ -188,6 +188,30 @@ async function mockHome(
       },
     });
   });
+  await page.route("**/api/v1/learning/continue**", (route) => {
+    if (options.recordsFail) {
+      return route.abort("failed");
+    }
+    const valid = options.records.filter((r) => !r.completed && r.progress > 0).slice(0, 1);
+    return route.fulfill({
+      json: {
+        items: valid.map((r) => ({
+          video: {
+            id: r.video_id,
+            title: r.title,
+            title_zh: r.title,
+            thumbnail_url: null,
+            duration: r.duration ?? 600,
+          },
+          position_seconds: 60,
+          progress_percentage: r.progress,
+          remaining_seconds: (r.duration ?? 600) - 60,
+          last_accessed_at: "2026-10-12T12:00:00Z",
+        })),
+        total: valid.length,
+      },
+    });
+  });
 
   if (options.authenticated) {
     const token = mintToken();
@@ -235,8 +259,20 @@ test.describe("首页续看入口", () => {
     await expect(page.getByText("观看记录暂时未能加载")).toBeVisible();
     await expect(page.getByRole("link", { name: "观看完整视频", exact: true })).toBeVisible();
     await expect(page.getByText("推荐视频 A", { exact: true })).toBeVisible();
-    await page.route("**/api/v1/learning/records**", (route) =>
-      route.fulfill({ json: { items: IN_PROGRESS.map(recordJson) } })
+    await page.route("**/api/v1/learning/continue**", (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            {
+              video: { id: "v1", title: "进行中课程 A", title_zh: "进行中课程 A" },
+              position_seconds: 60,
+              progress_percentage: 60,
+              remaining_seconds: 540,
+            },
+          ],
+          total: 1,
+        },
+      })
     );
     await page.getByRole("button", { name: "重试", exact: true }).click();
     await expect(page.getByTestId("continue-learning-rail")).toContainText("进行中课程 A");

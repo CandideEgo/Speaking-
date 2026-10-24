@@ -25,7 +25,7 @@ from app.schemas.vocabulary import (
     VocabularyResponse,
     VocabularyStatsResponse,
 )
-from app.services import practice_service, study_session_service, vocabulary_service
+from app.services import ecdict, practice_service, study_session_service, vocabulary_service
 
 router = APIRouter(prefix="/vocabulary", tags=["vocabulary"])
 
@@ -144,11 +144,11 @@ async def get_daily_session(
     return {
         "training_preview": {
             "active_session_id": active_id,
-            "new_words": [VocabularyResponse.model_validate(w) for w in training_new],
-            "review_words": [VocabularyResponse.model_validate(w) for w in review_words],
+            "new_words": await vocabulary_service.attach_word_sources(db, training_new),
+            "review_words": await vocabulary_service.attach_word_sources(db, review_words),
         },
-        "new_words": [VocabularyResponse.model_validate(w) for w in session["new_words"]],
-        "review_words": [VocabularyResponse.model_validate(w) for w in session["review_words"]],
+        "new_words": await vocabulary_service.attach_word_sources(db, session["new_words"]),
+        "review_words": await vocabulary_service.attach_word_sources(db, session["review_words"]),
         "totals": session["totals"],
         "preferences": VocabularyPreferencesResponse(
             **prefs,
@@ -396,6 +396,12 @@ async def add_word(
         video_id=video_id,
         subtitle_id=subtitle_id,
     )
+    # 收词时就把 ECDICT 的释义/音标/词性/级别写进去（与词单建档同口径）。
+    # 不在这里填，词库卡片和训练题会一直是「释义待补充」——收词那一刻用户其实
+    # 已经看过释义，丢掉它等于让词库变成一张只有拼写的表。
+    entry = ecdict.lookup(vocab.word)
+    if entry:
+        vocabulary_service.apply_ecdict_fields(vocab, entry)
     db.add(vocab)
     await commit_refresh(db, vocab)
 
@@ -463,9 +469,9 @@ async def list_vocabulary(
     total = (await db.execute(count_stmt)).scalar() or 0
 
     stmt = stmt.order_by(Vocabulary.created_at.desc()).offset(pagination.offset).limit(pagination.page_size)
-    words = (await db.execute(stmt)).scalars().all()
+    words = list((await db.execute(stmt)).scalars().all())
 
-    items = [VocabularyResponse.model_validate(w) for w in words]
+    items = await vocabulary_service.attach_word_sources(db, words)
     return paginated(items, pagination, total=total)
 
 

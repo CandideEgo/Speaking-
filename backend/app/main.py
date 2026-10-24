@@ -30,6 +30,7 @@ from app.api.v1 import (
     learning,
     learning_plan,
     media,
+    notes,
     notifications,
     payments,
     presence,
@@ -316,6 +317,7 @@ def create_app() -> FastAPI:
     app.include_router(feedback.router, prefix="/api/v1")
     app.include_router(feedback.admin_router, prefix="/api/v1")
     app.include_router(notifications.router, prefix="/api/v1")
+    app.include_router(notes.router, prefix="/api/v1")
     app.include_router(learning.router, prefix="/api/v1")
     app.include_router(learning_plan.router, prefix="/api/v1")
     app.include_router(shadowing.router, prefix="/api/v1")

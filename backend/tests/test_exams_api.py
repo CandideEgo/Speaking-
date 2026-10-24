@@ -504,3 +504,9 @@ async def test_paper_with_no_answerable_questions_is_rejected(client, auth_heade
 
     resp = await client.post(f"/api/v1/exams/{paper.id}/attempts", headers=auth_headers)
     assert resp.status_code == 409
+
+
+async def test_list_exams_includes_real_section_breakdown(client, auth_headers, seeded_paper):
+    item = (await client.get("/api/v1/exams?level=cet4", headers=auth_headers)).json()["items"][0]
+    sections = {row["section"]: row["question_count"] for row in item["sections"]}
+    assert sections == {"reading_A": 1, "reading_B": 1, "reading_C": 1}

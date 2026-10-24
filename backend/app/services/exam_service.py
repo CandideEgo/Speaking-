@@ -590,6 +590,21 @@ async def list_papers(
         )
         correct_counts = {session_id: count for session_id, count in rows.all()}
 
+    # Paper composition for the practice-page cards: real section names and
+    # question counts instead of a hard-coded "3 部分 / 30 题".
+    sections_by_paper: dict[str, list[dict]] = {}
+    if paper_ids:
+        rows = (
+            await db.execute(
+                select(ExamQuestion.paper_id, ExamQuestion.section, func.count(ExamQuestion.id))
+                .where(ExamQuestion.paper_id.in_(paper_ids))
+                .group_by(ExamQuestion.paper_id, ExamQuestion.section)
+                .order_by(ExamQuestion.paper_id, ExamQuestion.section)
+            )
+        ).all()
+        for paper_id, section, count in rows:
+            sections_by_paper.setdefault(paper_id, []).append({"section": section, "question_count": count})
+
     items: list[dict] = []
     for p in papers:
         mine = by_paper.get(p.id, [])
@@ -612,6 +627,7 @@ async def list_papers(
                 "last_question_count": last.question_count if last else None,
                 "attempt_count": len(mine),
                 "best_score": best,
+                "sections": sections_by_paper.get(p.id, []),
             }
         )
     return items, total

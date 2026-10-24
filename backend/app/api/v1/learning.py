@@ -81,6 +81,60 @@ async def list_learning_records(
     return paginated(records, page=page, page_size=page_size, total=total)
 
 
+@router.get("/continue")
+@rate_limit("30/minute")
+async def continue_learning(
+    request: Request,
+    limit: int = Query(1, ge=1, le=5),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """In-progress videos as feed cards, newest activity first.
+
+    "Continue learning" needs the video card + resume position in one call;
+    the generic records endpoint returns ``VideoBrief`` and makes the client
+    join three more requests to render the strip. Only genuinely started
+    (progress > 0) and still-unfinished records qualify.
+    """
+    from app.services.channel_service import channel_slugs_for
+    from app.services.discovery_service import public_video_filters
+    from app.services.video_card import video_card_payload
+
+    rows = (
+        await db.execute(
+            select(LearningRecord, Video)
+            .join(Video, LearningRecord.video_id == Video.id)
+            .where(
+                LearningRecord.user_id == current_user.id,
+                LearningRecord.completed.is_(False),
+                LearningRecord.progress_percentage > 0,
+                *public_video_filters(),
+            )
+            .order_by(
+                LearningRecord.last_accessed_at.desc().nullslast(),
+                LearningRecord.created_at.desc(),
+            )
+            .limit(limit)
+        )
+    ).all()
+    videos = [video for _, video in rows]
+    slug_map = await channel_slugs_for(db, videos)
+    items = []
+    for record, video in rows:
+        position = float(record.position_seconds or 0)
+        duration = float(video.duration or 0)
+        items.append(
+            {
+                "video": video_card_payload(video, slug_map.get(video.channel_ref) if video.channel_ref else None),
+                "position_seconds": position,
+                "progress_percentage": float(record.progress_percentage or 0),
+                "remaining_seconds": max(0.0, round(duration - position, 1)) if duration else None,
+                "last_accessed_at": record.last_accessed_at,
+            }
+        )
+    return {"items": items, "total": len(items)}
+
+
 @router.get("/records/{record_id}", response_model=LearningRecordResponse)
 @rate_limit("30/minute")
 async def get_learning_record(

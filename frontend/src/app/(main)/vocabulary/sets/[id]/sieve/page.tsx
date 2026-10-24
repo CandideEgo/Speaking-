@@ -15,6 +15,7 @@ import { HighlightedSentence } from "@/components/vocabulary/HighlightedSentence
 import { Card } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { watchSentenceHref } from "@/lib/watchEntry";
+import { dictionaryPreview, partOfSpeechLabel } from "@/lib/vocabularyPresentation";
 
 /**
  * 快速过筛（全屏沉浸，壳层对齐 /vocabulary/drill）：
@@ -70,6 +71,12 @@ export default function VocabSievePage() {
   const currentWordInfo = allDetail?.words.find(
     (w) => w.word.toLowerCase() === (state?.word?.word ?? "").toLowerCase()
   );
+  // 词典释义按词性挑一行、按逗号收成一句；完整释义收在可展开里，
+  // 免得一张自评卡被多行词典内容撑开。
+  const currentMeaning = state?.word
+    ? dictionaryPreview(state.word.translation, state.word.definition, state.word.part_of_speech)
+    : null;
+  const currentPos = partOfSpeechLabel(state?.word?.part_of_speech);
 
   async function handleJudge(known: boolean) {
     try {
@@ -245,13 +252,18 @@ export default function VocabSievePage() {
                 <p className="text-copy text-muted font-mono mt-2">{state.word.ipa}</p>
               )}
               <p className="text-copy text-body mt-4">
-                {state.word.part_of_speech && (
-                  <span className="text-muted italic mr-1.5">{state.word.part_of_speech}</span>
-                )}
-                {state.word.translation || state.word.definition || "—"}
+                {currentPos && <span className="text-muted italic mr-1.5">{currentPos}</span>}
+                {currentMeaning?.summary || "—"}
               </p>
-              {state.word.translation && state.word.definition && (
-                <p className="text-copy text-muted mt-2 line-clamp-2">{state.word.definition}</p>
+              {currentMeaning?.expandable && (
+                <details className="mt-2 text-left">
+                  <summary className="cursor-pointer text-meta text-muted hover:text-ink">
+                    完整词典释义
+                  </summary>
+                  <p className="mt-1 whitespace-pre-line text-meta leading-relaxed text-muted">
+                    {currentMeaning.full}
+                  </p>
+                </details>
               )}
               {currentWordInfo?.context_sentence && (
                 <div className="text-left mt-6 pt-5 border-t border-hairline-soft">

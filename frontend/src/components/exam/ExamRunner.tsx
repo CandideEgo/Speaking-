@@ -3,7 +3,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { SECTION_LABELS, buildGroups, stripWordBank } from "@/lib/examPresentation";
+import {
+  SECTION_LABELS,
+  buildGroups,
+  formatNumberRanges,
+  normalizePassageSpacing,
+  stripWordBank,
+} from "@/lib/examPresentation";
 import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/common/Modal";
@@ -189,7 +195,7 @@ export default function ExamRunner({
   if (!group) return <p className="py-8 text-muted">本次没有可作答的题目。</p>;
   return (
     <div className="space-y-4" style={{ overflowAnchor: "none" }} aria-label="阅读作答工作区">
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-hairline bg-canvas py-3">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-hairline bg-canvas py-3 sm:justify-start">
         <Button
           variant="ghost"
           size="sm"
@@ -198,7 +204,10 @@ export default function ExamRunner({
         >
           退出
         </Button>
-        <span className="min-w-0 flex-1 text-meta font-semibold text-ink">{accent}</span>
+        {/* 手机端标题落到第二行：和「退出 / 已答 / 交卷」挤一行会把卷名压成两行。 */}
+        <span className="order-last w-full min-w-0 text-meta font-semibold text-ink sm:order-none sm:w-auto sm:flex-1">
+          {accent}
+        </span>
         <span className="text-meta text-muted" data-testid="exam-progress">
           已答 {answered}/{total}
         </span>
@@ -215,7 +224,7 @@ export default function ExamRunner({
           题型
           <select
             aria-label="题型"
-            className="ml-2 rounded-sm border border-hairline bg-canvas p-2 text-ink"
+            className="ml-2 max-w-[15rem] rounded-sm border border-hairline bg-canvas p-2 text-ink"
             value={group.section}
             onChange={(e) => {
               const next = groups.find((g) => g.section === e.target.value);
@@ -233,7 +242,7 @@ export default function ExamRunner({
           题组
           <select
             aria-label="题组"
-            className="ml-2 rounded-sm border border-hairline bg-canvas p-2 text-ink"
+            className="ml-2 max-w-[15rem] rounded-sm border border-hairline bg-canvas p-2 text-ink"
             value={group.key}
             onChange={(e) => {
               const next = groups.find((g) => g.key === e.target.value);
@@ -244,7 +253,7 @@ export default function ExamRunner({
               .filter((g) => g.section === group.section)
               .map((g, i) => (
                 <option key={g.key} value={g.key}>
-                  第 {i + 1} 组 · {g.questions.map((q) => q.number).join("、")} 题
+                  第 {i + 1} 组 · {formatNumberRanges(g.questions.map((q) => q.number))} 题
                 </option>
               ))}
           </select>
@@ -298,11 +307,18 @@ export default function ExamRunner({
           </Button>
         </div>
       )}
+      {/* [contain:paint]：左右两栏各自滚动时，Chromium 会把栏内的长内容算进
+          文档滚动高度（整页截图能拉到 7000px、窗口也能滚进空白）。裁剪到本盒
+          之内，文档高度才等于视口。 */}
       <div
         ref={workspace}
         data-testid="exam-workspace"
         data-layout={layout.dual ? "dual" : "switch"}
-        className={layout.dual ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6" : "min-w-0"}
+        className={
+          layout.dual
+            ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6 [contain:paint]"
+            : "min-w-0 [contain:paint]"
+        }
       >
         {group.passage && (
           <div
@@ -316,7 +332,7 @@ export default function ExamRunner({
             className="min-w-0 rounded-sm border border-hairline bg-surface-soft p-4"
           >
             <p className="whitespace-pre-wrap text-copy leading-loose text-body">
-              {stripWordBank(group.passage)}
+              {normalizePassageSpacing(stripWordBank(group.passage))}
             </p>
             {group.derived?.kind === "bank" && (
               <section aria-label="词库" className="mt-5 border-t border-hairline pt-3">

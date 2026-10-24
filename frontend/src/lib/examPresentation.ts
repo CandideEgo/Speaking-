@@ -56,6 +56,22 @@ export function stripWordBank(passage: string): string {
   return idx === -1 ? passage : passage.slice(0, idx).trim();
 }
 
+// 句末标点紧跟大写单词 = 源 PDF 换行时丢掉的空格（"…so far.Whether…"）。
+// 要求大写字母后面再跟一个小写字母，既补回真实断句，又避开 U.S.A / A.M.
+// 这类全大写缩写与小数。
+const MISSING_SPACE_RE = /([.!?])([A-Z][a-z])/g;
+
+/**
+ * 补回正文字句之间丢失的空格。
+ *
+ * 真题 PDF 转文本时按行拼接，行尾标点后的空格被吞掉，正文会出现
+ * 「far.Whether」这种连写。这是展示层能修的最小改动；真正的修复在导入
+ * 管道，但已经入库的卷子不该因为导入缺陷一路难读到用户面前。
+ */
+export function normalizePassageSpacing(passage: string): string {
+  return passage.replace(MISSING_SPACE_RE, "$1 $2");
+}
+
 export interface QuestionGroup {
   key: string;
   section: string;
@@ -97,6 +113,29 @@ export function paperIdentity(paper: {
 }
 export function suggestedMinutesFor(count: number): number {
   return Math.max(4, Math.round((count * 40) / 30));
+}
+
+/**
+ * 把题号折成区间：`[1,2,3,5,7,8]` → `1–3、5、7–8`。
+ *
+ * 题组下拉里原来逐个列题号（一整套完形就是 20 个数字），在手机上把
+ * `<select>` 撑出屏幕。区间写法既短又保留了「这组包含哪些题」的信息。
+ */
+export function formatNumberRanges(numbers: number[]): string {
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const parts: string[] = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (const n of sorted.slice(1)) {
+    if (n === prev + 1) {
+      prev = n;
+      continue;
+    }
+    parts.push(start === prev ? `${start}` : `${start}–${prev}`);
+    start = prev = n;
+  }
+  if (sorted.length) parts.push(start === prev ? `${start}` : `${start}–${prev}`);
+  return parts.join("、");
 }
 
 export function catalogReturnHref(value: string | null): string {
