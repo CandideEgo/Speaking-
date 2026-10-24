@@ -15,9 +15,8 @@
    第一个已经跑完时第二个回调幂等 acknowledged。两种时序下字幕都只有一份、
    tail 只入队一次。
 
-Redis 说明：端点用的是**同步** redis-py（``app/api/v1/internal.py`` 里
-``import redis as redis_lib``），不是 ``app.core.redis`` 的异步 fake，所以这里直接
-给 ``redis.from_url`` 打桩——既让 SETNX 语义（抢锁 / 放锁 / Redis 挂掉）可控，
+Redis 说明：端点锁走 ``app.core.redis.get_redis`` 的共享异步单例，所以这里给
+``internal.get_redis`` 打桩——既让 SETNX 语义（抢锁 / 放锁 / Redis 挂掉）可控，
 又走的是与生产同一条代码路径（``_acquire_callback_lock`` 的 fail-closed 分支是
 真的被执行到的）。
 
@@ -31,9 +30,9 @@ from __future__ import annotations
 import uuid
 
 import pytest
-import redis as redis_lib
 from sqlalchemy import func, select
 
+from app.api.v1 import internal as internal_module
 from app.core.config import get_settings
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoSource, VideoStatus
@@ -118,8 +117,8 @@ def _finalize_calls(calls: list[tuple[str, tuple, dict]]) -> list[tuple[str, tup
     return [entry for entry in calls if entry[0] == FINALIZE_TASK]
 
 
-class _FakeSyncRedis:
-    """同步 Redis 替身：只实现回调去重锁用到的 SETNX / DELETE。
+class _FakeAsyncRedis:
+    """异步 Redis 替身：只实现回调去重锁用到的 SETNX / DELETE。
 
     语义与真 Redis 一致：``set(nx=True)`` 撞上已存在的 key 时返回 None（抢锁失败）。
     """
@@ -127,13 +126,13 @@ class _FakeSyncRedis:
     def __init__(self) -> None:
         self.store: dict[str, str] = {}
 
-    def set(self, key: str, value: str, nx: bool = False, ex: int | None = None) -> bool | None:
+    async def set(self, key: str, value: str, nx: bool = False, ex: int | None = None) -> bool | None:
         if nx and key in self.store:
             return None
         self.store[key] = value
         return True
 
-    def delete(self, key: str) -> int:
+    async def delete(self, key: str) -> int:
         return 1 if self.store.pop(key, None) is not None else 0
 
 
@@ -151,14 +150,14 @@ def callback_secret(monkeypatch) -> str:
 
 
 @pytest.fixture
-def redis_lock(monkeypatch) -> _FakeSyncRedis:
-    """把同步 redis-py 的 ``from_url`` 换成可控替身（SETNX 语义）。"""
-    fake = _FakeSyncRedis()
+def redis_lock(monkeypatch) -> _FakeAsyncRedis:
+    """把共享异步 Redis 换成可控替身（SETNX 语义）。"""
+    fake = _FakeAsyncRedis()
 
-    def _from_url(*_args, **_kwargs):
+    async def _get_redis():
         return fake
 
-    monkeypatch.setattr(redis_lib, "from_url", _from_url)
+    monkeypatch.setattr(internal_module, "get_redis", _get_redis)
     return fake
 
 
@@ -166,10 +165,10 @@ def redis_lock(monkeypatch) -> _FakeSyncRedis:
 def redis_down(monkeypatch) -> None:
     """模拟 Redis 挂掉：连不上就抛异常，端点必须 fail-closed（503）。"""
 
-    def _from_url(*_args, **_kwargs):
-        raise redis_lib.ConnectionError("redis is down")
+    async def _get_redis():
+        raise ConnectionError("redis is down")
 
-    monkeypatch.setattr(redis_lib, "from_url", _from_url)
+    monkeypatch.setattr(internal_module, "get_redis", _get_redis)
 
 
 # ---------------------------------------------------------------------------

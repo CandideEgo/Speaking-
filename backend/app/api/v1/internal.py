@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.core.logging import get_logger
+from app.core.redis import get_redis
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
 from app.schemas.video import TranscriptionCallbackRequest
@@ -31,19 +32,21 @@ logger = get_logger(__name__)
 _CALLBACK_LOCK_TTL = 5 * 60  # 5 minutes — more than enough for the DB work
 
 
-def _acquire_callback_lock(video_id: str) -> bool:
+async def _acquire_callback_lock(video_id: str) -> bool:
     """Try to acquire a Redis SETNX lock for the callback.  Returns True if
     acquired, False if another callback is already in-flight **or Redis is
     down** (fail-closed).  When Redis is unavailable we reject the callback
     rather than allowing a concurrent double-insert / double-enqueue.  The
-    GPU worker will retry after its own backoff."""
-    try:
-        import redis as redis_lib
+    GPU worker will retry after its own backoff.
 
-        settings = get_settings()
-        r = redis_lib.from_url(settings.redis_url, decode_responses=True)
+    Uses the shared async Redis singleton (``app.core.redis.get_redis``) — the
+    old implementation created a synchronous redis client per call inside this
+    async endpoint, blocking the event loop and leaking a connection pool.
+    """
+    try:
+        r = await get_redis()
         lock_key = f"video:callback:{video_id}"
-        return bool(r.set(lock_key, "1", nx=True, ex=_CALLBACK_LOCK_TTL))
+        return bool(await r.set(lock_key, "1", nx=True, ex=_CALLBACK_LOCK_TTL))
     except Exception:
         # Fail-closed: refuse the callback so the GPU worker retries later.
         # The DB status check alone is insufficient — two concurrent
@@ -56,14 +59,11 @@ def _acquire_callback_lock(video_id: str) -> bool:
         return False
 
 
-def _release_callback_lock(video_id: str) -> None:
+async def _release_callback_lock(video_id: str) -> None:
     """Release the callback lock after successful processing."""
     try:
-        import redis as redis_lib
-
-        settings = get_settings()
-        r = redis_lib.from_url(settings.redis_url, decode_responses=True)
-        r.delete(f"video:callback:{video_id}")
+        r = await get_redis()
+        await r.delete(f"video:callback:{video_id}")
     except Exception:
         pass
 
@@ -108,7 +108,7 @@ async def transcription_callback(
     # Acquire a Redis dedup lock to prevent two concurrent callbacks from both
     # passing the status check and proceeding to double-insert subtitles.
     # If Redis is down (fail-closed), return 503 so the GPU worker retries.
-    if not _acquire_callback_lock(payload.video_id):
+    if not await _acquire_callback_lock(payload.video_id):
         raise HTTPException(
             status_code=503,
             detail="Callback lock unavailable; retry after Redis recovers",
@@ -119,7 +119,7 @@ async def transcription_callback(
     # here, so re-read the row under the lock before acting on it.
     await db.refresh(video)
     if video.status != VideoStatus.processing:
-        _release_callback_lock(payload.video_id)
+        await _release_callback_lock(payload.video_id)
         return {"acknowledged": True}
 
     try:
@@ -198,6 +198,6 @@ async def transcription_callback(
         finalize_video.delay(payload.video_id)
     finally:
         # Release lock so a future retry (if needed) can proceed.
-        _release_callback_lock(payload.video_id)
+        await _release_callback_lock(payload.video_id)
 
     return {"acknowledged": True}
