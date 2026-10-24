@@ -150,3 +150,10 @@ backend/watch-current.png
 backend/.tmp-*
 # Playwright 无障碍树快照（对比用的一次性产物）
 /channels-before.yml
+# Raven runtime checkpoint（每回合影子 git 仓库，机器绑定；见 .raven/NOTICE.txt）
+.raven/
+# 设计导出本地缓存（含嵌套 .raven，不入库）
+designs/
+# 一次性词表调试产物（ECDICT 查词探查）
+backend/tmp_defs.txt
+backend/tmp_exact.txt
