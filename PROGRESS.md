@@ -346,5 +346,12 @@
 - 保留了产品特有的「少一点辅助再听」「继续播放」动作，但视觉语言与契约一致；未删除任何功能。
 - `ui-review-fixes-mobile.spec.ts` 的主按钮对比度用例改到登录页的 primary 提交按钮上验证（观看页动作行已没有主按钮）；该用例 1 passed。
 - watch 相关 e2e：`watch-desktop-stage` + `watch-baseline-mobile` **17 passed**；`npm run check` 通过；`npm run test:unit` 332 passed。
+
+### 首页 feed 间距/标题对齐，并复核视觉审计状态（V-11）
+
+- `.home-video-feed` 的上间距从 22.4px 改为设计值 38px（`2.375rem`），「继续发现」标题从 20px 改为 18px；`home-feed.spec` 7 passed。
+- 逐条复核 `frontend-visual.md` 的 30 条状态：V-01/04/05/06/07/09/11/15/16/26/28 依据当前代码与既有 e2e 证据标记为已修；V-25（侧栏折叠）、V-27（桌面词卡浮动锚定）、V-29（hover 保持 AA 的更深蓝）标记为「保留（有意差异）」。
+- 仍开放的视觉项：V-12（hero 元信息/主 CTA 字段口径）、V-14（频道目录封面卡）、V-21（会员页 FAQ）。
+- `npm run check` 通过；`npm run test:unit` 332 passed；未新增 e2e 失败。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。

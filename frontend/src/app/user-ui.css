@@ -1153,7 +1153,8 @@
   display: none;
 }
 .user-ui .home-video-feed {
-  margin-top: 1.4rem;
+  /* 设计 .section 的上间距是 38px；此前被 1.4rem 覆盖成 22.4px（V-11）。 */
+  margin-top: 2.375rem;
   padding-top: 1rem;
   /* 空结果仍保留一屏列表区域，避免容器收缩把筛选栏拉走。 */
   min-height: calc(100dvh - 4rem);

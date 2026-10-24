@@ -121,7 +121,7 @@ export default function HomePage() {
       <section id="feed" aria-label="视频列表" className="home-video-feed mt-9 scroll-mt-6">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
           <div className="min-w-0">
-            <h2 className="text-title font-semibold tracking-tight text-ink">继续发现</h2>
+            <h2 className="text-[1.125rem] font-semibold tracking-tight text-ink">继续发现</h2>
           </div>
           <Link
             href="/channels"
