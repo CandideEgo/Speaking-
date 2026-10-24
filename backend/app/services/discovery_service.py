@@ -406,11 +406,10 @@ async def search(db: AsyncSession, query: str, group: str, page: int, page_size:
             .scalars()
             .all()
         )
+        from app.services.channel_service import search_channel_cards
+
         result["channels"] = {
-            "items": [
-                {"id": c.id, "name": c.name, "slug": c.slug, "description": c.description, "cover_url": c.cover_url}
-                for c in channel_rows[:page_size]
-            ],
+            "items": await search_channel_cards(db, list(channel_rows[:page_size]), user.id),
             "has_more": len(channel_rows) > page_size,
         }
     return result

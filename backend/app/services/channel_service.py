@@ -263,6 +263,31 @@ async def list_public_channels(
     return paginated(items, page=page, page_size=page_size, total=total)
 
 
+async def search_channel_cards(db: AsyncSession, channels: list[Channel], viewer_id: str) -> list[dict]:
+    """Search uses the same channel card facts, resolved in page batches."""
+    ids = [channel.id for channel in channels]
+    videos_by_channel = await _public_videos_by_channel(db, ids)
+    counts, subscribed = await subscriber_stats(db, ids, viewer_id)
+    items = []
+    for channel in channels:
+        videos = videos_by_channel.get(channel.id, [])
+        latest = videos[0] if videos else None
+        item = _channel_public(
+            channel,
+            len(videos),
+            latest.thumbnail_url if latest else None,
+            channel_learning.channel_facts(channel.slug, videos),
+        )
+        item.update(
+            latest_video=latest_video_payload(latest),
+            subscriber_count=counts.get(channel.id, 0),
+            is_subscribed=channel.id in subscribed,
+            total_view_count=sum(v.view_count or 0 for v in videos),
+        )
+        items.append(item)
+    return items
+
+
 async def get_channel_detail(
     db: AsyncSession,
     slug: str,
