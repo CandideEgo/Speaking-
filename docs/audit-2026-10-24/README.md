@@ -86,7 +86,8 @@
 | 后端 `ruff check app tests` | **All checks passed** |
 | 后端全量 `pytest tests/ -q` | **1350 passed, 16 skipped**（16 条需独立 `PG_TEST_URL` 的 integration 默认跳过） |
 | 本轮针对性后端测试 | config 23、exams 21、search 16、behavior 13、auth 4、media + PDF 47、notifications 35、SMS/配置 61 全绿 |
-| e2e 定点 | 断点用例**通过**；`design-rollout` + `public-layout` 共 8 条通过，4 条因**dev 后端限流 429** 未跑通（`frontend/CLAUDE.md` 明确要求 e2e 用 `ENV=testing` 后端；本条记为未执行，不算产品缺陷） |
+| e2e 定点 | 断点用例**通过**；`design-rollout` + `public-layout` 共 8 条通过 |
+| e2e 全量（chromium） | 用 `ENV=testing` 后端 + 全新 `seeword_e2e_full` 库（`alembic upgrade head` + `seed_e2e.py`）实际执行：**201 项 → 120 passed / 16 failed / 63 skipped / 2 did not run**。修复 4 条明确回归后复跑通过：`auth.spec`（改密用户不应再看到跳过入口）、`avatar.spec`（性别在「个人资料」tab）、`viewport-height.spec`（底栏选择器改为 `data-testid`）、`ui-review` hover 对比度（`#0077ed` 仅 4.32:1，恢复 `#0066cc`）。剩余 16 条为 fixture 数据不足或旧契约：home-editorial CTA/编排、listening 音频、频道/收藏数据、239 词与 46 题语料、practice「这一版包含」、watch「视频信息」默认展开、2560 网格等；未改测试来凑绿 |
 | 浏览器复核（Playwright，1440/390） | 首个 Tab = 「跳到正文」；`aria-pressed` 存在；通知浮层 `dialog` + 空态、无 spinner；`/channels` 清空按钮存在；404 h1 = 「页面不存在」；已设密码账号出现引导、首设密码账号出现表单；触控 `search 44×44 / chip 52×44 / tab 78×60`；断点 1024/820/768/600/390 无侧栏且有底栏、1920/1440 反之；横向溢出 0 |
 | 视觉审计 | 13 路由 × 1440/390 全页 + 暗色 + 1024/820 定点共 57 张；114 次溢出测量 0px |
 | 第二轮结构补齐复核 | 词汇页真实账号（14 词 + 2 个词单）出现到期卡/四项统计/词单网格；练习页出现 3 列试卷与已选条；我的页出现深色会员卡/账户卡；12 条列表路由 h1 实测 `12px / uppercase`、无横向溢出；移动端眉标左对齐（h1 x=16） |
@@ -96,7 +97,8 @@
 
 ### 未执行（如实标注）
 
-- **全量 e2e / 四浏览器**：dev 后端会 429，需按 `frontend/CLAUDE.md` 用 `ENV=testing` 的测试后端 + `seed_e2e.py` 重跑；本轮只跑了定点用例。
+- **全量 e2e 的 16 条剩余失败**：已在 `ENV=testing` 后端 + 全新库上实测；失败集中在 fixture 数据不足（editorial / listening 音频 / 频道收藏 / 239 词 / 46 题）与页面重构后的旧选择器（practice「这一版包含」、watch「视频信息」默认展开、editorial CTA、2560 网格）。未删除或跳过这些用例，留待下一轮按产品决策逐条对齐。
+- **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
 - **BE-08 周统计、BE-09 无界查询、BE-11 回调重试、BE-12 管线锁、BE-13/14/16/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。

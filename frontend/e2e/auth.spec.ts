@@ -17,10 +17,9 @@ test.describe.configure({ mode: "serial" });
 
 // A shared, onboarding-completed user for the login / logout tests.
 const SHARED_PHONE = uniquePhone();
-let SHARED_TOKEN = "";
 
 test.beforeAll(async ({ request }) => {
-  ({ token: SHARED_TOKEN } = await registerUserViaApi(request, SHARED_PHONE));
+  await registerUserViaApi(request, SHARED_PHONE);
 });
 
 test.describe("Registration", () => {
@@ -36,8 +35,23 @@ test.describe("Registration", () => {
     expect(token).toBeTruthy();
   });
 
-  test("new user can skip the set-password step and continue", async ({ page }) => {
-    await loginViaToken(page, SHARED_TOKEN);
+  test("new user can skip the set-password step and continue", async ({ page, request }) => {
+    // A genuinely new, passwordless account (sms/login creates it). The shared
+    // token above belongs to a user whose password was set via API, and
+    // /set-password deliberately shows account-settings guidance for those.
+    const phone = uniquePhone();
+    await request.post("/api/v1/auth/sms/send-code", {
+      data: { phone, purpose: "auth" },
+    });
+    const login = await request.post("/api/v1/auth/sms/login", {
+      data: { phone, code: "1234" },
+    });
+    const { token } = await login.json();
+    await request.post("/api/v1/users/me/onboarding", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { onboarding_completed: true },
+    });
+    await loginViaToken(page, token);
     await page.goto("/set-password?from=register&next=/");
     await expect(page.locator("h1")).toHaveText(/设置登录密码/);
     await page.getByRole("button", { name: "暂时跳过" }).click();

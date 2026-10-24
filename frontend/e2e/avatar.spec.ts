@@ -14,6 +14,8 @@ test("改性别后顶栏头像立即跟随，无需刷新", async ({ page, reque
   await loginViaToken(page, token);
 
   await page.goto("/profile");
+  // Gender lives in the 个人资料 tab; 我的内容 is the default tab.
+  await page.getByRole("tab", { name: "个人资料" }).click();
   const topAvatar = () => page.locator('button[aria-label="账号菜单"] img');
   const profileAvatar = page.locator("main img[alt]").first();
   const genderGroup = page.getByRole("group", { name: "性别" });

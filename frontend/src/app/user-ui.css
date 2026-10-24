@@ -65,7 +65,9 @@
   --color-brand-950: #002b56;
   /* Solid CTAs: white on #0071e3 = 4.73:1 (AA for normal text). */
   --color-action-primary: #0071e3;
-  --color-action-primary-hover: #0077ed;
+  /* Hover must stay AA with white text (design's #0077ed only reaches 4.32:1).
+     Keep the darker #0066cc; dark theme's #0071e3 passes at 4.70:1. */
+  --color-action-primary-hover: #0066cc;
 
   /* Radii / elevation / width */
   --radius-sm: 8px;
