@@ -9,6 +9,7 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { PageTransition } from "@/components/common/PageTransition";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -212,32 +213,64 @@ export default function UpgradePage() {
         <PageHeader crumb="会员" title="升级 SeeWord 会员" variant="eyebrow" />
 
         {/* items-start：右侧收款卡比权益卡高一大截，默认 stretch 会把左侧卡片
-            撑成同高，下半张全是空白。 */}
+            撑成同高，下半张全是空白。设计稿左侧是深色 member-card + 权益卡。 */}
         <div className="grid items-start gap-6 lg:grid-cols-2">
-          <Card padding={5}>
-            <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-brand-50 text-brand-600">
-                <Crown size={18} />
-              </span>
-              <div>
-                <p className="text-copy font-semibold text-ink">
-                  {pro ? "SeeWord 会员" : "当前为免费账号"}
-                </p>
-                <p className="mt-0.5 text-meta text-muted">
-                  {pro ? `有效期至 ${expiryText(me)}` : "支付确认后更新会员状态"}
-                </p>
+          <div className="space-y-6">
+            <section
+              className="rounded-lg bg-ink p-6 text-canvas"
+              aria-labelledby="member-status-title"
+            >
+              <p className="text-caption font-semibold tracking-[0.12em] uppercase text-on-dark/60">
+                当前状态
+              </p>
+              <h2
+                id="member-status-title"
+                className="mt-2 text-title font-semibold tracking-tight text-canvas"
+              >
+                {pro ? "SeeWord 会员" : "免费账号"}
+              </h2>
+              <p className="mt-3 flex items-center gap-1.5 text-copy text-on-dark/75">
+                <span
+                  className={`h-2 w-2 rounded-full ${pro ? "bg-brand-500" : "bg-on-dark/40"}`}
+                  aria-hidden
+                />
+                {pro
+                  ? `体验中 · 有效期至 ${expiryText(me)}`
+                  : "未开通 · 支付确认后自动更新会员状态"}
+              </p>
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <LinkButton href="/vocabulary" variant="secondary" size="sm">
+                  先去复习
+                </LinkButton>
+                <LinkButton href="/practice" variant="ghostDark" size="sm" className="text-on-dark">
+                  做一套真题
+                </LinkButton>
               </div>
-            </div>
+            </section>
 
-            <ul className="mt-5 space-y-2.5">
-              {BENEFITS.map((benefit) => (
-                <li key={benefit} className="flex gap-2 text-copy text-body">
-                  <Check size={16} className="mt-0.5 shrink-0 text-brand-500" />
-                  <span>{benefit}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
+            <Card padding={5}>
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-brand-50 text-brand-600">
+                  <Crown size={18} />
+                </span>
+                <div>
+                  <p className="text-copy font-semibold text-ink">会员能做什么</p>
+                  <p className="mt-0.5 text-meta text-muted">
+                    所有已接入视频与逐句字幕，配合词汇和真题练习。
+                  </p>
+                </div>
+              </div>
+
+              <ul className="mt-5 space-y-2.5">
+                {BENEFITS.map((benefit) => (
+                  <li key={benefit} className="flex gap-2 text-copy text-body">
+                    <Check size={16} className="mt-0.5 shrink-0 text-brand-500" />
+                    <span>{benefit}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </div>
 
           <Card padding={5}>
             <p className="text-copy font-semibold text-ink">选择档位</p>

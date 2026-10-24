@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, CirclePlay, Flame } from "lucide-react";
+import { CirclePlay, Flame } from "lucide-react";
 
 import { ErrorState } from "@/components/common/ErrorState";
 import { Skeleton } from "@/components/common/SkeletonCard";
@@ -269,14 +269,6 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
           ))}
         </div>
       </section>
-
-      <Link
-        href="/history"
-        className="flex items-center justify-between rounded-md border border-hairline px-3.5 py-2.5 text-meta text-body hover:bg-surface-soft"
-      >
-        查看学习记录
-        <ArrowRight size={14} className="text-muted" aria-hidden />
-      </Link>
     </aside>
   );
 }

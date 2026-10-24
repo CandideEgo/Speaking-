@@ -19,6 +19,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { InlineSpinner } from "@/components/common/Spinner";
 import { PageTransition } from "@/components/common/PageTransition";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
 import { VideoMetadata } from "@/components/video/VideoMetadata";
@@ -212,38 +213,40 @@ export default function HistoryPage() {
           }
         />
 
-        {/* 汇总统计：设计是平铺 stat-grid（20px 数值 + 13px 中性标签） */}
+        {/* 汇总统计：设计把 4 个数字放进描边卡里（不是裸铺在画布上）。 */}
         {stats && overallTotal > 0 && (
-          <div className="mt-6 user-stat-grid">
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {week.value}
-                <span className="ml-1 text-meta font-semibold text-muted">{week.unit}</span>
-              </span>
-              <span className="user-stat-label">本周学习时长</span>
+          <Card variant="outline" padding={5} className="mt-6">
+            <div className="user-stat-grid">
+              <div className="user-stat">
+                <span className="user-stat-num">
+                  {week.value}
+                  <span className="ml-1 text-meta font-semibold text-muted">{week.unit}</span>
+                </span>
+                <span className="user-stat-label">本周学习时长</span>
+              </div>
+              <div className="user-stat">
+                <span className="user-stat-num">
+                  {overallTotal}
+                  <span className="ml-1 text-meta font-semibold text-muted">段</span>
+                </span>
+                <span className="user-stat-label">已学视频</span>
+              </div>
+              <div className="user-stat">
+                <span className="user-stat-num">
+                  {completedCount}
+                  <span className="ml-1 text-meta font-semibold text-muted">段</span>
+                </span>
+                <span className="user-stat-label">学完视频</span>
+              </div>
+              <div className="user-stat">
+                <span className="user-stat-num">
+                  {profile?.current_streak ?? 0}
+                  <span className="ml-1 text-meta font-semibold text-muted">天</span>
+                </span>
+                <span className="user-stat-label">连续学习</span>
+              </div>
             </div>
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {overallTotal}
-                <span className="ml-1 text-meta font-semibold text-muted">段</span>
-              </span>
-              <span className="user-stat-label">已学视频</span>
-            </div>
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {completedCount}
-                <span className="ml-1 text-meta font-semibold text-muted">段</span>
-              </span>
-              <span className="user-stat-label">学完视频</span>
-            </div>
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {profile?.current_streak ?? 0}
-                <span className="ml-1 text-meta font-semibold text-muted">天</span>
-              </span>
-              <span className="user-stat-label">连续学习</span>
-            </div>
-          </div>
+          </Card>
         )}
 
         <div className="mt-6">

@@ -355,71 +355,76 @@ export default function ChannelDetailPage() {
           </>
         ) : channel ? (
           <>
-            <PageHeader
-              crumb={
-                <Link
-                  href="/channels"
-                  className="inline-flex items-center gap-1 transition-colors hover:text-ink"
-                >
-                  <ArrowLeft size={13} aria-hidden />
-                  全部频道
-                </Link>
-              }
-              title={
-                <span className="flex items-center gap-3 sm:gap-4">
-                  <span className="relative size-14 shrink-0 overflow-hidden rounded-pill border border-hairline bg-surface-card sm:size-16">
-                    {channel.cover_url ? (
-                      <Image src={channel.cover_url} alt="" sizes="64px" loading="eager" />
-                    ) : (
+            {/* 设计 channel-hero：380×240 封面 + 正文 + 订阅操作。 */}
+            <div className="mt-2 grid gap-5 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)] md:items-start xl:grid-cols-[380px_minmax(0,1fr)]">
+              <div className="relative aspect-[19/12] overflow-hidden rounded-lg border border-hairline bg-surface-card">
+                {channel.cover_url ? (
+                  <Image
+                    src={channel.cover_url}
+                    alt=""
+                    sizes="(max-width: 767px) 100vw, 380px"
+                    loading="eager"
+                  />
+                ) : (
+                  <span
+                    className="flex h-full w-full items-center justify-center text-[64px] font-bold text-muted"
+                    aria-hidden
+                  >
+                    {userInitial(channel.name)}
+                  </span>
+                )}
+              </div>
+
+              <PageHeader
+                crumb={
+                  <Link
+                    href="/channels"
+                    className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+                  >
+                    <ArrowLeft size={13} aria-hidden />
+                    全部频道
+                  </Link>
+                }
+                title={<span className="min-w-0 break-words">{channel.name}</span>}
+                meta={
+                  <>
+                    {introText && (
                       <span
-                        className="flex h-full w-full items-center justify-center text-title font-bold text-muted"
-                        aria-hidden
+                        className="line-clamp-3 block max-w-[62ch] text-copy-lg leading-relaxed text-body"
+                        title={introText}
                       >
-                        {userInitial(channel.name)}
+                        {introText}
                       </span>
                     )}
-                  </span>
-                  <span className="min-w-0 break-words">{channel.name}</span>
-                </span>
-              }
-              meta={
-                <>
-                  {introText && (
-                    <span
-                      className="line-clamp-3 block max-w-[62ch] text-copy-lg leading-relaxed text-body"
-                      title={introText}
-                    >
-                      {introText}
-                    </span>
-                  )}
-                  {directionChips.length > 0 && (
-                    <span className="mt-2.5 flex flex-wrap gap-1.5">
-                      {directionChips.map((label) => (
+                    {directionChips.length > 0 && (
+                      <span className="mt-2.5 flex flex-wrap gap-1.5">
+                        {directionChips.map((label) => (
+                          <span
+                            key={label}
+                            className="inline-flex h-6 items-center rounded-pill border border-hairline bg-surface-soft px-2.5 text-caption font-semibold text-body"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    <span className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta tabular-nums text-muted sm:gap-x-2">
+                      {headerFacts.map((fact, index) => (
                         <span
-                          key={label}
-                          className="inline-flex h-6 items-center rounded-pill border border-hairline bg-surface-soft px-2.5 text-caption font-semibold text-body"
+                          key={fact.key}
+                          title={fact.title}
+                          className="inline-flex items-center gap-2 whitespace-nowrap"
                         >
-                          {label}
+                          {index > 0 && <FactSeparator />}
+                          {fact.label}
                         </span>
                       ))}
                     </span>
-                  )}
-                  <span className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta tabular-nums text-muted sm:gap-x-2">
-                    {headerFacts.map((fact, index) => (
-                      <span
-                        key={fact.key}
-                        title={fact.title}
-                        className="inline-flex items-center gap-2 whitespace-nowrap"
-                      >
-                        {index > 0 && <FactSeparator />}
-                        {fact.label}
-                      </span>
-                    ))}
-                  </span>
-                </>
-              }
-              actions={<ChannelSubscribeButton slug={channel.slug} />}
-            />
+                  </>
+                }
+                actions={<ChannelSubscribeButton slug={channel.slug} />}
+              />
+            </div>
 
             <div className="user-page-layout has-aside">
               <div className="user-page-main">
