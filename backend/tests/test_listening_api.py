@@ -113,28 +113,32 @@ async def test_foreign_session_and_invalid_answers(client, auth_headers, db_sess
     for method, path in [(client.get, ""), (client.post, "/submit")]:
         assert (await method(f"/api/v1/listening/sessions/{private.id}{path}", headers=auth_headers)).status_code == 404
     own = (await client.post("/api/v1/listening/sessions", headers=auth_headers, json={"video_id": video.id})).json()
-    assert (
+
+    async def _code_and_status(resp) -> tuple[int, str]:
+        return resp.status_code, resp.json()["code"]
+
+    assert await _code_and_status(
         await client.put(
             f"/api/v1/listening/sessions/{own['id']}", headers=auth_headers, json={"answers": {"foreign": "injected"}}
         )
-    ).status_code == 422
-    assert (
+    ) == (422, "VALIDATION_ERROR")
+    assert await _code_and_status(
         await client.put(f"/api/v1/listening/sessions/{own['id']}", headers=auth_headers, json={"current_index": 9})
-    ).status_code == 422
-    assert (
+    ) == (422, "VALIDATION_ERROR")
+    assert await _code_and_status(
         await client.put(
             f"/api/v1/listening/sessions/{own['id']}",
             headers=auth_headers,
             json={"answers": {own["questions"][0]["id"]: "a" * 2001}},
         )
-    ).status_code == 422
+    ) == (422, "VALIDATION_ERROR")
 
 
 async def test_empty_and_unpublished_cannot_start(client, auth_headers, db_session):
     video = await seed(db_session, cues=False)
-    assert (
-        await client.post("/api/v1/listening/sessions", headers=auth_headers, json={"video_id": video.id})
-    ).status_code == 422
+    resp = await client.post("/api/v1/listening/sessions", headers=auth_headers, json={"video_id": video.id})
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "VALIDATION_ERROR"
     video.is_published = False
     await db_session.commit()
     assert (

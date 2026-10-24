@@ -149,6 +149,18 @@ class ForbiddenError(DomainError):
     code = ErrorCode.FORBIDDEN
 
 
+class UnprocessableEntityError(DomainError):
+    """业务参数不可处理 → 422，与 pydantic 校验共用 ``VALIDATION_ERROR``。
+
+    422 在旧代码里出现过两种 ``code``：pydantic 的 ``VALIDATION_ERROR`` 与
+    路由里 ``HTTPException(422, ...)`` 的 ``HTTP_422``。前端无法按 code 区分
+    「字段格式错」和「业务参数非法」，这里收成一种。
+    """
+
+    status_code = 422
+    code = ErrorCode.VALIDATION_ERROR
+
+
 class ConflictError(DomainError):
     """与当前资源状态冲突（重复提交、已处理、正在处理中）→ 409。"""
 

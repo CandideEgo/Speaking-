@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.errors import UnprocessableEntityError
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.services import vocab_set_service
@@ -68,10 +69,7 @@ async def get_vocab_set(
 ):
     """Set detail with ordered words. scope: all | unmastered | learning."""
     if scope not in vocab_set_service.SCOPES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"invalid scope: {scope!r} (expected one of all|unmastered|learning)",
-        )
+        raise UnprocessableEntityError(f"invalid scope: {scope!r} (expected one of all|unmastered|learning)")
     detail = await vocab_set_service.get_set_detail(db, current_user, set_id, scope)
     if detail is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Set not found")

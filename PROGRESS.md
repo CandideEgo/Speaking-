@@ -252,3 +252,9 @@
 - `shadowing.py` 每个 (path, method) 拆成独立函数，消除叠加装饰器导致的重复 operationId（5 条兼容路由）。
 - `GET /videos/{id}/shadowing-sentences` 删除与恒 410 实现不符的 `response_model=list[dict]`。
 - 新增 `test_openapi_contract.py` 2 项：全 schema operationId 唯一、shadowing 6 条路由 id 互不重复；`test_response_contract.py` 16 项通过；全量后端 1374 passed / 16 skipped。
+
+### 422 统一为 VALIDATION_ERROR、401 补挑战头（BE-19）
+
+- 新增 `UnprocessableEntityError(DomainError)`（status 422 / code `VALIDATION_ERROR`），替掉 listening（路由 + service 共 4 处）、videos 排名 scope、vocab_sets scope 共 6 处 `HTTPException(422)`；业务参数非法与 pydantic 校验现在共用同一 code。
+- `_http_exception_handler` 改为透传 `exc.headers`；`get_current_user` 的 401 带 `WWW-Authenticate: Bearer`。
+- 更新 `test_response_contract` 的 ranking scope 断言、`test_listening_api` 三处业务 422 与素材为空断言、`test_auth` 的 401 头断言；共 65 项通过；全量后端 1374 passed / 16 skipped。

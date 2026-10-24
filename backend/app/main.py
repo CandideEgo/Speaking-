@@ -110,7 +110,7 @@ async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONR
         body = {"code": f"HTTP_{exc.status_code}", "message": str(detail) if detail is not None else ""}
         if detail is not None:
             body["detail"] = jsonable_encoder(detail)
-    return JSONResponse(status_code=exc.status_code, content=body)
+    return JSONResponse(status_code=exc.status_code, content=body, headers=exc.headers)
 
 
 async def _validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:

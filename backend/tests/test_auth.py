@@ -16,6 +16,8 @@ class TestUserProfile:
     async def test_get_me_without_token_returns_401(self, client: AsyncClient):
         resp = await client.get("/api/v1/users/me")
         assert resp.status_code == 401
+        # HTTP semantics: a 401 challenge must advertise the scheme.
+        assert resp.headers.get("www-authenticate") == "Bearer"
 
     async def test_update_me_level(self, client: AsyncClient, auth_headers: dict):
         resp = await client.patch(

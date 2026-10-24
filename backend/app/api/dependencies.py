@@ -125,7 +125,8 @@ async def get_current_user(
     try:
         return await _authenticate(credentials, db)
     except _AuthenticationError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+        raise HTTPException(status_code=exc.status_code, detail=exc.message, headers=headers) from exc
 
 
 async def get_optional_user(

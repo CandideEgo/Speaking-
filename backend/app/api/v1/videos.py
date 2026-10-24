@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_admin_user, get_current_user, get_optional_user
 from app.core.database import get_db
+from app.core.errors import UnprocessableEntityError
 from app.core.exam_levels import normalize_word_levels
 from app.core.limiter import rate_limit
 from app.models.user import User
@@ -907,10 +908,7 @@ async def list_video_rankings(
     from app.services.ranking_service import RANKING_SCOPES, get_rankings
 
     if scope not in RANKING_SCOPES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid scope: {scope!r} (expected one of: {', '.join(RANKING_SCOPES)})",
-        )
+        raise UnprocessableEntityError(f"Invalid scope: {scope!r} (expected one of: {', '.join(RANKING_SCOPES)})")
     return await get_rankings(db, scope)
 
 

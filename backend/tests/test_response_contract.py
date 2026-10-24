@@ -295,10 +295,15 @@ class TestErrorEnvelopeShapes:
         assert resp.status_code == 404
         assert resp.json()["code"] == "HTTP_404"
 
-    async def test_unknown_ranking_scope_is_422(self, client):
+    async def test_unknown_ranking_scope_is_422_validation_error(self, client):
+        """业务参数非法与 pydantic 校验共用 422 + VALIDATION_ERROR。
+
+        旧实现在路由里 ``HTTPException(422, ...)``，code 是 ``HTTP_422``，前端无法
+        按 code 区分「字段格式错」与「业务参数非法」。现在只有一种 422 code。
+        """
         resp = await client.get(_RANKINGS, params={"scope": "nope"})
         assert resp.status_code == 422
-        assert resp.json()["code"] == "HTTP_422"
+        assert resp.json()["code"] == "VALIDATION_ERROR"
 
     async def test_request_validation_error_is_envelope(self, client):
         resp = await client.get(_PUBLIC, params={"page": 0})

@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import UnprocessableEntityError
 from app.models.listening import ListeningSession
 from app.models.subtitle import Subtitle
 from app.models.user import User
@@ -119,7 +120,7 @@ async def start(db: AsyncSession, user: User, video_id: str, count: int, restart
     )
     cues = [c for c in cues if 3 <= len(c.text_en.split()) <= 35 and re.search(r"[a-zA-Z]", c.text_en)]
     if not cues:
-        raise HTTPException(422, "这段视频还没有可用听力题目，请选择其他素材")
+        raise UnprocessableEntityError("这段视频还没有可用听力题目，请选择其他素材")
     # Spread excerpts through the lesson instead of only testing its introduction.
     size = min(count, len(cues))
     chosen = [cues[min(len(cues) - 1, int((i + 0.5) * len(cues) / size))] for i in range(size)]
@@ -198,9 +199,9 @@ async def save(db: AsyncSession, session: ListeningSession, answers: dict[str, s
         raise HTTPException(409, "这次练习已经提交，请开始新一轮练习")
     valid = {q["id"] for q in session.questions}
     if not set(answers).issubset(valid):
-        raise HTTPException(422, "答案包含不属于本次练习的题目")
+        raise UnprocessableEntityError("答案包含不属于本次练习的题目")
     if index >= len(session.questions):
-        raise HTTPException(422, "题目位置超出范围")
+        raise UnprocessableEntityError("题目位置超出范围")
     session.answers = {**(session.answers or {}), **answers}
     session.current_index = index
     session.updated_at = datetime.now(UTC)

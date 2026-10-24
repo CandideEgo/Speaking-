@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.errors import UnprocessableEntityError
 from app.models.listening import ListeningSession
 from app.models.user import User
 from app.services import listening_service as service
@@ -84,10 +85,8 @@ async def detail(session_id: str, user: User = Depends(get_current_user), db: As
 async def draft(
     session_id: str, body: Draft, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    from fastapi import HTTPException
-
     if any(len(a) > 2000 for a in body.answers.values()):
-        raise HTTPException(422, "每句答案最多 2000 个字符")
+        raise UnprocessableEntityError("每句答案最多 2000 个字符")
     session = await service.owned_session(db, session_id, user.id, lock=True)
     await service.save(db, session, body.answers, body.current_index)
     await db.commit()
