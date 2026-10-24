@@ -330,5 +330,13 @@
 - 6 条失败仍是已知 fixture 数据不足：home-feed 真实数据配比、library-persistence、listening ×2、ui-review 239 词队列、vocabulary-exam 46 题长卷。
 - 另 4 条（avatar、design-rollout 的搜索/周报/注册）单独复跑均通过：`design-rollout.spec` 单跑 11 passed / 1 skipped，`avatar.spec` 1 passed，判定为全量并发下的环境抖动，不是本轮前端改动的回归。
 - 随后已停 testing 后端、恢复 dev 后端（`:8000`，environment=development）并还原 e2e 改写的截图；本轮未改任何门禁或基线。
+
+### 学习记录补「最近观看 / 最近练习 / 词汇进展」卡（V-19）
+
+- 统计数字已在此前放进描边卡；本轮按设计在记录列表上方补三张卡：最近观看（缩略图 + 进度 + 继续）、最近练习（最近一套试卷/答对数 + 回看）、词汇进展（全部/今天到期/已掌握 + 去复习）。
+- 同时删掉设计里没有的右栏「这些数字怎么算 / 从记录回到学习」，记录列表恢复整宽。
+- 新增数据请求：`/exams/attempts?page_size=1` 与 `/vocabulary/stats`；失败时卡片显示空态，不阻塞记录列表。
+- `user-information.spec.ts` 的历史用例改为只断言记录列表里的标题，并新增三张卡标题断言；整份 spec **12 passed**。
+- `npm run check` 通过；`npm run test:unit` 332 passed。
 - `npm run check` 通过；`npm run test:unit` 332 passed。
 - `design-rollout.spec.ts` 同时跑了 23 条，3 条因 dev 后端的短信验证码/注册限流失败（`验证码错误或已失效`、`注册过于频繁`），与本次改动无关；该 spec 需 testing 形态后端，未计入通过。

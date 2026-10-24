@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ArrowRight, Bell, Bookmark, Calendar, Check, Play } from "lucide-react";
+import { ArrowRight, Calendar, Check, GraduationCap, Play } from "lucide-react";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -30,6 +30,25 @@ import { videoTitleZh } from "@/lib/videoDisplay";
 import type { LearningRecord, Paginated } from "@/types";
 
 type FilterKey = "all" | "active" | "completed";
+
+/** 设计「最近练习」卡：最近一次作答的试卷与答对数。 */
+interface LatestAttempt {
+  id: string;
+  mode: string;
+  exam_level: string | null;
+  paper_title: string | null;
+  question_count: number;
+  score: number | null;
+  correct_count: number | null;
+  started_at: string;
+  submitted_at: string | null;
+}
+
+interface VocabStats {
+  total: number;
+  due_review_count: number;
+  mastered_count: number;
+}
 
 const FILTER_TABS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "全部" },
@@ -72,6 +91,13 @@ function formatClock(seconds: number | null | undefined): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function formatNotifyDate(iso: string | null): string {
+  if (!iso) return "日期待定";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "日期待定";
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 /** 本周时长：设计口径写「3.4 小时」，按量级选单位。 */
@@ -117,6 +143,10 @@ export default function HistoryPage() {
     completedCount: number;
     overallTotal: number;
   } | null>(null);
+  // 设计在记录列表上方还有最近观看 / 最近练习 / 词汇进展三张卡（V-19）。
+  const [recent, setRecent] = useState<LearningRecord | null>(null);
+  const [attempt, setAttempt] = useState<LatestAttempt | null>(null);
+  const [vocab, setVocab] = useState<VocabStats | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
@@ -129,13 +159,18 @@ export default function HistoryPage() {
       api<Paginated<LearningRecord>>("/api/v1/learning/records?page=1&page_size=1").catch(
         () => null
       ),
-    ]).then(([weekly, completed, overall]) => {
+      api<Paginated<LatestAttempt>>("/api/v1/exams/attempts?page=1&page_size=1").catch(() => null),
+      api<VocabStats>("/api/v1/vocabulary/stats").catch(() => null),
+    ]).then(([weekly, completed, overall, attempts, vocabStats]) => {
       if (!alive) return;
       setStats({
         weekSeconds: (weekly?.this_week_minutes ?? 0) * 60,
         completedCount: completed?.total ?? 0,
         overallTotal: overall?.total ?? 0,
       });
+      setRecent(overall?.items?.[0] ?? null);
+      setAttempt(attempts?.items?.[0] ?? null);
+      setVocab(vocabStats);
     });
     return () => {
       alive = false;
@@ -158,11 +193,6 @@ export default function HistoryPage() {
       })
       .filter((g) => g.items.length > 0);
   }, [records]);
-
-  const wordsLearned = useMemo(
-    () => records.reduce((sum, r) => sum + (r.words_learned || 0), 0),
-    [records]
-  );
 
   const week = weekDuration(stats?.weekSeconds ?? 0);
   const overallTotal = stats?.overallTotal ?? 0;
@@ -249,6 +279,100 @@ export default function HistoryPage() {
           </Card>
         )}
 
+        {/* 设计在记录列表上方补三张卡：最近观看 / 最近练习 / 词汇进展（V-19）。 */}
+        <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <Card variant="outline" padding={5}>
+            <h2 className="text-copy font-semibold text-ink">最近观看</h2>
+            {recent ? (
+              <div className="mt-3 flex items-center gap-3">
+                <span className="relative block aspect-video w-20 shrink-0 overflow-hidden rounded-sm border border-hairline bg-surface-card">
+                  <Image src={recent.video?.thumbnail_url} alt="" sizes="80px" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-meta font-semibold text-ink">
+                    {recent.video ? videoTitleZh(recent.video) : "未知视频"}
+                  </p>
+                  <p className="mt-0.5 text-caption text-muted">
+                    看到 {formatClock(recent.position_seconds)} ·{" "}
+                    {Math.round(recent.progress_percentage || 0)}%
+                  </p>
+                </div>
+                <LinkButton
+                  href={watchHref(recent.video_id, { from: "history" })}
+                  variant="outline"
+                  size="sm"
+                >
+                  继续
+                </LinkButton>
+              </div>
+            ) : (
+              <p className="mt-3 text-meta text-muted">
+                还没有观看记录，看一段视频就会出现在这里。
+              </p>
+            )}
+          </Card>
+
+          <Card variant="outline" padding={5}>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-copy font-semibold text-ink">最近练习</h2>
+              <Link href="/practice" className="text-caption text-brand-700 hover:underline">
+                去练习
+              </Link>
+            </div>
+            {attempt ? (
+              <div className="mt-3 flex items-center gap-3">
+                <span className="grid h-10 w-14 shrink-0 place-items-center rounded-sm bg-surface-soft text-muted">
+                  <GraduationCap size={18} aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-meta font-semibold text-ink">
+                    {attempt.paper_title ||
+                      (attempt.mode === "daily_check" ? "每日一练" : "真题练习")}
+                  </p>
+                  <p className="mt-0.5 text-caption text-muted">
+                    {formatNotifyDate(attempt.submitted_at ?? attempt.started_at)} ·{" "}
+                    {attempt.submitted_at
+                      ? `${attempt.correct_count ?? 0} / ${attempt.question_count} 答对`
+                      : "进行中"}
+                  </p>
+                </div>
+                <LinkButton
+                  href={`/practice/exams/result/${attempt.id}`}
+                  variant="outline"
+                  size="sm"
+                >
+                  回看
+                </LinkButton>
+              </div>
+            ) : (
+              <p className="mt-3 text-meta text-muted">还没有练习记录，去题库挑一套试试。</p>
+            )}
+          </Card>
+
+          <Card variant="outline" padding={5}>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-copy font-semibold text-ink">词汇进展</h2>
+              <Link href="/vocabulary" className="text-caption text-brand-700 hover:underline">
+                去复习
+              </Link>
+            </div>
+            <div className="mt-3 space-y-1.5 text-meta">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted">全部词汇</span>
+                <span className="tabular-nums text-ink">{vocab?.total ?? "—"}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted">今天到期</span>
+                <span className="tabular-nums text-ink">{vocab?.due_review_count ?? "—"}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted">已掌握</span>
+                <span className="tabular-nums text-ink">{vocab?.mastered_count ?? "—"}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
         <div className="mt-6">
           <TabPills
             tabs={tabs}
@@ -257,8 +381,8 @@ export default function HistoryPage() {
           />
         </div>
 
-        <div className="user-page-layout has-aside">
-          <div className="user-page-main">
+        <div className="mt-6">
+          <div>
             {loading && records.length === 0 ? (
               <InlineSpinner className="py-12" />
             ) : error && records.length === 0 ? (
@@ -322,49 +446,6 @@ export default function HistoryPage() {
               )}
             </div>
           </div>
-
-          <aside className="user-page-aside" aria-label="记录说明">
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">这些数字怎么算</h2>
-              {/* 记录条数 / 今天 / 连续学习 / 本周时长 都在页面顶部与分组小标题里出现过，
-                  这里只留顶部没有的那一项，别让同一组数字一屏说两遍。 */}
-              <div className="user-kv">
-                <div className="user-kv-row">
-                  <span className="user-kv-key">生词合计</span>
-                  <span className="user-kv-val">{wordsLearned} 个</span>
-                </div>
-              </div>
-              <p className="mt-3 text-meta leading-relaxed text-body">
-                停留时长按播放器实际播放时间累计，暂停和切走不算。进度按看到的时间点除以总时长。
-              </p>
-            </section>
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">从记录回到学习</h2>
-              <div className="flex flex-col gap-2">
-                <Link
-                  href="/favorites"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Bookmark size={14} className="text-muted" />
-                  收藏的句子和词
-                </Link>
-                <Link
-                  href="/vocabulary"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Bookmark size={14} className="text-muted" />
-                  今天到期的词
-                </Link>
-                <Link
-                  href="/notifications"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Bell size={14} className="text-muted" />
-                  学习提醒
-                </Link>
-              </div>
-            </section>
-          </aside>
         </div>
       </div>
     </PageTransition>

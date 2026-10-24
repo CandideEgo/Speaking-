@@ -448,7 +448,12 @@ test("收藏保留笔记与日期，历史保留观看进度和来源信息", as
   );
   await page.goto("/history");
   await expect(page.getByRole("heading", { name: "观看历史", exact: true })).toBeVisible();
-  await expect(page.getByText(VIDEO.title_zh, { exact: true })).toBeVisible();
+  // 设计在记录列表上方有最近观看 / 最近练习 / 词汇进展三张卡（V-19）。
+  await expect(page.getByRole("heading", { name: "最近观看", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "最近练习", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "词汇进展", exact: true })).toBeVisible();
+  // 卡片里也会出现标题，这里只断言记录列表中的一条。
+  await expect(page.locator("ul").getByText(VIDEO.title_zh, { exact: true })).toBeVisible();
   await expect(page.getByText("停在 1:00", { exact: true })).toBeVisible();
   await expect(page.getByText("25%", { exact: true })).toBeVisible();
   await expect(page.locator("main").getByText("Nature Lab", { exact: true })).toBeVisible();
