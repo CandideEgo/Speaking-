@@ -278,3 +278,10 @@
 - `mark_as_read` 合并为带 `user_id` 条件的查询，他人通知与不存在统一 404（不再暴露 id 存在性）。
 - listening 会话列表改用标准分页 `page/page_size/total/has_more`（默认 page_size 仍 12），前端 `{items, has_more}` 兼容。
 - `test_listening_api` 新增 2 项（restart 后只有 1 条、分页字段齐全）；`test_notifications` 他人通知断言改 404；exams/listening/search/notifications 共 83 项通过；限流在 testing 下 no-op，未做 429 实测；全量后端 1378 passed / 16 skipped。
+
+### 生产禁开 stub 支付、详情缓存 viewer 谓词、周榜索引（BE-28/29/30）
+
+- production 下 `PAYMENTS_ENABLED=true` 直接拒绝启动（微信/支付宝回调仍是 HMAC stub，非官方 RSA 验签），错误信息指明先接官方 SDK；生产收款继续走金数据。
+- 视频详情缓存写入前显式要求 `access.remaining_this_month is None`；免费额度恢复后该字段若变成 per-user，详情直接不缓存，避免共享 key 跨用户泄漏。
+- 模型补 `ix_user_favorites_created_at`、`ix_behavior_events_server_ts_type`、`ix_videos_public`；新增 `q8r9s0t1u2v3` 条件迁移（downgrade 可逆）。
+- scratch 库 `alembic upgrade head` 后漂移门 7 known / 0 new；`downgrade -1` 再 upgrade 仍 0；`test_config_env_guard` 24 项、`test_live_video_metadata` 3 项、`test_behavior_api` 13 项通过；全量后端 1380 passed / 16 skipped。

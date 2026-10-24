@@ -205,6 +205,22 @@ class TestJwtSecretStrength:
                 _settings(env="development", jwt_algorithm=algorithm)
 
 
+class TestStubPaymentGuard:
+    """The WeChat/Alipay callbacks are stubs; production must not boot with them."""
+
+    def test_production_rejects_enabled_legacy_payments(self):
+        with pytest.raises(RuntimeError, match="PAYMENTS_ENABLED"):
+            _settings(
+                env="production",
+                jwt_secret="y" * 32,
+                database_url="postgresql+asyncpg://u:p@db/x",
+                redis_url="redis://localhost:6379/0",
+                openai_api_key="k",
+                transcription_callback_secret="c",
+                payments_enabled=True,
+            )
+
+
 class TestPaymentSignatureDefault:
     """审计 H12：验签必须默认 fail-closed，dev 旁路只能显式开启。"""
 

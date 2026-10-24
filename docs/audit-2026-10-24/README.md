@@ -14,7 +14,7 @@
   - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **已修（功能漂移）**：新增 `p7q8r9s0t1u2` 对齐迁移（只补不删、先查重复/孤儿；唯一约束、FK、dedup 索引、vocabulary 索引重命名、列注释、模型 nullability/Text 对齐），并新增 `scripts/check_schema_drift.py` 门禁（剩 7 条退役表相关差异，逐条带原因；新漂移即失败）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
 - **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
-- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 27 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
+- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 30 条 + 1 条契约补充（`has_password`）；BE-07（约 100 个数据端点缺 `response_model`）保留为后续契约工作。
 
 ## 2. 本轮已落地的修复
 
@@ -34,6 +34,9 @@
 | BE-31 | ① 500 响应绕过安全头中间件，缺 `X-Content-Type-Options` 等；② `decode_token` 只 catch `InvalidTokenError`，空 key 抛 `InvalidKeyError` 变 500 | 抽出 `_security_headers()` 供中间件与 `_unhandled_exception_handler` 共用（500 也带基础头/生产 HSTS+CSP）；`decode_token` 同时 catch `InvalidKeyError` | `test_error_envelope` 断言 500 头；`test_auth` 新增空 key decode 返回 None；16 项通过 |
 | BE-22 | 21 条路由只有全局 200/min，没有路由级限流；`POST /listening/sessions` 可用 `restart=true` 无限生成未提交会话 | listening 6 条、exams 缺的 6 条、exam_pdfs 2 条、discovery 7 条全部补 `request: Request` + `@rate_limit`（写接口 10–20/min，读 60/min）；`listening_service.start(restart=True)` 先删除旧 pending 会话再建新会话，同 (user, video) 最多 1 条未提交 | 读码 + `test_listening_api` 新增 2 项（restart 后表里只有 1 条、`/sessions` 返回标准 `page/page_size/total/has_more`）；exams/listening/search/notifications 共 83 项通过；限流本身在 testing 下为 no-op，未做 429 实测 |
 | BE-27 | ① `mark_as_read` 先 404 再 403，通知 id 存在性可区分；② listening 会话列表固定 `page_size=12`，不返回 total | ① 合并为带 `user_id` 条件的一次查询，未命中统一 404；② listening 列表改用 `page/page_size/total/has_more` 标准分页（默认 page_size 仍 12，可用参数覆盖） | `test_notifications` 的他人通知断言 403→404；`test_listening_api` 新增分页契约用例；46 项通过 |
+| BE-28 | 微信/支付宝回调验签是 HMAC stub（非平台 RSA），且生产可被误开 | production 下 `PAYMENTS_ENABLED=true` 直接拒绝启动，错误信息说明必须先接官方验签 SDK；生产收款走金数据 | 新增 `test_config_env_guard::TestStubPaymentGuard`；`test_config_env_guard` 24 项通过；真实回调未接 SDK |
+| BE-29 | 详情缓存 key 不含 viewer 维度；当前 `access` 与 viewer 无关，但恢复免费额度后会跨用户泄漏 | 缓存写入前显式判定 `remaining_this_month is None`；一旦该字段变成 per-user，该详情直接不缓存（而非复用共享 key） | `test_live_video_metadata` 新增 viewer-scoped 用例（access=3 时不写缓存）；31 项通过 |
+| BE-30 | 周榜/公开 feed 的三条查询没有匹配索引 | 模型补 `ix_user_favorites_created_at`、`ix_behavior_events_server_ts_type`、`ix_videos_public`；新增 `q8r9s0t1u2v3` 迁移（条件建索引，downgrade 可逆） | scratch 库 `alembic upgrade head` → 漂移门 **7 known / 0 new**；`downgrade -1` 后再 upgrade 仍 0；`test_live_video_metadata`/`test_behavior_api` 40 项通过 |
 | BE-24 | 字幕搜索无条件用 `plainto_tsquery`，SQLite 测试库直接报错、且无测试覆盖 | `search_service.search_subtitles` 按方言分流（Postgres FTS / 其他 ILIKE） | `test_search_d7.py` 新增 2 条，16 passed |
 | BE-05 | nginx 限流 location 指向不存在的 `/auth/login|register`，真实入口完全无限流 | `nginx.conf` / `nginx.ssl.conf` 改为 `sms/login`、`phone-login`、`sms/register`、`sms/reset-password`、`sms/send-code` 的精确 location | 配置 grep 核对；未在真实 nginx 上 reload（本机无生产） |
 | BE-04 | 媒体/PDF 的 `?token=` 是第二份更弱的校验：不查黑名单、改密、封禁 | `dependencies.resolve_token_user()` 成为字符串 token 的唯一入口；`media._viewer_id_from_request`、shadowing 校验与 `exam_pdfs` 全部走同一条链 | `test_media_access.py` 新增被封禁 owner、改密后旧 token、被封禁 shadowing owner 三条用例；media + PDF 47 passed |
@@ -118,7 +121,7 @@
 - **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **BE-28/29/30**：未修，建议见 `backend-architecture.md`。
+- **BE-07**：约 100 个数据端点仍缺 `response_model`，保留为后续契约工作（本轮未动）。
 - **对存量库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库就有 58 + 49 条）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。
 - **前端剩余结构性缺口**：收藏页 3 类 tab + 内联笔记的密度、通知页的精简列表、应用壳页脚（设计无、但保留协议/隐私/反馈入口）、侧栏折叠与其余打磨项；首页继续观看、频道 hero、会员状态卡、学习记录统计卡已在本轮补齐。
 

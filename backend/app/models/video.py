@@ -48,6 +48,9 @@ class Video(Base):
     __tablename__ = "videos"
     __table_args__ = (
         Index("ix_videos_homepage_status", "show_on_homepage", "is_published", "status"),
+        # Public feed/ranking visibility triple (is_official, is_published,
+        # status): the homepage-first index cannot serve it.
+        Index("ix_videos_public", "is_official", "is_published", "status"),
         # Created by an older migration and still useful for source-URL dedup;
         # kept in the model so autogenerate does not see it as removable drift.
         Index("ix_videos_source_url", "source_url"),

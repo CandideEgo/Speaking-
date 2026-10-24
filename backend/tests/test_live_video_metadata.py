@@ -48,6 +48,40 @@ async def test_warm_detail_and_feed_follow_favorites_and_likes(client, auth_head
     assert next(v for v in feed if v["id"] == vid)["view_count"] == 1
 
 
+async def test_viewer_scoped_access_is_not_cached(client, auth_headers, fake_redis, monkeypatch):
+    """A future per-user quota must not reuse the shared detail cache key.
+
+    Today ``remaining_this_month`` is always None; if that changes, the payload
+    becomes viewer-dependent and caching it under ``video:detail:{id}`` would
+    leak one user's remaining quota to another.
+    """
+    from app.services import unlock_service
+
+    async def scoped_access(_db, _user, _video):
+        return {"unlocked": True, "remaining_this_month": 3, "quota": 5}
+
+    monkeypatch.setattr(unlock_service, "get_video_access_info", scoped_access)
+
+    async with TestSessionLocal() as db:
+        video = Video(
+            id=str(uuid.uuid4()),
+            title="Viewer scoped access",
+            source_url="https://example.com/viewer-scoped.mp4",
+            status=VideoStatus.ready,
+            is_official=True,
+            is_published=True,
+            video_url_720p="/media/test.mp4",
+        )
+        db.add(video)
+        await db.commit()
+        vid = video.id
+
+    resp = await client.get(f"/api/v1/videos/{vid}", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["access"]["remaining_this_month"] == 3
+    assert await cache_get(f"video:detail:{vid}") is None
+
+
 async def test_detail_invalidation_uses_sync_redis_accessor(fake_redis):
     await fake_redis.set("video:detail:one", "cached")
     await invalidate_video_detail_cache("one")

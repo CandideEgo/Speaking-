@@ -219,8 +219,13 @@ async def get_video_detail(
     # access 不再含 per-user 额度，故登录用户的响应可共用 key；但**匿名**响应
     # 是 locked 形状（空字幕/空 URL），绝不能缓存后回给登录用户，因此只有
     # can_watch 的响应才读写缓存。
+    #
+    # 安全前提显式化：缓存 payload 不含任何 viewer 相关字段。免费额度恢复后
+    # `remaining_this_month` 会变成 per-user；那时不能再走共享 key（否则跨用户
+    # 泄漏），下面的谓词会让这条详情直接不缓存，而不是悄悄复用旧缓存。
+    viewer_independent = access.get("remaining_this_month") is None
     cache_key = f"video:detail:{video_id}"
-    cacheable = can_watch
+    cacheable = can_watch and viewer_independent
     if cacheable:
         cached = await cache_get(cache_key)
         if cached:

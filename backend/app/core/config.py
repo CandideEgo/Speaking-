@@ -426,6 +426,15 @@ class Settings(BaseSettings):
                     "SMS_DEV_FAKE_ENABLED must not be enabled in production "
                     "(the fixed code '1234' would let anyone log into any phone account)"
                 )
+            # 站内微信/支付宝回调验签目前是 stub（HMAC 而非平台 RSA 证书），
+            # 一旦被误开，合法回调会被拒、伪造回调可能开通会员。生产入口是
+            # 金数据收款页；要开站内支付必须先实现官方验签并删掉这条 guard。
+            if self.payments_enabled:
+                raise RuntimeError(
+                    "PAYMENTS_ENABLED must stay false in production: the WeChat/Alipay callback "
+                    "verification is a stub until the official RSA/signature SDK is wired. "
+                    "Use the Jinshuju payment flow instead."
+                )
             # The guard is "an LLM key must exist", not "the OpenAI key must
             # exist": production may run entirely on the Command Code provider.
             # An empty pair is still fatal — features would fail at call time.
