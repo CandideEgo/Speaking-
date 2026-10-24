@@ -233,3 +233,10 @@
 - `video_service.py`：`upload_date`/`published_at` 显式 `isoformat()`，不再依赖 pydantic before-validator 的 mypy 误报。
 - `behavior.py`：BE-13 新增的集合显式 `str(video_id)`。
 - `.mypy-baseline` 只降不升：45 → 42 行，删掉 3 条已修掉的旧错误，没有新增。本地复算 CI 的 `comm -23` 等价命令 **new=0**；CI 作业本身未执行。全量后端 1367 passed / 16 skipped。
+
+### 失败可观测性接入告警通道（BE-14）
+
+- watchdog 批量判死后：`notify_admins` 写站内通知 + `send_alert(severity="critical")` 走外部 webhook（含 video id / 步骤摘要），不再只有一行日志。
+- GPU 转录最终失败、回调投递最终失败：`_send_alert_sync` 在同步 Celery 任务里 `asyncio.run(send_alert(...))`，best-effort，不影响任务本身。
+- lifespan 在生产未配置 `ALERT_WEBHOOK_URL` 时打 warning，避免把无效开关当成已接线。
+- 无 webhook 时 `send_alert` 仍回退站内管理员通知；新增/扩展 3 个用例验证 watchdog 双通道、投递最终失败告警、转录最终失败先回 error 再告警；全量后端 1370 passed / 16 skipped。

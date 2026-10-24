@@ -178,6 +178,12 @@ async def lifespan(app: FastAPI):
             "will fail closed (send-code 502, verify always rejected). "
             "Set SMS_LOGIN_ENABLED=true + ALIYUN_SMS_ACCESS_KEY/SECRET_KEY."
         )
+    if settings.env == "production" and not settings.alert_webhook_url:
+        logger.warning(
+            "ALERT_WEBHOOK_URL is not configured in production — external alerts "
+            "fall back to in-app admin notifications only (best-effort, and lost "
+            "if the DB is unavailable). Set it to receive pipeline failures off-site."
+        )
     # Cross-worker notification fan-out. Tests drive the subscriber directly
     # with a fake pubsub instead of starting a real connection.
     if settings.env != "testing":

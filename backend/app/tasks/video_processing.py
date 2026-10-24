@@ -453,6 +453,21 @@ def _post_transcription_callback(
     return False
 
 
+def _send_alert_sync(title: str, message: str, *, severity: str = "critical") -> None:
+    """Fire an alert from a synchronous Celery task (best effort).
+
+    ``send_alert`` is async because the webhook uses httpx; the GPU task is
+    synchronous and runs in a prefork worker with no event loop, so a fresh
+    loop is safe here. Never let alerting break the task itself.
+    """
+    try:
+        from app.services.alert_service import send_alert
+
+        asyncio.run(send_alert(title, message, severity=severity))
+    except Exception:
+        logger.warning("GPU task alert delivery failed", exc_info=True)
+
+
 @celery_app.task(bind=True, max_retries=3, name="app.tasks.video_processing.transcribe_video_gpu")
 def transcribe_video_gpu(self, video_id: str, source: str, platform: str, language: str | None = None):
     """Transcribe a video on the GPU worker and POST subtitles back to the cloud.
@@ -474,6 +489,10 @@ def transcribe_video_gpu(self, video_id: str, source: str, platform: str, langua
             # Let the cloud know transcription is unrecoverable so it can mark
             # the video failed instead of waiting for the watchdog.
             _post_transcription_callback(video_id, status="error", error=str(e))
+            _send_alert_sync(
+                "GPU 转录最终失败",
+                f"video {video_id}: {e}",
+            )
             raise
         raise self.retry(exc=e, countdown=60) from e
 
@@ -483,6 +502,11 @@ def transcribe_video_gpu(self, video_id: str, source: str, platform: str, langua
         # is cheaper than leaving the video stuck in ``processing`` with a
         # silently "successful" Celery task.
         logger.error("GPU transcription callback delivery failed; retrying task for %s", video_id)
+        if self.request.retries >= self.max_retries:
+            _send_alert_sync(
+                "GPU 转录回调投递最终失败",
+                f"video {video_id}: callback still undeliverable after {self.max_retries} retries",
+            )
         raise self.retry(
             exc=RuntimeError(f"transcription callback delivery failed for {video_id}"),
             countdown=60,
@@ -1105,7 +1129,29 @@ async def _run_watchdog_pipeline() -> None:
                 step=step,
             )
         if stuck:
+            # In-app fallback + out-of-band webhook: a timed-out pipeline used
+            # to leave only a log line, so nobody noticed until an admin
+            # happened to open the video list.
+            from app.services.notification_service import notify_admins
+
+            summary = ", ".join(f"{v.id}@{v.error_message}" for v in stuck[:10])
+            await notify_admins(
+                db,
+                title="管线步骤超时",
+                message=f"Watchdog 标记 {len(stuck)} 个视频失败：{summary}",
+                related_url=None,
+            )
             await db.commit()
+            try:
+                from app.services.alert_service import send_alert
+
+                await send_alert(
+                    "管线步骤超时",
+                    f"Watchdog marked {len(stuck)} video(s) failed. {summary}",
+                    severity="critical",
+                )
+            except Exception:
+                logger.warning("watchdog alert delivery failed", exc_info=True)
 
 
 @celery_app.task(name="app.tasks.video_processing.watchdog_stale_pipeline")

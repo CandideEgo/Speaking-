@@ -148,3 +148,46 @@ class TestGpuTaskRetry:
 
         assert fake_transcription.calls == 1
         assert fake_self.retries == []
+
+    def test_final_delivery_failure_sends_an_alert(self, monkeypatch, fake_transcription):
+        monkeypatch.setattr(video_processing, "_post_transcription_callback", lambda *a, **k: False)
+        alerts: list[TitleAndMessage] = []
+        monkeypatch.setattr(
+            video_processing, "_send_alert_sync", lambda title, message, **k: alerts.append((title, message))
+        )
+        fake_self = _FakeTaskSelf()
+        fake_self.request = SimpleNamespace(retries=fake_self.max_retries)
+
+        with pytest.raises(_RetryError):
+            transcribe_video_gpu.run.__func__(fake_self, "vid-6", "https://example.com/c.mp4", "local")
+
+        assert len(alerts) == 1
+        assert "vid-6" in alerts[0][1]
+
+    def test_final_transcription_failure_sends_an_alert(self, monkeypatch, fake_transcription):
+        def _boom(_source: str, _platform: object) -> list[dict]:
+            raise RuntimeError("whisper crashed")
+
+        monkeypatch.setattr(fake_transcription, "_sync_transcribe", _boom)
+        callbacks: list[tuple] = []
+        monkeypatch.setattr(
+            video_processing,
+            "_post_transcription_callback",
+            lambda *a, **k: callbacks.append((a, k)) or True,
+        )
+        alerts: list[TitleAndMessage] = []
+        monkeypatch.setattr(
+            video_processing, "_send_alert_sync", lambda title, message, **k: alerts.append((title, message))
+        )
+        fake_self = _FakeTaskSelf()
+        fake_self.request = SimpleNamespace(retries=fake_self.max_retries)
+
+        with pytest.raises(RuntimeError, match="whisper crashed"):
+            transcribe_video_gpu.run.__func__(fake_self, "vid-7", "https://example.com/d.mp4", "local")
+
+        assert callbacks and callbacks[0][1]["status"] == "error"
+        assert len(alerts) == 1
+        assert "vid-7" in alerts[0][1]
+
+
+TitleAndMessage = tuple[str, str]

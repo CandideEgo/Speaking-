@@ -55,6 +55,37 @@ class TestWatchdogStalePipeline:
             assert fetched.step_started_at is None
 
     @pytest.mark.asyncio
+    async def test_stuck_pipeline_alerts_admins_and_webhook(self, db_session, monkeypatch):
+        """A watchdog kill must be observable: in-app admin + external alert."""
+        await _patch_async_session(monkeypatch)
+        from unittest.mock import AsyncMock
+
+        notify = AsyncMock()
+        alert = AsyncMock()
+        monkeypatch.setattr("app.services.notification_service.notify_admins", notify)
+        monkeypatch.setattr("app.services.alert_service.send_alert", alert)
+
+        from app.tasks.video_processing import _run_watchdog_pipeline
+
+        v = Video(
+            title="stuck and silent",
+            source_url="x",
+            status=VideoStatus.ready_subtitles,
+            processing_step="translating",
+            step_started_at=datetime.now(UTC) - timedelta(hours=2),
+            processing_progress=70,
+        )
+        db_session.add(v)
+        await db_session.commit()
+
+        await _run_watchdog_pipeline()
+
+        notify.assert_awaited_once()
+        alert.assert_awaited_once()
+        assert alert.await_args.kwargs["severity"] == "critical"
+        assert v.id in alert.await_args.args[1]
+
+    @pytest.mark.asyncio
     async def test_within_budget_not_marked(self, db_session, monkeypatch):
         """A video whose step_started_at is recent is not touched."""
         await _patch_async_session(monkeypatch)

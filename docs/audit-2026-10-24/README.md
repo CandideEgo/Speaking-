@@ -14,7 +14,7 @@
   - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **已修（功能漂移）**：新增 `p7q8r9s0t1u2` 对齐迁移（只补不删、先查重复/孤儿；唯一约束、FK、dedup 索引、vocabulary 索引重命名、列注释、模型 nullability/Text 对齐），并新增 `scripts/check_schema_drift.py` 门禁（剩 7 条退役表相关差异，逐条带原因；新漂移即失败）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
 - **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
-- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 17 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
+- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 18 条 + 1 条契约补充（`has_password`）；其余按优先级留在报告。
 
 ## 2. 本轮已落地的修复
 
@@ -38,6 +38,7 @@
 | BE-12 | 管线锁 TTL 固定 60 min，短于各步骤 watchdog 预算之和（150+ min）；translating 直到全部翻译完才 `touch_step_started_at`，长翻译会被 watchdog 误判超时 | 锁 TTL 改为 `sum(step_timeouts) + 10min`（最少 60min）；`run_steps` 每个步骤边界 `refresh_lock`；`_run_translating` 在 LLM 调用**前**就写入 `processing_step=translating` 并 `touch_step_started_at` | 新增 `test_pipeline_lock_ttl.py` 5 项：TTL 覆盖全部预算、60min 下限、refresh 续期、Redis 故障不阻断、translating 在翻译前 stamp；`test_pipeline_steps.py` 6 项通过；全量见下 |
 | BE-13 | 点赞/收藏/播放完成都 `invalidate_browse_cache()`，用 `SCAN` 清空所有 feed/featured/ranking 组合；48h 榜单快照几乎永远不存在 | 榜单快照改为按影响面精准失效：点赞不动榜单；收藏只删 `weekly_favorites`；播放完成只删 `weekly_views`；feed/featured 仍全族删除，因为缓存卡片负载本身带 `like_count`/`favorite_count`/`view_count`（集成测试要求暖缓存下的卡片计数立即更新）。结构性变更（发布/下架/处理完成）仍全量失效 | 新增 `test_video_cache_invalidation.py` 4 项 + 既有 `test_live_video_metadata.py` 2 项通过；交互路径不再清空全部 `rankings:snapshot:*` |
 | BE-16 | mypy baseline 门在 `redesign` 上有 5 条新错误（按规则不能往基线加行） | 逐条修真实类型问题：`discovery_service` 的 `**payload` 加 `or {}`；`exam_service` 复用 `rows` 改名 `section_rows`；`vocabulary_service` 的 `dict(row)` 改显式推导并标注；`overview_service.daily` 显式 `list[dict[str, Any]]`；`video_service` 的 `upload_date`/`published_at` 显式 `isoformat()`；BE-13 引入的 `behavior.py` 集合显式 `str(...)`。基线只降不升：45 → **42** 行（删掉 3 条已被修掉的旧错误），没有新增 | 本地 mypy 2.3.1 复算 CI 的 `comm -23` 等价命令：**new=0 / baseline=42**；`test_exams_api`、`test_vocabulary_*`、`test_user_overview`、`test_live_video_metadata` 共 34 项通过；CI 作业本身未执行 |
+| BE-14 | 外部告警通道 `send_alert` 没有生产调用者，watchdog 判死、转录投递失败都只有日志 | 接三类事件：watchdog 批量判死时先 `notify_admins` 再 `send_alert(severity=critical)`（含 video id 与步骤）；GPU 转录最终失败 / 回调投递最终失败时 `_send_alert_sync`（同步任务内 `asyncio.run`，best-effort）；lifespan 在生产未配 `ALERT_WEBHOOK_URL` 时打 warning。没有 webhook 时 `send_alert` 仍回退站内管理员通知 | 新增/扩展 3 个用例：watchdog 同时调用 in-app + webhook、投递最终失败发告警、转录最终失败先回调 error 再发告警；`test_callback_delivery.py` 7 项 + `test_pipeline_watchdog.py` 8 项通过；全量见下 |
 | BE-26 | 未启用金数据时 compose 仍强制要求 `JINSHUJU_PURCHASE_TOKEN_SECRET` | `docker-compose.prod.yml` 改为 `${VAR:-}`，必填判断留在 `config.py`（已实现） | 配置读码；`docker compose config` 未执行 |
 | F4 契约 | 前端无法知道账号是否已设密码，已设密码用户进 `/set-password` 必然 400 | `User.has_password` 模型属性 + `UserResponse.has_password`（只增字段） | `test_auth.py` 断言 `has_password is True` |
 
@@ -108,7 +109,7 @@
 - **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **BE-14/17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
+- **BE-17/19–23/25/27–31**：未修，建议见 `backend-architecture.md`。
 - **对存量库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库就有 58 + 49 条）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。
 - **前端剩余结构性缺口**：收藏页 3 类 tab + 内联笔记的密度、通知页的精简列表、应用壳页脚（设计无、但保留协议/隐私/反馈入口）、侧栏折叠与其余打磨项；首页继续观看、频道 hero、会员状态卡、学习记录统计卡已在本轮补齐。
 
