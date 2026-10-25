@@ -334,6 +334,18 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_admin_stats_and_external_callbacks_are_typed(self):
+        """BE-07: final batch — dashboard stats and webhook acks."""
+        assert self._schema("/api/v1/admin/stats", "get")["$ref"].endswith("AdminStatsResponse")
+        assert self._schema("/api/v1/internal/transcription/callback", "post")["$ref"].endswith("AcknowledgedResponse")
+        for path, name in (
+            ("/api/v1/payments/callback/alipay", "AlipayCallbackResponse"),
+            ("/api/v1/payments/callback/wechat", "WechatCallbackResponse"),
+            ("/api/v1/payments/jinshuju/webhook", "JinshujuWebhookResponse"),
+            ("/api/v1/payments/mock-pay", "MockPaymentResponse"),
+        ):
+            assert self._schema(path, "post")["$ref"].endswith(name)
+
     def test_unlock_and_redemption_summary_are_typed(self):
         """BE-07: legacy unlock and admin redemption summary used dicts."""
         assert self._schema("/api/v1/videos/{video_id}/unlock", "post")["$ref"].endswith("VideoUnlockResponse")

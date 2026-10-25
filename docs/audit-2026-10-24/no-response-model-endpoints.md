@@ -5,23 +5,8 @@ OpenAPI 文档与 Prometheus 路径、已退役固定返回 410 的兼容壳（h
 二进制下载端点（导出下载、exam-pdf 文件），以及 204 无响应体的路由，
 统计 `response_model is None` 的 JSON 数据端点。
 
-生成日期：2026-10-24。当前计数：6。
+生成日期：2026-10-24。当前计数：0。
 
-> 这是剩余工作清单，不代表这些端点会返回错误；它们只是没有 OpenAPI 字段契约。
-> 外部支付/转写回调（`/internal/transcription/callback`、`/payments/callback/*`、`/payments/jinshuju/webhook`）
-> 返回的是给上游的简单确认，补 schema 的优先级最低。
-
-## admin
-
-- `GET` `/api/v1/admin/stats`
-
-## internal
-
-- `POST` `/api/v1/internal/transcription/callback`
-
-## payments
-
-- `POST` `/api/v1/payments/callback/alipay`
-- `POST` `/api/v1/payments/callback/wechat`
-- `POST` `/api/v1/payments/jinshuju/webhook`
-- `POST` `/api/v1/payments/mock-pay`
+**BE-07 至此清零**：除上述被明确排除的类别外，所有 JSON 数据端点都声明了 `response_model`。
+`tests/test_response_contract.py` 会遍历 OpenAPI 钉住这一点（裸 `PaginatedResponse`、分页 items 类型、
+以及各领域关键路由），清单继续作为回归证据保留。

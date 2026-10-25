@@ -490,3 +490,11 @@
 - videos 旧解锁兼容路由 → `VideoUnlockResponse`（access 形状）；admin redemptions summary → `RedemptionSummaryResponse`。
 - 清单口径再排除 204 无响应体路由；无 schema 数据端点从 17 降到 **6**（仅剩 admin stats、转写回调、支付回调/mock-pay）。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第十七批（收尾）：admin stats + 外部回调契约
+
+- `GET /admin/stats` → `AdminStatsResponse`（KPI、trend、分布、recent_activity、funnel、videos_by_topic 全建模）。
+- `POST /internal/transcription/callback` → `AcknowledgedResponse`（保留可选 `quality_check`）。
+- 支付回调补齐：`AlipayCallbackResponse`、`WechatCallbackResponse`、`JinshujuWebhookResponse`；dev-only `MockPaymentResponse`。
+- `test_response_contract.py` 新增 6 条断言；无 schema 数据端点从 6 降到 **0**，BE-07 全清单清零（排除项已在清单文档中说明）。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

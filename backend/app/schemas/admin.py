@@ -122,6 +122,66 @@ class RedemptionSummaryResponse(BaseModel):
     refunded: int
 
 
+class AdminStatsTrend(BaseModel):
+    dates: list[str]
+    signups: list[int]
+    vocabulary: list[int]
+    active_users: list[int]
+
+
+class AdminStatsCount(BaseModel):
+    count: int
+
+
+class AdminStatsVideoStatus(AdminStatsCount):
+    status: str
+
+
+class AdminStatsUserPlan(AdminStatsCount):
+    plan: str
+
+
+class AdminStatsVideoTopic(AdminStatsCount):
+    topic: str
+
+
+class AdminStatsRecentActivity(BaseModel):
+    id: str
+    type: str
+    summary: str
+    created_at: str | None = None
+
+
+class AdminStatsFunnel(BaseModel):
+    registered: int
+    watched: int
+    vocab_saved: int
+    pro: int
+
+
+class AdminStatsResponse(BaseModel):
+    total_users: int
+    new_users_7d: int
+    pro_users: int
+    total_videos: int
+    videos_ready: int
+    total_vocabulary: int
+    active_users_today: int
+    active_users_7d: int
+    online_now: int
+    gpu_queue_depth: int
+    videos_error_count: int
+    signups_today: int
+    redeems_today: int
+    trend: AdminStatsTrend
+    videos_by_status: list[AdminStatsVideoStatus]
+    users_by_plan: list[AdminStatsUserPlan]
+    recent_activity: list[AdminStatsRecentActivity]
+    pro_expired_count: int
+    funnel: AdminStatsFunnel
+    videos_by_topic: list[AdminStatsVideoTopic]
+
+
 class AdminAccountItem(BaseModel):
     id: str
     name: str | None = None

@@ -17,6 +17,13 @@ class OkResponse(BaseModel):
     ok: bool
 
 
+class AcknowledgedResponse(BaseModel):
+    """GPU-worker callback acknowledgement (optional quality_check marker)."""
+
+    acknowledged: bool
+    quality_check: str | None = None
+
+
 class UserProfileBrief(BaseModel):
     """Minimal user info shown in community responses."""
 

@@ -22,6 +22,7 @@ from app.schemas.admin import (
     AdminRedemptionRow,
     AdminSettingsResponse,
     AdminSettingsUpdate,
+    AdminStatsResponse,
     AdminUserBanRequest,
     AdminUserBanResponse,
     AdminUserPlanRequest,
@@ -61,7 +62,7 @@ async def get_worker_status(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=AdminStatsResponse)
 @rate_limit("30/minute")
 async def get_admin_stats(
     request: Request,

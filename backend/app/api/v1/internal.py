@@ -18,6 +18,7 @@ from app.core.logging import get_logger
 from app.core.redis import get_redis
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
+from app.schemas.common import AcknowledgedResponse
 from app.schemas.video import TranscriptionCallbackRequest
 from app.services.transcription.quality import check_transcription_quality, log_quality_report
 
@@ -68,7 +69,7 @@ async def _release_callback_lock(video_id: str) -> None:
         pass
 
 
-@router.post("/transcription/callback")
+@router.post("/transcription/callback", response_model=AcknowledgedResponse)
 @rate_limit("30/minute")
 async def transcription_callback(
     request: Request,

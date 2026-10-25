@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.order import Order, OrderStatus
 from app.models.user import User
+from app.schemas.payment import MockPaymentResponse
 
 logger = structlog.get_logger()
 
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/payments", tags=["payments-mock"])
 settings = get_settings()
 
 
-@router.post("/mock-pay")
+@router.post("/mock-pay", response_model=MockPaymentResponse)
 @rate_limit("5/minute")
 async def mock_payment(
     request: Request,
