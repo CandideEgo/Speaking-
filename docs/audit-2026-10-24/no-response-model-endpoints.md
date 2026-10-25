@@ -5,7 +5,7 @@ OpenAPI 文档与 Prometheus 路径、已退役固定返回 410 的兼容壳（h
 以及二进制下载端点（`/users/me/export/{id}/download`、`/exam-pdfs/{slug}/file`），
 统计 `response_model is None` 的 JSON 数据端点。
 
-生成日期：2026-10-24。当前计数：31。
+生成日期：2026-10-24。当前计数：23。
 
 > 这是剩余工作清单，不代表这些端点会返回错误；它们只是没有 OpenAPI 字段契约。
 > 外部支付/转写回调（`/internal/transcription/callback`、`/payments/callback/*`、`/payments/jinshuju/webhook`）
@@ -13,15 +13,8 @@ OpenAPI 文档与 Prometheus 路径、已退役固定返回 410 的兼容壳（h
 
 ## admin
 
-- `GET` `/api/v1/admin/admins`
 - `GET` `/api/v1/admin/redemptions/summary`
-- `GET` `/api/v1/admin/settings`
-- `PUT` `/api/v1/admin/settings`
 - `GET` `/api/v1/admin/stats`
-- `PATCH` `/api/v1/admin/users/{user_id}/ban`
-- `PATCH` `/api/v1/admin/users/{user_id}/plan`
-- `PATCH` `/api/v1/admin/users/{user_id}/role`
-- `GET` `/api/v1/admin/worker-status`
 
 ## channels
 
@@ -57,5 +50,4 @@ OpenAPI 文档与 Prometheus 路径、已退役固定返回 410 的兼容壳（h
 - `GET` `/api/v1/videos/admin/{video_id}/subtitles/revisions`
 - `POST` `/api/v1/videos/admin/{video_id}/subtitles/word-levels/recompute`
 - `GET` `/api/v1/videos/admin/{video_id}/subtitles/{subtitle_id}/revisions`
-- `GET` `/api/v1/videos/{video_id}/shadowing-sentences`
 - `POST` `/api/v1/videos/{video_id}/unlock`

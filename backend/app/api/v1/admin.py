@@ -17,13 +17,19 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.admin import (
+    AdminAccountItem,
     AdminOrderRow,
     AdminRedemptionRow,
+    AdminSettingsResponse,
     AdminSettingsUpdate,
     AdminUserBanRequest,
+    AdminUserBanResponse,
     AdminUserPlanRequest,
+    AdminUserPlanResponse,
     AdminUserRoleRequest,
+    AdminUserRoleResponse,
     AdminUserRow,
+    WorkerStatusResponse,
 )
 from app.schemas.pagination import PaginatedResponse
 from app.services import admin_service
@@ -36,7 +42,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 # ---------------------------------------------------------------------------
 
 
-@router.get("/worker-status")
+@router.get("/worker-status", response_model=WorkerStatusResponse)
 @rate_limit("30/minute")
 async def get_worker_status(
     request: Request,
@@ -89,7 +95,7 @@ async def list_admin_users(
     )
 
 
-@router.patch("/users/{user_id}/ban")
+@router.patch("/users/{user_id}/ban", response_model=AdminUserBanResponse)
 @rate_limit("10/minute")
 async def ban_user(
     request: Request,
@@ -106,7 +112,7 @@ async def ban_user(
     }
 
 
-@router.patch("/users/{user_id}/role")
+@router.patch("/users/{user_id}/role", response_model=AdminUserRoleResponse)
 @rate_limit("10/minute")
 async def change_user_role(
     request: Request,
@@ -123,7 +129,7 @@ async def change_user_role(
     }
 
 
-@router.patch("/users/{user_id}/plan")
+@router.patch("/users/{user_id}/plan", response_model=AdminUserPlanResponse)
 @rate_limit("10/minute")
 async def change_user_plan(
     request: Request,
@@ -195,7 +201,7 @@ async def redemption_summary(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/settings")
+@router.get("/settings", response_model=AdminSettingsResponse)
 @rate_limit("30/minute")
 async def get_settings(
     request: Request,
@@ -221,7 +227,7 @@ async def get_settings(
     }
 
 
-@router.put("/settings")
+@router.put("/settings", response_model=AdminSettingsResponse)
 @rate_limit("10/minute")
 async def update_settings(
     request: Request,
@@ -248,7 +254,7 @@ async def update_settings(
     }
 
 
-@router.get("/admins")
+@router.get("/admins", response_model=list[AdminAccountItem])
 @rate_limit("30/minute")
 async def list_admin_accounts(
     request: Request,

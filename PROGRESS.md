@@ -467,3 +467,11 @@
 - 三个已有 Pydantic 返回值的支付路由补上 `response_model`：`POST /payments/create-order`、`GET /payments/status`、`GET /payments/order/{order_id}`。
 - `test_response_contract.py` 新增 5 条断言；无 schema 数据端点从 36 降到 **31**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第十四批：admin 设置/管理员/用户操作契约
+
+- 新增 `AdminSettingsResponse`、`WorkerStatusResponse`、`AdminAccountItem`、`AdminUserBan/Role/PlanResponse`。
+- 7 条 admin 路由补 `response_model`：settings GET/PUT、worker-status、admins、users ban/role/plan。
+- 清单同时排除固定 410 的 `/videos/{video_id}/shadowing-sentences` 兼容壳。
+- `test_response_contract.py` 新增 7 条断言；无 schema 数据端点从 31 降到 **23**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

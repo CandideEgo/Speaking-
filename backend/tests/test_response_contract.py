@@ -334,6 +334,16 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_admin_settings_and_user_action_routes_are_typed(self):
+        """BE-07: admin settings/worker/user actions used bare dicts."""
+        for method in ("get", "put"):
+            assert self._schema("/api/v1/admin/settings", method)["$ref"].endswith("AdminSettingsResponse")
+        assert self._schema("/api/v1/admin/worker-status", "get")["$ref"].endswith("WorkerStatusResponse")
+        assert self._schema("/api/v1/admin/admins", "get")["type"] == "array"
+        assert self._schema("/api/v1/admin/users/{user_id}/ban", "patch")["$ref"].endswith("AdminUserBanResponse")
+        assert self._schema("/api/v1/admin/users/{user_id}/role", "patch")["$ref"].endswith("AdminUserRoleResponse")
+        assert self._schema("/api/v1/admin/users/{user_id}/plan", "patch")["$ref"].endswith("AdminUserPlanResponse")
+
     def test_notes_exam_pdf_and_payment_routes_are_typed(self):
         """BE-07: notes list, exam PDF list and payment polling used dicts."""
         assert self._schema("/api/v1/notes", "get")["$ref"].endswith("PaginatedResponse_NoteItem_")

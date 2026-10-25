@@ -94,3 +94,46 @@ class AdminRedemptionRow(BaseModel):
     revoked_reason: str | None = None
     used_at: str | None = None
     created_at: str | None = None
+
+
+class AdminSettingsResponse(BaseModel):
+    site_name: str | None = None
+    wechat_shop_url: str | None = None
+    payments_enabled: bool
+    registration_enabled: bool
+    quality_block_enabled: bool
+    quality_block_threshold: float
+    quality_warn_threshold: float
+    hallucination_detection_enabled: bool
+    translate_timeout_sec: int
+    download_timeout_sec: int
+    download_auto_retry_enabled: bool
+    watchdog_enabled: bool
+    updated_at: str | None = None
+
+
+class WorkerStatusResponse(BaseModel):
+    worker_online: bool
+
+
+class AdminAccountItem(BaseModel):
+    id: str
+    name: str | None = None
+    phone: str | None = None
+    last_active_at: str | None = None
+
+
+class AdminUserBanResponse(BaseModel):
+    id: str
+    is_banned: bool
+
+
+class AdminUserRoleResponse(BaseModel):
+    id: str
+    role: str
+
+
+class AdminUserPlanResponse(BaseModel):
+    id: str
+    plan: str
+    plan_expires_at: str | None = None
