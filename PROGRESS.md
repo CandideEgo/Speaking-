@@ -498,3 +498,10 @@
 - 支付回调补齐：`AlipayCallbackResponse`、`WechatCallbackResponse`、`JinshujuWebhookResponse`；dev-only `MockPaymentResponse`。
 - `test_response_contract.py` 新增 6 条断言；无 schema 数据端点从 6 降到 **0**，BE-07 全清单清零（排除项已在清单文档中说明）。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### Round 51：前端门禁复跑与 e2e 环境校准
+
+- 前端 `npm run check` 通过；`npm run test:unit` **30 文件 / 332 项通过**。
+- 后端全量再次复跑：**1401 passed / 16 skipped**（BE-07 收尾后）。
+- chromium e2e：整轮首次运行被假死的 Next dev server 污染（115 条 `page.goto` 超时），重启后代表性子集 3/3 通过；串行整轮 120 passed / 21 failed / 13 skipped / 50 did not run，失败为 dev 限流（注册/验证码 429）与既有 fixture 缺口，不是代码回归。审计报告已如实记录，未删除/跳过用例凑绿。
+- e2e 产生的截图改动已还原，工作区只保留报告修改。

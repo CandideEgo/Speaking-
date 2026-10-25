@@ -14,7 +14,7 @@
   - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **已修（功能漂移）**：新增 `p7q8r9s0t1u2` 对齐迁移（只补不删、先查重复/孤儿；唯一约束、FK、dedup 索引、vocabulary 索引重命名、列注释、模型 nullability/Text 对齐），并新增 `scripts/check_schema_drift.py` 门禁（剩 7 条退役表相关差异，逐条带原因；新漂移即失败）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
 - **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
-- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 30 条 + 1 条契约补充（`has_password`）；BE-07 已完成十七批（收尾，清单清零）（裸 `PaginatedResponse`、`/videos/{id}/vocabulary`、listening 6 条、exams 5 条、channels 2 条、discovery 订阅/收藏 7 条、learning 4 条、videos 动作/搜索 4 条、vocab-sets 7 条、vocabulary 7 条、browse/discovery 词表 4 条、discovery 自建词单 5 条、users/me/overview、recommendations/presence/unlocked-ids 4 条、discovery 搜索/每日推荐 4 条、notes/exam-pdfs/payments 5 条、admin 设置/用户操作 7 条、videos admin 报告/修订 6 条、channels admin/redeem-codes/unlock 9 条、admin stats 与回调 6 条），剩余 0 条数据端点清单见 [`no-response-model-endpoints.md`](no-response-model-endpoints.md)。
+- **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 30 条 + 1 条契约补充（`has_password`）；BE-07 已完成十七批并清零（裸 `PaginatedResponse`、分页 items 无类型、issue 级 `dict` 返回全部补齐，含 admin stats 与转写/支付回调），实时清单 0 条，见 [`no-response-model-endpoints.md`](no-response-model-endpoints.md)。
 
 ## 2. 本轮已落地的修复
 
@@ -101,13 +101,13 @@
 
 | 检查 | 结果 |
 |---|---|
-| 前端 `npm run check`（9 条设计系统 + 会话写入 + `tsc` + ESLint + Prettier） | **通过** |
-| 前端单测 | **30 文件 / 332 项通过** |
+| 前端 `npm run check`（9 条设计系统 + 会话写入 + `tsc` + ESLint + Prettier） | **通过**（2026-10-25 复跑） |
+| 前端单测 | **30 文件 / 332 项通过**（2026-10-25 复跑仍全绿） |
 | 后端 `ruff check app tests` | **All checks passed** |
-| 后端全量 `pytest tests/ -q` | **1350 passed, 16 skipped**（16 条需独立 `PG_TEST_URL` 的 integration 默认跳过） |
+| 后端全量 `pytest tests/ -q` | **1401 passed, 16 skipped**（2026-10-25 复跑；16 条需独立 `PG_TEST_URL` 的 integration 默认跳过） |
 | 本轮针对性后端测试 | config 23、exams 21、search 16、behavior 13、auth 4、media + PDF 47、notifications 35、SMS/配置 61 全绿 |
 | e2e 定点 | 断点用例**通过**；`design-rollout` + `public-layout` 共 8 条通过 |
-| e2e 全量（chromium） | 用 `ENV=testing` 后端 + `seeword_e2e_full` 库（`alembic upgrade head` 到 `q8r9s0t1u2v3` + `seed_e2e.py`）复跑：**203 项 → 130 passed / 10 failed / 63 skipped**。其中 6 条仍是已知 fixture 数据不足（home-feed 真实数据配比、收藏/订阅持久化、listening 音频 ×2、239 词复习队列、46 题长卷）；另 4 条（avatar、design-rollout 搜索/周报/注册）单独复跑均通过，属全量并发下的环境抖动，不是本轮改动回归。未删/跳过用例来凑绿 |
+| e2e 全量（chromium） | 历史基线用 `ENV=testing` 后端 + `seeword_e2e_full` 库复跑：**203 项 → 130 passed / 10 failed / 63 skipped**。2026-10-25 在 dev 后端复跑整轮**无效**：前端 dev server 假死导致 115 条 `page.goto` 超时；重启后串行复跑得到 120 passed / 21 failed / 13 skipped / 50 did not run，失败项为 dev 限流（注册 429、验证码 429）与已知 fixture 缺口，不是代码回归；代表性子集（container-align + auth-hydration）**3/3 通过**。未删/跳过用例来凑绿 |
 | 浏览器复核（Playwright，1440/390） | 首个 Tab = 「跳到正文」；`aria-pressed` 存在；通知浮层 `dialog` + 空态、无 spinner；`/channels` 清空按钮存在；404 h1 = 「页面不存在」；已设密码账号出现引导、首设密码账号出现表单；触控 `search 44×44 / chip 52×44 / tab 78×60`；断点 1024/820/768/600/390 无侧栏且有底栏、1920/1440 反之；横向溢出 0 |
 | 视觉审计 | 13 路由 × 1440/390 全页 + 暗色 + 1024/820 定点共 57 张；114 次溢出测量 0px |
 | 第二轮结构补齐复核 | 词汇页真实账号（14 词 + 2 个词单）出现到期卡/四项统计/词单网格；练习页出现 3 列试卷与已选条；我的页出现深色会员卡/账户卡；12 条列表路由 h1 实测 `12px / uppercase`、无横向溢出；移动端眉标左对齐（h1 x=16） |
@@ -117,7 +117,7 @@
 
 ### 未执行（如实标注）
 
-- **全量 e2e 的 6 条剩余失败**：已在 `ENV=testing` 后端 + 全新库上实测；失败全部是 fixture 数据不足（home-feed 真实数据配比、频道/收藏、listening 音频 ×2、239 词复习队列、46 题长卷）。未删除或跳过这些用例，留待下一轮补种子数据。
+- **全量 e2e 的 6 条剩余失败**：历史实测失败全部是 fixture 数据不足（home-feed 真实数据配比、频道/收藏、listening 音频 ×2、239 词复习队列、46 题长卷）。未删除或跳过这些用例，留待补种子数据；2026-10-25 在 dev 后端复跑还被限流与 dev server 假死污染，未取得可替代的整轮基线。
 - **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
