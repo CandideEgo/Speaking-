@@ -5,7 +5,7 @@ OpenAPI 文档与 Prometheus 路径、已退役固定返回 410 的兼容壳（h
 以及二进制下载端点（`/users/me/export/{id}/download`、`/exam-pdfs/{slug}/file`），
 统计 `response_model is None` 的 JSON 数据端点。
 
-生成日期：2026-10-24。当前计数：40。
+生成日期：2026-10-24。当前计数：36。
 
 > 这是剩余工作清单，不代表这些端点会返回错误；它们只是没有 OpenAPI 字段契约。
 > 外部支付/转写回调（`/internal/transcription/callback`、`/payments/callback/*`、`/payments/jinshuju/webhook`）
@@ -30,13 +30,6 @@ OpenAPI 文档与 Prometheus 路径、已退役固定返回 410 的兼容壳（h
 - `PATCH` `/api/v1/channels/admin/{channel_id}`
 - `DELETE` `/api/v1/channels/admin/{channel_id}`
 - `POST` `/api/v1/channels/admin/{channel_id}/videos`
-
-## discovery
-
-- `GET` `/api/v1/discovery/daily`
-- `POST` `/api/v1/discovery/daily/start`
-- `GET` `/api/v1/discovery/practice-summary`
-- `GET` `/api/v1/discovery/search`
 
 ## exam-pdfs
 

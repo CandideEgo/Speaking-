@@ -12,8 +12,12 @@ from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.discovery import (
     ChannelSubscriptionCard,
+    DailyPreviewResponse,
+    DailyStartResponse,
     DictionaryResponse,
     LearningMetadataItem,
+    PracticeSummaryResponse,
+    SearchResponse,
     SentenceFavoriteItem,
     SentenceFavoriteStatus,
     SetCreatedResponse,
@@ -50,7 +54,7 @@ async def dictionary(
     return discovery_service.dictionary_words(q, exam_level, page, page_size)
 
 
-@router.get("/search")
+@router.get("/search", response_model=SearchResponse, response_model_exclude_unset=True)
 @rate_limit("60/minute")
 async def search(
     request: Request,
@@ -166,7 +170,7 @@ class DailyStart(BaseModel):
     token: str = Field(min_length=1, max_length=20000)
 
 
-@router.get("/daily")
+@router.get("/daily", response_model=DailyPreviewResponse)
 @rate_limit("30/minute")
 async def daily_preview(
     request: Request,
@@ -180,14 +184,14 @@ async def daily_preview(
     return await daily_recommendation_service.preview(db, user, variant, question_type)
 
 
-@router.get("/practice-summary")
+@router.get("/practice-summary", response_model=PracticeSummaryResponse)
 async def practice_summary(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from app.services import daily_recommendation_service
 
     return await daily_recommendation_service.summary(db, user)
 
 
-@router.post("/daily/start")
+@router.post("/daily/start", response_model=DailyStartResponse)
 @rate_limit("20/minute")
 async def daily_start(
     request: Request, payload: DailyStart, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)

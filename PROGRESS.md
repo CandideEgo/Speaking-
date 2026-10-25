@@ -453,3 +453,10 @@
 - `POST /presence/heartbeat` → `OkResponse`；`GET /videos/unlocked-ids` → `UnlockedVideoIdsResponse`（内测期恒空但保留形状）。
 - `test_response_contract.py` 新增 4 条断言；无 schema 数据端点从 44 降到 **40**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第十二批：discovery 搜索 / 每日推荐契约
+
+- `GET /discovery/search` → `SearchResponse`（videos/subtitles/words/channels 分组模型，路由用 `response_model_exclude_unset=True` 保持“只返回请求分组”的既有语义）。
+- `GET /discovery/daily` → `DailyPreviewResponse`；`POST /discovery/daily/start` → `DailyStartResponse`（复用 `ExamAttemptCreateResponse`）；`GET /discovery/practice-summary` → `PracticeSummaryResponse`。
+- `test_response_contract.py` 新增 4 条断言；无 schema 数据端点从 40 降到 **36**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

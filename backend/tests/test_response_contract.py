@@ -334,6 +334,13 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_discovery_search_and_daily_routes_are_typed(self):
+        """BE-07: global search and daily recommendation used bare dicts."""
+        assert self._schema("/api/v1/discovery/search", "get")["$ref"].endswith("SearchResponse")
+        assert self._schema("/api/v1/discovery/daily", "get")["$ref"].endswith("DailyPreviewResponse")
+        assert self._schema("/api/v1/discovery/daily/start", "post")["$ref"].endswith("DailyStartResponse")
+        assert self._schema("/api/v1/discovery/practice-summary", "get")["$ref"].endswith("PracticeSummaryResponse")
+
     def test_recommendation_and_presence_routes_are_typed(self):
         """BE-07: recommendation feeds, heartbeat and unlocked-ids were dicts."""
         assert self._schema("/api/v1/recommendations/home", "get")["$ref"].endswith("RecommendationHomeResponse")

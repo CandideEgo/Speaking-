@@ -8,8 +8,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.channel import LatestVideo
+from app.schemas.channel import ChannelCard, LatestVideo
+from app.schemas.exam import ExamAttemptCreateResponse
 from app.schemas.pagination import PaginatedResponse
+from app.schemas.video import VideoResponse
 
 
 class ContinueVideo(LatestVideo):
@@ -112,3 +114,69 @@ class SetWordsAddedResponse(BaseModel):
 
 class SetWordRemovedResponse(BaseModel):
     removed: bool
+
+
+# ---------------------------------------------------------------------------
+# Search / daily recommendation
+# ---------------------------------------------------------------------------
+
+
+class SearchVideoGroup(BaseModel):
+    items: list[VideoResponse]
+    has_more: bool
+
+
+class SearchSubtitleItem(BaseModel):
+    id: str
+    text_en: str
+    text_zh: str | None = None
+    start_time: float
+    video: VideoResponse
+
+
+class SearchSubtitleGroup(BaseModel):
+    items: list[SearchSubtitleItem]
+    has_more: bool
+
+
+class SearchChannelGroup(BaseModel):
+    items: list[ChannelCard]
+    has_more: bool
+
+
+class SearchResponse(BaseModel):
+    """Only the requested groups are present (route uses exclude_unset)."""
+
+    videos: SearchVideoGroup | None = None
+    subtitles: SearchSubtitleGroup | None = None
+    words: DictionaryResponse | None = None
+    channels: SearchChannelGroup | None = None
+
+
+class DailyPreviewResponse(BaseModel):
+    token: str
+    title: str
+    level: str
+    reason: str
+    question_type: str
+    question_count: int
+    group_count: int
+    variant: int
+    passage: str | None = None
+
+
+class PracticeSummaryRecent(BaseModel):
+    id: str
+    title: str
+    correct: int
+    total: int
+    submitted_at: datetime | None = None
+
+
+class PracticeSummaryResponse(BaseModel):
+    types: dict[str, dict[str, int]]
+    recent: list[PracticeSummaryRecent]
+
+
+class DailyStartResponse(ExamAttemptCreateResponse):
+    pass
