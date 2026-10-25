@@ -12,6 +12,8 @@ from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.discovery import (
     ChannelSubscriptionCard,
+    DictionaryResponse,
+    LearningMetadataItem,
     SentenceFavoriteItem,
     SentenceFavoriteStatus,
     SubscriptionState,
@@ -22,7 +24,7 @@ from app.services import discovery_service
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 
 
-@router.get("/learning-metadata")
+@router.get("/learning-metadata", response_model=dict[str, LearningMetadataItem])
 @rate_limit("60/minute")
 async def learning_metadata(
     request: Request, ids: str = Query(..., max_length=4000), db: AsyncSession = Depends(get_db)
@@ -30,7 +32,7 @@ async def learning_metadata(
     return await discovery_service.learning_metadata(db, list(dict.fromkeys(ids.split(",")))[:100])
 
 
-@router.get("/dictionary")
+@router.get("/dictionary", response_model=DictionaryResponse)
 @rate_limit("60/minute")
 async def dictionary(
     request: Request,

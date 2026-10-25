@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.favorite import UserFavorite
 from app.models.video import Video, VideoStatus
+from app.schemas.browse import CategoriesResponse, FeaturedVideosResponse
 from app.schemas.pagination import PaginatedResponse, paginated
 from app.schemas.video import VideoResponse
 from app.services.ranking_service import current_week_start_utc
@@ -28,7 +29,7 @@ router = APIRouter(prefix="/browse", tags=["browse"])
 CATEGORIES: list[dict] = [dict(c) for c in TOPIC_CATEGORIES]
 
 
-@router.get("/categories")
+@router.get("/categories", response_model=CategoriesResponse)
 @rate_limit("30/minute")
 async def list_categories(request: Request):
     """Return available content categories."""
@@ -198,7 +199,7 @@ async def _browse_featured_query(*, db: AsyncSession, limit: int) -> dict:
     }
 
 
-@router.get("/featured")
+@router.get("/featured", response_model=FeaturedVideosResponse)
 @rate_limit("30/minute")
 async def browse_featured(
     request: Request,

@@ -426,3 +426,10 @@
 - 7 条 vocabulary 路由补 `response_model`：daily-session、practice、POST 收词、review、mastered、delete、words。
 - `test_response_contract.py` 新增 vocabulary 断言（并让 `_schema` 支持 201）；无 schema 数据端点从 68 降到 **61**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第八批：browse 与 discovery 词表/学习元数据契约
+
+- `GET /browse/categories` → `CategoriesResponse`，`GET /browse/featured` → `FeaturedVideosResponse`。
+- `GET /discovery/dictionary` → `DictionaryResponse`（`PaginatedResponse[DictionaryWord]`，ECDICT 额外字段通过 `extra="allow"` 保留）；`GET /discovery/learning-metadata` → `dict[str, LearningMetadataItem]`（示例词/时间戳均建模）。
+- `test_response_contract.py` 新增 4 条断言；无 schema 数据端点从 61 降到 **57**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

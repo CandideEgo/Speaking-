@@ -334,6 +334,15 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_browse_and_discovery_catalog_helpers_are_typed(self):
+        """BE-07: categories/featured/dictionary/learning-metadata used dicts."""
+        assert self._schema("/api/v1/browse/categories", "get")["$ref"].endswith("CategoriesResponse")
+        assert self._schema("/api/v1/browse/featured", "get")["$ref"].endswith("FeaturedVideosResponse")
+        assert self._schema("/api/v1/discovery/dictionary", "get")["$ref"].endswith("DictionaryResponse")
+        metadata = self._schema("/api/v1/discovery/learning-metadata", "get")
+        assert metadata["type"] == "object"
+        assert metadata["additionalProperties"]["$ref"].endswith("LearningMetadataItem")
+
     def test_exam_routes_have_typed_models(self):
         """BE-07: exam paper/wrong/attempt lists and stats must be typed."""
         assert self._schema("/api/v1/exams", "get")["$ref"].endswith("ExamPaperListResponse")
