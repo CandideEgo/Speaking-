@@ -412,3 +412,10 @@
 - `/videos/{video_id}/like` 与 `/like-status` 改用 `VideoLikeToggleResponse` / `VideoLikeStatusResponse`，`/videos/search/suggest` 与 `/search/hot` 改用 `SearchSuggestionsResponse` / `HotSearchesResponse`。
 - `test_response_contract.py` 新增 4 条断言；无 schema 数据端点从 80 降到 **76**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第六批：vocab-sets 词单/过筛契约
+
+- 新增 `app/schemas/vocab_set.py`：collect 响应、词单卡、词单详情（含词行）、过筛状态、单词进度。
+- 7 条路由补 `response_model`：`POST /vocab-sets`、`GET /vocab-sets`、`GET /{set_id}`、`GET /{set_id}/sieve`、`POST .../learned|unmark|sieve`。
+- `test_response_contract.py` 新增 vocab-sets 断言；无 schema 数据端点从 76 降到 **68**（含排除固定 410 的 celebrate 兼容壳）。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

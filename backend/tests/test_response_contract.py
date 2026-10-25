@@ -341,6 +341,19 @@ class TestOpenApiResponseModels:
         assert self._schema("/api/v1/exams/attempts", "get")["$ref"].endswith("PaginatedResponse_ExamAttemptItem_")
         assert self._schema("/api/v1/exams/attempts/{session_id}", "get")["$ref"].endswith("ExamAttemptDetailResponse")
 
+    def test_vocab_set_routes_have_typed_models(self):
+        """BE-07: vocab-set collect/list/detail/sieve used bare dicts."""
+        assert self._schema("/api/v1/vocab-sets", "post")["$ref"].endswith("CollectVocabSetResponse")
+        assert self._schema("/api/v1/vocab-sets", "get")["type"] == "array"
+        assert self._schema("/api/v1/vocab-sets/{set_id}", "get")["$ref"].endswith("VocabSetDetail")
+        assert self._schema("/api/v1/vocab-sets/{set_id}/sieve", "get")["$ref"].endswith("SieveStateResponse")
+        for path in (
+            "/api/v1/vocab-sets/{set_id}/words/{set_word_id}/learned",
+            "/api/v1/vocab-sets/{set_id}/words/{set_word_id}/unmark",
+            "/api/v1/vocab-sets/{set_id}/words/{set_word_id}/sieve",
+        ):
+            assert self._schema(path, "post")["$ref"].endswith("SetWordProgressResponse")
+
     def test_video_like_and_search_suggestion_routes_are_typed(self):
         """BE-07: like/search helper endpoints used to return bare dicts."""
         assert self._schema("/api/v1/videos/{video_id}/like", "post")["$ref"].endswith("VideoLikeToggleResponse")

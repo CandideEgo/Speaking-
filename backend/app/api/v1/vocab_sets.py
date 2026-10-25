@@ -14,6 +14,13 @@ from app.core.database import get_db
 from app.core.errors import UnprocessableEntityError
 from app.core.limiter import rate_limit
 from app.models.user import User
+from app.schemas.vocab_set import (
+    CollectVocabSetResponse,
+    SetWordProgressResponse,
+    SieveStateResponse,
+    VocabSetDetail,
+    VocabSetSummary,
+)
 from app.services import vocab_set_service
 
 router = APIRouter(prefix="/vocab-sets", tags=["vocab-sets"])
@@ -28,7 +35,7 @@ class SieveJudgeRequest(BaseModel):
     known: bool
 
 
-@router.post("")
+@router.post("", response_model=CollectVocabSetResponse)
 @rate_limit("10/minute")
 async def collect_vocab_set(
     request: Request,
@@ -47,7 +54,7 @@ async def collect_vocab_set(
     return result
 
 
-@router.get("")
+@router.get("", response_model=list[VocabSetSummary])
 @rate_limit("30/minute")
 async def list_vocab_sets(
     request: Request,
@@ -58,7 +65,7 @@ async def list_vocab_sets(
     return await vocab_set_service.list_sets(db, current_user)
 
 
-@router.get("/{set_id}")
+@router.get("/{set_id}", response_model=VocabSetDetail)
 @rate_limit("30/minute")
 async def get_vocab_set(
     request: Request,
@@ -76,7 +83,7 @@ async def get_vocab_set(
     return detail
 
 
-@router.get("/{set_id}/sieve")
+@router.get("/{set_id}/sieve", response_model=SieveStateResponse)
 @rate_limit("30/minute")
 async def get_sieve_state(
     request: Request,
@@ -91,7 +98,7 @@ async def get_sieve_state(
     return state
 
 
-@router.post("/{set_id}/words/{set_word_id}/learned")
+@router.post("/{set_id}/words/{set_word_id}/learned", response_model=SetWordProgressResponse)
 @rate_limit("30/minute")
 async def mark_sieve_word_learned(
     request: Request,
@@ -112,7 +119,7 @@ async def mark_sieve_word_learned(
     return result
 
 
-@router.post("/{set_id}/words/{set_word_id}/unmark")
+@router.post("/{set_id}/words/{set_word_id}/unmark", response_model=SetWordProgressResponse)
 @rate_limit("30/minute")
 async def unmark_sieve_word_learned(
     request: Request,
@@ -134,7 +141,7 @@ async def unmark_sieve_word_learned(
     return result
 
 
-@router.post("/{set_id}/words/{set_word_id}/sieve")
+@router.post("/{set_id}/words/{set_word_id}/sieve", response_model=SetWordProgressResponse)
 @rate_limit("10/minute")
 async def judge_sieve_word(
     request: Request,
