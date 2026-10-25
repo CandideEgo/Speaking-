@@ -113,7 +113,7 @@
 | 第二轮结构补齐复核 | 词汇页真实账号（14 词 + 2 个词单）出现到期卡/四项统计/词单网格；练习页出现 3 列试卷与已选条；我的页出现深色会员卡/账户卡；12 条列表路由 h1 实测 `12px / uppercase`、无横向溢出；移动端眉标左对齐（h1 x=16） |
 | 第二轮 P2 复核 | 首页右栏无「查看学习记录」额外卡；频道详情封面实测 378px 宽；会员页出现「当前状态」深色卡；学习记录 4 个统计位于 1px 描边卡内；四页横向溢出 0 |
 | 迁移 / 漂移 | 新建 scratch 库跑 `alembic upgrade head`：29 条差异降到 **7 条**（均为退役表的表/索引/FK，有意保留）；`python scripts/check_schema_drift.py` → **7 known entries, 0 new**；`downgrade -1` / `upgrade head` 往返后仍为 7；人为插入重复行时迁移按预期中止并提示清理 |
-| Alembic | 新增迁移 `p7q8r9s0t1u2_align_model_schema_drift`（`down_revision=o6p7q8r9s0t1`）；**本机 `seeword` 开发库未升级**：库里有 58 条 `exam_sentence_words` 重复行与 49 条 `videos.reviewed_by` 孤儿，迁移会按设计中止，需要先清理再升级；生产库同样要先跑迁移前检查 |
+| Alembic | 新增迁移 `p7q8r9s0t1u2_align_model_schema_drift`（`down_revision=o6p7q8r9s0t1`）与 `q8r9s0t1u2v3_add_query_shape_indexes`；**本机 `seeword` 开发库已于 2026-10-25 清理并升级到 `q8r9s0t1u2v3`（head）**：先备份到非 public schema `audit_bak_20261025`，再删 58 条 `exam_sentence_words` 完全重复行（连 `id` 相同，201723 → 201665）、把 49 条 `videos.reviewed_by` 孤儿置空；过程中另发现 `exam_sentences` 整表缺主键且有 8 个重复 `id`（16 行），去重后补 `exam_sentences_pkey`（18056 → 18048）。升级后 `scripts/check_schema_drift.py` → **7 known entries, 0 new**。生产库仍需先做同样的迁移前数据检查 |
 
 ### 未执行（如实标注）
 
@@ -121,7 +121,7 @@
 - **e2e 跨浏览器残余**：firefox 3 条观看页基线用例未定位（Firefox-only，Chromium 同用例通过）；mobile-chrome 的 avatar 与文稿页目录断言属跨 project 错配（后者在 393px 会按设计隐藏桌面目录）；均记录未改产品代码。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **对存量库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库就有 58 + 49 条）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。
+- **生产库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库原有 58 + 49 条，已于 2026-10-25 清理升级，见第 3 节 Alembic 行）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。**生产库的同类预检未执行**。
 - **前端剩余结构性缺口**：视觉审计 30 条均已处置——27 条修复并验证；V-25 侧栏折叠、V-27 桌面词卡浮动锚定、V-29 accent hover（为满足白字 AA 使用更深的 `#0066cc`）保留为有意的产品/可访问性差异，逐条见 `frontend-visual.md`。功能/可访问性审计的 P2 已全部修复。
 
 ## 4. 证据索引
@@ -133,7 +133,7 @@
 
 ## 5. 遗留优先级建议
 
-1. **存量库升级准备**：上线 `p7q8r9s0t1u2` 前先清重复 / 孤儿数据（本机 dev 库已查出 58 条重复 join 行、49 条孤儿 reviewer）；清完再跑迁移与漂移门禁。
+1. **生产库升级准备**：上线 `p7q8r9s0t1u2` 前先清重复 / 孤儿数据；本机 dev 库已完成（58 条重复 join 行、49 条孤儿 reviewer，外加 `exam_sentences` 缺主键 / 8 个重复 `id` 的补修），升级后漂移门禁为 7 known / 0 new。生产库的同类预检与清理**未执行**。
 2. **退役表清理**：`rubric_criteria` / `speaking_rubrics` / `speaking_attempt_scores` / `video_practice_questions` 及 `speaking_attempts.rubric_id` 仍保留给历史导出与注销清理；确认无消费方后再单独做删除迁移（需产品/合规签字）。
 3. **前端功能收尾**：F5 残余已核对关闭——`--hairline-strong` 现只用于边框/图标分隔，没有正文色用法；F12 为 dev 并发噪声，按记录不修。
 4. **e2e 长尾**：四个 project 均已在 testing-env + 种子库跑过（chromium 131/10/63、firefox 122/19/63、mobile-chrome 131/10/63、mobile-iphone 30/2）；稳定失败集中在 6 条 fixture 缺口，另有 Firefox-only 3 条与 mobile-chrome 2 条（后者为 desktop 断言跑在手机 project 的错配）。待补种子数据并逐条处置跨浏览器项。
@@ -145,4 +145,5 @@
 - **门禁**：`npm run check`、`npm run test:unit`（332）、后端全量 pytest（1401 passed / 16 skipped）、ruff、mypy `42=42` 均为绿；未调整任何基线、白名单或豁免。
 - **e2e**：四个 project 均已在 `ENV=testing` + `seeword_e2e_full` 种子库跑过；稳定失败只剩 6 条 fixture 数据缺口，另有跨浏览器/跨 project 的已记录项（Firefox-only 3、mobile-chrome 2、mobile-iphone 复用同一缺口）。
 - **提交**：修复与报告全部提交在 `redesign` 分支。
+- **dev 库迁移**：本机 `seeword` 库已从 `o6p7q8r9s0t1` 清理并升级到 `q8r9s0t1u2v3`（2026-10-25），备份在 `audit_bak_20261025` schema；清理口径与验证见第 3 节 Alembic 行。生产库升级与预检未执行。
 - **明确未执行**：生产部署、真实支付/短信、生产库迁移执行、nginx reload；以及 6 条 fixture 缺口待补种子数据。

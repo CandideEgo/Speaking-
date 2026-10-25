@@ -177,7 +177,7 @@
 - 后端媒体/PDF 鉴权收敛（BE-04）：新增 `dependencies.resolve_token_user()`，媒体 `?token=`、shadowing 录制与原卷 PDF 全部走与 API 相同的链（黑名单 / 改密 / 封禁）；补 3 条测试（封禁 owner、改密后旧 token、封禁 shadowing owner），media + PDF 47 项通过。
 - WebSocket 鉴权收敛（BE-15）：通知 WS 握手改用同一条 `resolve_token_user()` 链，补「改密后旧 token 被拒」用例，notifications 35 项通过。
 - 短信固定码改为显式 opt-in（BE-06）：新增 `SMS_DEV_FAKE_ENABLED`（默认 false，production 启动即拒绝），`verify_code` 必须读到 Redis 已发码；本地 `.env`、`.env.example`、CI 两处 env 显式开启，测试补「未显式开启不生效」「未发码不接受」「production 拒绝」；SMS/配置相关 61 项通过，dev API 实测发码后 1234 可登录、未发码 400。
-- 迁移漂移彻底对齐（BE-03）：新增 `p7q8r9s0t1u2_align_model_schema_drift`，条件式补 `uq_exam_sentence_word`、`uq_exam_word_freq_word_level`、`ix_notifications_dedup`、`exam_sentence_words.sentence_id` / `videos.reviewed_by` / `subtitles.video_id` 三条 FK，重命名 vocabulary 索引并同步列注释；模型侧 `user_answer` 改 `Text`、两处时间列按 DB nullable 对齐。迁移先查重复/孤儿，脏数据即中止并提示清理（本机 dev 库 58 + 49 条，未升级）。新建 scratch 库实测：29 条漂移 → 7 条（均为退役表），`scripts/check_schema_drift.py` 报 `7 known entries, 0 new`；downgrade/upgrade 往返可重复；人为重复行时按预期中止。
+- 迁移漂移彻底对齐（BE-03）：新增 `p7q8r9s0t1u2_align_model_schema_drift`，条件式补 `uq_exam_sentence_word`、`uq_exam_word_freq_word_level`、`ix_notifications_dedup`、`exam_sentence_words.sentence_id` / `videos.reviewed_by` / `subtitles.video_id` 三条 FK，重命名 vocabulary 索引并同步列注释；模型侧 `user_answer` 改 `Text`、两处时间列按 DB nullable 对齐。迁移先查重复/孤儿，脏数据即中止并提示清理（本机 dev 库 58 + 49 条，2026-10-25 已清理并升级，见 Round 55）。新建 scratch 库实测：29 条漂移 → 7 条（均为退役表），`scripts/check_schema_drift.py` 报 `7 known entries, 0 new`；downgrade/upgrade 往返可重复；人为重复行时按预期中止。
 
 ### 全量 e2e（testing 后端）
 
@@ -527,3 +527,12 @@
   - mobile-chrome：**131 passed / 10 failed / 63 skipped**；重跑 → 2 passed / 8 failed（6 条 fixture 缺口 + avatar + 文稿页桌面目录断言在 393px 下隐藏，属 spec/project 错配）。
   - mobile-iphone：**30 passed / 2 failed**（同一组 239 词/46 题 fixture 缺口）。
 - 审计报告已更新四项目口径；恢复 dev 后端与截图，未删除/跳过用例。跨浏览器残余只记录，未改产品代码。
+
+### Round 55：/dev 重启 + 本机 dev 库清理并升级到 head
+
+- 按 `/dev` 重启本地全栈：后端 :8000（`--reload`、keep-alive 120）、云端 Celery（`celery` 队列）、GPU worker（`transcription_gpu` + heartbeat）、前端 :3000（清 `.next` 后重启）；`/health` 为 ok（DB/Redis 均 ok），前端 `/login` 200。
+- `alembic upgrade head` 先被 `p7q8r9s0t1u2` 的 fail-closed 数据检查中止（dev 库停在 `o6p7q8r9s0t1`）。经用户授权，备份到非 public schema `audit_bak_20261025` 后清理：
+  - `exam_sentence_words` 58 组重复（连 `id` 都相同的完全重复行）→ 去重后 201723 → 201665；`videos.reviewed_by` 49 条孤儿 → `NULL`。
+  - 迁移重跑又发现 `exam_sentences` 整表缺主键、8 个 `id` 各重复一次（16 行）：备份后去重 18056 → 18048，并补 `exam_sentences_pkey`，随后 `o6p7q8r9s0t1 → p7q8r9s0t1u2 → q8r9s0t1u2v3` 升级成功。
+  - 首次去重按 `id` 关联删除时因重复行共享同一 `id`，误删了 116 行（含应保留行）；用备份表回填每键一行并复核（总数 201665、重复组 0、每键恰好 1 行），最终数据正确。清理脚本留在 `.tmp-diag/`（已 gitignore）。
+- 升级后 `scripts/check_schema_drift.py` → **7 known entries, 0 new**；新约束/索引与 `exam_sentences` 主键均已在库中确认。审计 README 的「本机 dev 库未升级」段落已同步改为完成态，生产库预检仍标注未执行。
