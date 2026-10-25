@@ -14,6 +14,7 @@ from app.core.database import commit_refresh, get_db
 from app.core.limiter import rate_limit
 from app.core.uploads import read_upload_bounded
 from app.models.user import User
+from app.schemas.overview import OverviewResponse
 from app.schemas.user import (
     DeletionRequest,
     DeletionStatusResponse,
@@ -47,7 +48,7 @@ async def get_me(request: Request, current_user: User = Depends(get_current_user
     return UserResponse.model_validate(current_user)
 
 
-@router.get("/me/overview")
+@router.get("/me/overview", response_model=OverviewResponse)
 @rate_limit("30/minute")
 async def get_my_overview(
     request: Request,

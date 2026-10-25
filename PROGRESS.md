@@ -439,3 +439,10 @@
 - 5 条 sets 路由补 `response_model`：创建（201）、重命名、删除、加词、移词，分别用 `SetCreatedResponse` / `SetRenamedResponse` / `SetDeletedResponse` / `SetWordsAddedResponse` / `SetWordRemovedResponse`。
 - `test_response_contract.py` 新增 sets CRUD 断言；无 schema 数据端点从 57 降到 **52**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第十批：users/me/overview 契约 + 清单收敛
+
+- `GET /users/me/overview` 改 `OverviewResponse`：user/streak/learning/this_week（含 7 天 daily）/words/videos/exams/library/membership 全部建模，复用 `VocabularyStatsResponse`。
+- 清单明确排除：已退役固定 410 的 heatmap/weekly-reports、vocab-sets celebrate、shadowing 5 条，以及二进制下载端点（导出下载、exam-pdf 文件）。
+- `test_response_contract.py` 新增 overview 断言；无 schema 数据端点从 52 降到 **44**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

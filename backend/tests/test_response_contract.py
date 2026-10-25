@@ -334,6 +334,10 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_user_overview_is_typed(self):
+        """BE-07: the aggregated profile overview used a bare dict."""
+        assert self._schema("/api/v1/users/me/overview", "get")["$ref"].endswith("OverviewResponse")
+
     def test_discovery_set_crud_routes_are_typed(self):
         """BE-07: user-created set CRUD used bare acknowledgement dicts."""
         assert self._schema("/api/v1/discovery/sets", "post", "201")["$ref"].endswith("SetCreatedResponse")
