@@ -68,15 +68,25 @@ export function ChannelCard({
     if (subscribing) return;
     setSubscribing(true);
     const next = !isSubscribed;
+    // 乐观更新：点下立即换文案并同步父层计数。F7 审计要求与收藏/点赞一致
+    // （延迟响应时不再停留在「订阅」），失败再回滚到原状态。
+    setIsSubscribed(next);
+    onSubscriptionChange?.(channel, next);
+    publishSubscription({ slug: channel.slug, subscribed: next });
     try {
       const result = await api<{ subscribed: boolean }>(
         `/api/v1/discovery/subscriptions/${encodeURIComponent(channel.slug)}`,
         { method: next ? "PUT" : "DELETE" }
       );
-      setIsSubscribed(result.subscribed);
-      onSubscriptionChange?.(channel, result.subscribed);
-      publishSubscription({ slug: channel.slug, subscribed: result.subscribed });
+      if (result.subscribed !== next) {
+        setIsSubscribed(result.subscribed);
+        onSubscriptionChange?.(channel, result.subscribed);
+        publishSubscription({ slug: channel.slug, subscribed: result.subscribed });
+      }
     } catch (error) {
+      setIsSubscribed(!next);
+      onSubscriptionChange?.(channel, !next);
+      publishSubscription({ slug: channel.slug, subscribed: !next });
       toastApiError(error, next ? "订阅失败，请重试" : "取消订阅失败，请重试");
     } finally {
       setSubscribing(false);

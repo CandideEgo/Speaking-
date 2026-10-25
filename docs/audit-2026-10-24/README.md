@@ -3,7 +3,7 @@
 本轮在 `redesign` 分支上做了一次**只读审计 + 定向修复**：以设计导出
 `docs/design/…/重新设计各个导航页内容以及产品功能` 为视觉契约，覆盖前端视觉、前端功能/可访问性、后端架构三条线；审计完成后只修「有明确证据、风险可控」的项，其余进入遗留清单。
 
-> 审计快照：`redesign` @ `a082f6a`（工作区干净）。审计期间有并行修复，视觉报告以 `05:35` 复核为准，`vis-audit-2/3` 是修前、`vis-audit-4` 是修后。
+> 审计起点快照：`redesign` @ `a082f6a`；修复与契约收尾持续到 `173b405`（BE-07 清零、e2e 基线复跑）。视觉报告以 `05:35` 复核为准，`vis-audit-2/3` 是修前、`vis-audit-4` 是修后。
 
 ## 1. 结论摘要
 
@@ -13,7 +13,7 @@
   - BE-02 `complete` 行为事件无幂等、重复打冷全站缓存 → **已修**；
   - BE-03 模型与迁移漂移（`alembic check` 29 条差异）→ **已修（功能漂移）**：新增 `p7q8r9s0t1u2` 对齐迁移（只补不删、先查重复/孤儿；唯一约束、FK、dedup 索引、vocabulary 索引重命名、列注释、模型 nullability/Text 对齐），并新增 `scripts/check_schema_drift.py` 门禁（剩 7 条退役表相关差异，逐条带原因；新漂移即失败）。
 - **前端视觉**：颜色 token 12 值逐值对齐、壳层几何 248/56/40/1112 全对、卡片 12px + 发丝线一致；**9 视口 × 13 路由 114 次横向溢出测量全部 0px**。主要偏差是页头层级、词汇/练习/我的/发现四页的核心模块缺失，以及断点错档。
-- **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**，P3 修 4 条、留 2 条。
+- **前端功能/可访问性**：P0 0、P1 0；P2 6 条**全部修复**；P3 修 5 条（含 2026-10-25 的 F7 订阅乐观更新），仅 F12 环境噪声不修。
 - **后端**：31 条发现（P1×3 / P2×13 / P3×15），已修 30 条 + 1 条契约补充（`has_password`）；BE-07 已完成十七批并清零（裸 `PaginatedResponse`、分页 items 无类型、issue 级 `dict` 返回全部补齐，含 admin stats 与转写/支付回调），实时清单 0 条，见 [`no-response-model-endpoints.md`](no-response-model-endpoints.md)。
 
 ## 2. 本轮已落地的修复
@@ -121,7 +121,6 @@
 - **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
-- **BE-07**：十七批已修——4 处裸 `PaginatedResponse` 改为具体模型、`/videos/{id}/vocabulary` 去掉 `dict`、listening 6 条、exams 5 条、channels 2 条、discovery 订阅/收藏 7 条与 learning 4 条与 videos 动作/搜索 4 条与 vocab-sets 7 条与 vocabulary 7 条与 browse/discovery 词表 4 条与 discovery 自建词单 5 条与 users/me/overview 与 recommendations/presence/unlocked-ids 4 条与 discovery 搜索/每日推荐 4 条与 notes/exam-pdfs/payments 5 条与 admin 设置/用户操作 7 条与 videos admin 报告/修订 6 条与 channels admin/redeem-codes/unlock 9 条与 admin stats/回调 6 条补 `response_model`，并在 `test_response_contract.py` 增加遍历 OpenAPI 的断言；可执行清单已清零，[`no-response-model-endpoints.md`](no-response-model-endpoints.md) 保留为回归证据。
 - **对存量库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库就有 58 + 49 条）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。
 - **前端剩余结构性缺口**：视觉审计 30 条均已处置——27 条修复并验证；V-25 侧栏折叠、V-27 桌面词卡浮动锚定、V-29 accent hover（为满足白字 AA 使用更深的 `#0066cc`）保留为有意的产品/可访问性差异，逐条见 `frontend-visual.md`。功能/可访问性审计的 P2 已全部修复。
 
@@ -136,7 +135,6 @@
 
 1. **存量库升级准备**：上线 `p7q8r9s0t1u2` 前先清重复 / 孤儿数据（本机 dev 库已查出 58 条重复 join 行、49 条孤儿 reviewer）；清完再跑迁移与漂移门禁。
 2. **退役表清理**：`rubric_criteria` / `speaking_rubrics` / `speaking_attempt_scores` / `video_practice_questions` 及 `speaking_attempts.rubric_id` 仍保留给历史导出与注销清理；确认无消费方后再单独做删除迁移（需产品/合规签字）。
-3. **前端剩余结构缺口**：收藏页 3 类 tab + 内联笔记、通知页精简列表、首页继续观看占位——按设计稿逐块补，先做只读展示再接交互。
-3. **其余后端 P2/P3**：BE-08 周统计、BE-09 无界查询、BE-11 回调重试、BE-12 管线锁等，按 `backend-architecture.md` 的优先级继续。
-5. **F7**：频道订阅乐观更新；**F5 剩余**：把 `--hairline-strong` 用作正文色的少数点位收掉。
-6. **e2e 全量**：用 `ENV=testing` 后端 + `seed_e2e.py` 跑 `--project=chromium` 与 mobile projects，把本次未执行项补齐。
+3. **前端功能收尾**：F5 残余——把 `--hairline-strong` 用作正文色的少数点位收掉；F12 为 dev 并发噪声，按记录不修。
+4. **e2e 长尾**：chromium 已有 testing-env 基线（`131 passed / 10 failed / 63 skipped`，其中 4 条并发抖动单跑通过、6 条为已知 fixture 缺口）；firefox / mobile-chrome / mobile-iphone 三个 project 仍未执行，6 条 fixture 缺口待补种子数据。
+5. **生产路径**：真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload 未执行；生产库升级前同样要先做迁移前数据清理。

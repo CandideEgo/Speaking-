@@ -513,3 +513,9 @@
   **204 项 → 131 passed / 10 failed / 63 skipped**。
 - `--last-failed` 单跑 10 条：**4 passed / 6 failed**，通过的 4 条为并发抖动；剩余 6 条即既有 fixture 缺口（home-feed 配比、library-persistence、listening ×2、239 词队列、46 题长卷），与历史基线同一用例集合，无新增回归。
 - 验证完已恢复 dev 后端（dev 库、`AdminStatsResponse` 实时 OpenAPI 核验）；e2e 写出的截图改动已还原。
+
+### Round 53：F7 订阅乐观更新 + 审计报告一致性收尾
+
+- `ChannelCard` 订阅改为乐观更新：点击立即切换文案、同步父层「已订阅 N」与全局订阅事件；请求失败回滚原状态并 toast，响应值异常时再对齐（F7 关闭）。
+- 前端门禁复跑：`npm run check` 通过；`npm run test:unit` **30 文件 / 332 项通过**；订阅回归 e2e（design-rollout「频道订阅刷新后保留并能取消」）**1 passed**。
+- 审计 README 清理过期遗留：删除已修的 F7、已完成的 BE-08/09/11/12 与已实现的前端结构缺口；章节 5 按当前事实重排（存量库升级、退役表、F5 残余/F12 环境噪声、e2e 长尾、生产路径），并更新审计快照到 `173b405`。
