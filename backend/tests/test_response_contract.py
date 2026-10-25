@@ -324,10 +324,10 @@ class TestOpenApiResponseModels:
     """
 
     @staticmethod
-    def _schema(path: str, method: str) -> dict:
+    def _schema(path: str, method: str, status: str = "200") -> dict:
         from app.main import create_app
 
-        return create_app().openapi()["paths"][path][method]["responses"]["200"]["content"]["application/json"][
+        return create_app().openapi()["paths"][path][method]["responses"][status]["content"]["application/json"][
             "schema"
         ]
 
@@ -340,6 +340,18 @@ class TestOpenApiResponseModels:
         assert self._schema("/api/v1/exams/wrong", "get")["$ref"].endswith("PaginatedResponse_ExamWrongItem_")
         assert self._schema("/api/v1/exams/attempts", "get")["$ref"].endswith("PaginatedResponse_ExamAttemptItem_")
         assert self._schema("/api/v1/exams/attempts/{session_id}", "get")["$ref"].endswith("ExamAttemptDetailResponse")
+
+    def test_vocabulary_routes_have_typed_models(self):
+        """BE-07: daily session/practice/word actions used bare dicts."""
+        assert self._schema("/api/v1/vocabulary/daily-session", "get")["$ref"].endswith("DailySessionResponse")
+        assert self._schema("/api/v1/vocabulary/practice", "get")["$ref"].endswith("VocabularyPracticeResponse")
+        assert self._schema("/api/v1/vocabulary", "post", "201")["$ref"].endswith("VocabularyAddResponse")
+        assert self._schema("/api/v1/vocabulary/{word_id}/review", "post")["$ref"].endswith("VocabularyReviewResponse")
+        assert self._schema("/api/v1/vocabulary/{word_id}/mastered", "post")["$ref"].endswith(
+            "VocabularyMasteredResponse"
+        )
+        assert self._schema("/api/v1/vocabulary/{word_id}", "delete")["$ref"].endswith("VocabularyDeleteResponse")
+        assert self._schema("/api/v1/vocabulary/words", "get")["$ref"].endswith("LearningWordsResponse")
 
     def test_vocab_set_routes_have_typed_models(self):
         """BE-07: vocab-set collect/list/detail/sieve used bare dicts."""

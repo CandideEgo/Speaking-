@@ -4,7 +4,7 @@
 OpenAPI 文档与 Prometheus 路径，以及已退役、固定返回 410 的 heatmap/weekly-reports/vocab-sets celebrate 兼容壳，
 统计 `response_model is None` 的 JSON 数据端点。
 
-生成日期：2026-10-24。当前计数：68。
+生成日期：2026-10-24。当前计数：61。
 
 > 这是剩余工作清单，不代表这些端点会返回错误；它们只是没有 OpenAPI 字段契约。
 > 外部支付/转写回调（`/internal/transcription/callback`、`/payments/callback/*`、`/payments/jinshuju/webhook`）
@@ -112,13 +112,3 @@ OpenAPI 文档与 Prometheus 路径，以及已退役、固定返回 410 的 hea
 - `GET` `/api/v1/videos/unlocked-ids`
 - `GET` `/api/v1/videos/{video_id}/shadowing-sentences`
 - `POST` `/api/v1/videos/{video_id}/unlock`
-
-## vocabulary
-
-- `POST` `/api/v1/vocabulary`
-- `GET` `/api/v1/vocabulary/daily-session`
-- `GET` `/api/v1/vocabulary/practice`
-- `GET` `/api/v1/vocabulary/words`
-- `DELETE` `/api/v1/vocabulary/{word_id}`
-- `POST` `/api/v1/vocabulary/{word_id}/mastered`
-- `POST` `/api/v1/vocabulary/{word_id}/review`

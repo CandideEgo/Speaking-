@@ -12,6 +12,9 @@ from app.models.learning import Vocabulary
 from app.models.user import User
 from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 from app.schemas.vocabulary import (
+    DailySessionResponse,
+    LearningWordsResponse,
+    PracticeItem,
     StudySessionAnswerRequest,
     StudySessionAnswerResponse,
     StudySessionEnvelope,
@@ -19,10 +22,15 @@ from app.schemas.vocabulary import (
     StudySessionResponse,
     StudySessionStartRequest,
     TodayTrainingSummary,
+    VocabularyAddResponse,
+    VocabularyDeleteResponse,
     VocabularyEnrichResponse,
+    VocabularyMasteredResponse,
+    VocabularyPracticeResponse,
     VocabularyPreferencesResponse,
     VocabularyPreferencesUpdate,
     VocabularyResponse,
+    VocabularyReviewResponse,
     VocabularyStatsResponse,
 )
 from app.services import ecdict, practice_service, study_session_service, vocabulary_service
@@ -108,7 +116,7 @@ async def vocabulary_stats(
     return await vocabulary_service.get_stats(db, current_user.id)
 
 
-@router.get("/daily-session")
+@router.get("/daily-session", response_model=DailySessionResponse)
 @rate_limit("30/minute")
 async def get_daily_session(
     request: Request,
@@ -310,7 +318,7 @@ async def finish_study_session(
     )
 
 
-@router.get("/practice")
+@router.get("/practice", response_model=VocabularyPracticeResponse)
 @rate_limit("10/minute")
 async def get_vocabulary_practice(
     request: Request,
@@ -364,7 +372,7 @@ async def submit_vocabulary_practice(
 # ---------------------------------------------------------------------------
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=VocabularyAddResponse)
 @rate_limit("20/minute")
 async def add_word(
     request: Request,
@@ -495,7 +503,7 @@ async def enrich_word(
     return vocab
 
 
-@router.post("/{word_id}/review")
+@router.post("/{word_id}/review", response_model=VocabularyReviewResponse)
 @rate_limit("20/minute")
 async def review_word(
     request: Request,
@@ -545,7 +553,7 @@ async def review_word(
     }
 
 
-@router.post("/{word_id}/mastered")
+@router.post("/{word_id}/mastered", response_model=VocabularyMasteredResponse)
 @rate_limit("20/minute")
 async def mark_word_mastered(
     request: Request,
@@ -592,7 +600,7 @@ async def mark_word_mastered(
     }
 
 
-@router.delete("/{word_id}")
+@router.delete("/{word_id}", response_model=VocabularyDeleteResponse)
 @rate_limit("20/minute")
 async def remove_word(
     request: Request,
@@ -616,7 +624,7 @@ async def remove_word(
     return {"success": True}
 
 
-@router.get("/words")
+@router.get("/words", response_model=LearningWordsResponse)
 @rate_limit("30/minute")
 async def list_learning_words(
     request: Request,

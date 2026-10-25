@@ -183,3 +183,81 @@ class StudySessionAnswerResponse(BaseModel):
     session_status: Literal["active", "finished", "abandoned"]
     graduated: bool
     today: TodayTrainingSummary
+
+
+# ---------------------------------------------------------------------------
+# Response schemas (BE-07: daily-session / practice / word actions were dicts)
+# ---------------------------------------------------------------------------
+
+
+class DailySessionTotals(BaseModel):
+    new_total: int
+    due_total: int
+
+
+class TrainingPreview(BaseModel):
+    active_session_id: str | None = None
+    new_words: list[VocabularyResponse]
+    review_words: list[VocabularyResponse]
+
+
+class DailySessionResponse(BaseModel):
+    training_preview: TrainingPreview
+    new_words: list[VocabularyResponse]
+    review_words: list[VocabularyResponse]
+    totals: DailySessionTotals
+    preferences: VocabularyPreferencesResponse
+    today: TodayTrainingSummary
+
+
+class VocabularyAddResponse(BaseModel):
+    id: str
+    word: str
+    context_sentence: str | None = None
+    video_id: str | None = None
+    subtitle_id: str | None = None
+    created_at: str
+
+
+class VocabularyReviewResponse(BaseModel):
+    id: str
+    word: str
+    next_review_at: str
+    interval_days: int
+    review_count: int
+    wrong_count: int
+    last_wrong_at: str | None = None
+
+
+class VocabularyMasteredResponse(BaseModel):
+    id: str
+    word: str
+    mastery_level: str
+
+
+class VocabularyDeleteResponse(BaseModel):
+    success: bool
+
+
+class LearningWordsResponse(BaseModel):
+    words: list[str]
+
+
+class PracticeItem(BaseModel):
+    word: str
+    category: str
+    type: str
+    translation: str | None = None
+    options: list[str] | None = None
+    answer: str | None = None
+    phonetic: str | None = None
+    sentence_template: str | None = None
+    full_sentence: str | None = None
+    start_time: float | None = None
+    end_time: float | None = None
+    video_id: str | None = None
+    subtitle_id: str | None = None
+
+
+class VocabularyPracticeResponse(BaseModel):
+    items: list[PracticeItem]

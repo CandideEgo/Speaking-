@@ -419,3 +419,10 @@
 - 7 条路由补 `response_model`：`POST /vocab-sets`、`GET /vocab-sets`、`GET /{set_id}`、`GET /{set_id}/sieve`、`POST .../learned|unmark|sieve`。
 - `test_response_contract.py` 新增 vocab-sets 断言；无 schema 数据端点从 76 降到 **68**（含排除固定 410 的 celebrate 兼容壳）。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第七批：vocabulary 日常训练/练习/词操作契约
+
+- 新增 `DailySessionResponse`（训练预览 + 新词/复习词 + totals/preferences/today）、`VocabularyPracticeResponse`（自适应练习项）、`VocabularyAddResponse`、`VocabularyReviewResponse`、`VocabularyMasteredResponse`、`VocabularyDeleteResponse`、`LearningWordsResponse`。
+- 7 条 vocabulary 路由补 `response_model`：daily-session、practice、POST 收词、review、mastered、delete、words。
+- `test_response_contract.py` 新增 vocabulary 断言（并让 `_schema` 支持 201）；无 schema 数据端点从 68 降到 **61**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
