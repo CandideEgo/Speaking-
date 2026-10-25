@@ -16,13 +16,14 @@ from app.core.limiter import rate_limit
 from app.models.favorite import UserNote
 from app.models.user import User
 from app.models.video import Video
-from app.schemas.pagination import paginated
+from app.schemas.note import NoteItem
+from app.schemas.pagination import PaginatedResponse, paginated
 from app.services.video_access import check_video_access
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
 
-@router.get("")
+@router.get("", response_model=PaginatedResponse[NoteItem])
 @rate_limit("30/minute")
 async def list_notes(
     request: Request,

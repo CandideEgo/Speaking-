@@ -100,7 +100,7 @@ async def _process_successful_payment(db: AsyncSession, order: Order) -> None:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/create-order")
+@router.post("/create-order", response_model=CreateOrderResponse)
 @rate_limit("5/minute")
 async def create_order(
     request: Request,
@@ -339,7 +339,7 @@ async def jinshuju_webhook(request: Request):
     return {"code": 0, "message": "ok"}
 
 
-@router.get("/status")
+@router.get("/status", response_model=PaymentStatusResponse)
 @rate_limit("30/minute")
 async def payment_status(request: Request, current_user: User = Depends(get_current_user)):
     """Return the current user's plan/payment status."""
@@ -352,7 +352,7 @@ async def payment_status(request: Request, current_user: User = Depends(get_curr
     )
 
 
-@router.get("/order/{order_id}")
+@router.get("/order/{order_id}", response_model=OrderStatusResponse)
 @rate_limit("30/minute")
 async def get_order_status(
     request: Request,

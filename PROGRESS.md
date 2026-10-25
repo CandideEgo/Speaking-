@@ -460,3 +460,10 @@
 - `GET /discovery/daily` → `DailyPreviewResponse`；`POST /discovery/daily/start` → `DailyStartResponse`（复用 `ExamAttemptCreateResponse`）；`GET /discovery/practice-summary` → `PracticeSummaryResponse`。
 - `test_response_contract.py` 新增 4 条断言；无 schema 数据端点从 40 降到 **36**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第十三批：notes / exam-pdfs / payments 契约
+
+- `GET /notes` → `PaginatedResponse[NoteItem]`；`GET /exam-pdfs` → `ExamPdfListResponse`（count + items）。
+- 三个已有 Pydantic 返回值的支付路由补上 `response_model`：`POST /payments/create-order`、`GET /payments/status`、`GET /payments/order/{order_id}`。
+- `test_response_contract.py` 新增 5 条断言；无 schema 数据端点从 36 降到 **31**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

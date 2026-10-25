@@ -20,6 +20,7 @@ from app.api.dependencies import get_current_user
 from app.api.v1.media import _viewer_id_from_request
 from app.core.limiter import rate_limit
 from app.models.user import User
+from app.schemas.exam_pdf import ExamPdfListResponse
 from app.services import exam_pdf_service
 
 router = APIRouter(prefix="/exam-pdfs", tags=["exam-pdfs"])
@@ -29,7 +30,7 @@ router = APIRouter(prefix="/exam-pdfs", tags=["exam-pdfs"])
 _FILENAME_BAD = str.maketrans({c: "_" for c in '\\/:*?"<>|'})
 
 
-@router.get("")
+@router.get("", response_model=ExamPdfListResponse)
 @rate_limit("60/minute")
 async def list_exam_pdfs(
     request: Request,

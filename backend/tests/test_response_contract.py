@@ -334,6 +334,14 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_notes_exam_pdf_and_payment_routes_are_typed(self):
+        """BE-07: notes list, exam PDF list and payment polling used dicts."""
+        assert self._schema("/api/v1/notes", "get")["$ref"].endswith("PaginatedResponse_NoteItem_")
+        assert self._schema("/api/v1/exam-pdfs", "get")["$ref"].endswith("ExamPdfListResponse")
+        assert self._schema("/api/v1/payments/status", "get")["$ref"].endswith("PaymentStatusResponse")
+        assert self._schema("/api/v1/payments/order/{order_id}", "get")["$ref"].endswith("OrderStatusResponse")
+        assert self._schema("/api/v1/payments/create-order", "post")["$ref"].endswith("CreateOrderResponse")
+
     def test_discovery_search_and_daily_routes_are_typed(self):
         """BE-07: global search and daily recommendation used bare dicts."""
         assert self._schema("/api/v1/discovery/search", "get")["$ref"].endswith("SearchResponse")
