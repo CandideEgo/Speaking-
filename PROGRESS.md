@@ -482,3 +482,11 @@
 - 6 条 videos admin 路由补 `response_model`：pending-count、takedown-suggestions、quality-reports、两条字幕修订列表、word-levels 重算。
 - `test_response_contract.py` 新增 6 条断言；无 schema 数据端点从 23 降到 **17**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第十六批：channels admin / redeem-codes / unlock 契约
+
+- channels 4 条管理路由补 `response_model`：admin/all、创建（201）、更新、挂载视频；管理员列表故意不含公共卡片事实（不 join），模型单独定义。
+- redeem-codes 3 条：列表 `PaginatedResponse[RedeemCodeResponse]`、导出 `RedeemCodeExportResponse`、汇总 `RedeemCodeSummaryResponse`。
+- videos 旧解锁兼容路由 → `VideoUnlockResponse`（access 形状）；admin redemptions summary → `RedemptionSummaryResponse`。
+- 清单口径再排除 204 无响应体路由；无 schema 数据端点从 17 降到 **6**（仅剩 admin stats、转写回调、支付回调/mock-pay）。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

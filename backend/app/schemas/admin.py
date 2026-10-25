@@ -116,6 +116,12 @@ class WorkerStatusResponse(BaseModel):
     worker_online: bool
 
 
+class RedemptionSummaryResponse(BaseModel):
+    redeemed: int
+    revoked: int
+    refunded: int
+
+
 class AdminAccountItem(BaseModel):
     id: str
     name: str | None = None

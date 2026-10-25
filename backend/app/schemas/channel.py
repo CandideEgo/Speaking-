@@ -76,3 +76,33 @@ class ChannelDetailResponse(BaseModel):
     channel: ChannelDetailChannel
     recommended_start: RecommendedStart | None = None
     videos: PaginatedResponse[VideoResponse]
+
+
+class AdminChannelItem(BaseModel):
+    """Admin rows intentionally omit public-card facts (no fact join)."""
+
+    id: str
+    name: str
+    slug: str
+    description: str | None = None
+    cover_url: str | None = None
+    video_count: int
+    upstream_channel_id: str | None = None
+    sort_order: int
+    is_visible: bool
+    is_auto: bool
+    created_at: str | None = None
+
+
+class AdminChannelListResponse(BaseModel):
+    items: list[AdminChannelItem]
+
+
+class ChannelAdminRefResponse(BaseModel):
+    id: str
+    slug: str
+    name: str
+
+
+class ChannelAttachVideosResponse(BaseModel):
+    attached: int

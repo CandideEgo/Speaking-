@@ -43,6 +43,7 @@ from app.schemas.video import (
     VideoLikeToggleResponse,
     VideoResponse,
     VideoStatusResponse,
+    VideoUnlockResponse,
     VideoVocabularyItem,
     WordLevelsUpdate,
 )
@@ -1062,7 +1063,7 @@ async def get_video(
     return result
 
 
-@router.post("/{video_id}/unlock")
+@router.post("/{video_id}/unlock", response_model=VideoUnlockResponse)
 @rate_limit("10/minute")
 async def unlock_video(
     request: Request,

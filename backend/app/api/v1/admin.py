@@ -29,6 +29,7 @@ from app.schemas.admin import (
     AdminUserRoleRequest,
     AdminUserRoleResponse,
     AdminUserRow,
+    RedemptionSummaryResponse,
     WorkerStatusResponse,
 )
 from app.schemas.pagination import PaginatedResponse
@@ -185,7 +186,7 @@ async def list_admin_redemptions(
     return await admin_service.list_redemptions(db, page=page, page_size=page_size, status=status, keyword=keyword)
 
 
-@router.get("/redemptions/summary")
+@router.get("/redemptions/summary", response_model=RedemptionSummaryResponse)
 @rate_limit("30/minute")
 async def redemption_summary(
     request: Request,

@@ -11,11 +11,13 @@ from app.core.limiter import rate_limit
 from app.core.time_utils import to_aware_utc
 from app.models.redeem import RedeemCode, RedeemStatus
 from app.models.user import PlanType, User
-from app.schemas.pagination import paginated
+from app.schemas.pagination import PaginatedResponse, paginated
 from app.schemas.redeem import (
+    RedeemCodeExportResponse,
     RedeemCodeGenerate,
     RedeemCodeRedeem,
     RedeemCodeResponse,
+    RedeemCodeSummaryResponse,
     RedeemRefundResponse,
     RedeemResponse,
     RedeemRevokeRequest,
@@ -66,7 +68,7 @@ async def generate_codes(
     return codes
 
 
-@router.get("/export")
+@router.get("/export", response_model=RedeemCodeExportResponse)
 @rate_limit("10/minute")
 async def export_codes(
     request: Request,
@@ -93,7 +95,7 @@ async def export_codes(
     return {"csv": "\n".join(lines), "total": len(codes)}
 
 
-@router.get("")
+@router.get("", response_model=PaginatedResponse[RedeemCodeResponse])
 @rate_limit("30/minute")
 async def list_codes(
     request: Request,
@@ -137,7 +139,7 @@ async def list_codes(
     )
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=RedeemCodeSummaryResponse)
 @rate_limit("30/minute")
 async def codes_summary(
     request: Request,

@@ -487,6 +487,16 @@ class UnlockedVideoIdsResponse(BaseModel):
     quota: int | None = None
 
 
+class VideoAccessInfo(BaseModel):
+    unlocked: bool
+    remaining_this_month: int | None = None
+    quota: int
+
+
+class VideoUnlockResponse(BaseModel):
+    access: VideoAccessInfo
+
+
 class PendingCountsResponse(BaseModel):
     pending_processing: int
     pending_review: int

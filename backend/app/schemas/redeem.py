@@ -64,3 +64,15 @@ class RedeemRefundResponse(BaseModel):
     user_id: str
     plan: str
     plan_expires_at: datetime | None
+
+
+class RedeemCodeExportResponse(BaseModel):
+    csv: str
+    total: int
+
+
+class RedeemCodeSummaryResponse(BaseModel):
+    unused: int
+    redeemed: int
+    revoked: int
+    expired: int

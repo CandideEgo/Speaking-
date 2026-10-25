@@ -25,7 +25,13 @@ from app.core.limiter import rate_limit
 from app.models.channel import Channel
 from app.models.user import User
 from app.models.video import Video
-from app.schemas.channel import ChannelCard, ChannelDetailResponse
+from app.schemas.channel import (
+    AdminChannelListResponse,
+    ChannelAdminRefResponse,
+    ChannelAttachVideosResponse,
+    ChannelCard,
+    ChannelDetailResponse,
+)
 from app.schemas.pagination import PaginatedResponse
 from app.services import channel_service
 
@@ -102,7 +108,7 @@ class ChannelAttachVideos(BaseModel):
     video_ids: list[str] = Field(..., min_length=1)
 
 
-@router.get("/admin/all")
+@router.get("/admin/all", response_model=AdminChannelListResponse)
 @rate_limit("30/minute")
 async def admin_list_channels(
     request: Request,
@@ -113,7 +119,7 @@ async def admin_list_channels(
     return {"items": await channel_service.list_admin_channels(db)}
 
 
-@router.post("/admin", status_code=status.HTTP_201_CREATED)
+@router.post("/admin", status_code=status.HTTP_201_CREATED, response_model=ChannelAdminRefResponse)
 @rate_limit("30/minute")
 async def admin_create_channel(
     request: Request,
@@ -137,7 +143,7 @@ async def admin_create_channel(
     return {"id": channel.id, "slug": channel.slug, "name": channel.name}
 
 
-@router.patch("/admin/{channel_id}")
+@router.patch("/admin/{channel_id}", response_model=ChannelAdminRefResponse)
 @rate_limit("30/minute")
 async def admin_update_channel(
     request: Request,
@@ -191,7 +197,7 @@ async def admin_delete_channel(
     return None
 
 
-@router.post("/admin/{channel_id}/videos")
+@router.post("/admin/{channel_id}/videos", response_model=ChannelAttachVideosResponse)
 @rate_limit("30/minute")
 async def admin_attach_videos(
     request: Request,

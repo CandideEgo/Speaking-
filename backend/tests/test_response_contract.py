@@ -334,6 +334,26 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_unlock_and_redemption_summary_are_typed(self):
+        """BE-07: legacy unlock and admin redemption summary used dicts."""
+        assert self._schema("/api/v1/videos/{video_id}/unlock", "post")["$ref"].endswith("VideoUnlockResponse")
+        assert self._schema("/api/v1/admin/redemptions/summary", "get")["$ref"].endswith("RedemptionSummaryResponse")
+
+    def test_redeem_code_admin_routes_are_typed(self):
+        """BE-07: redeem-code list/export/summary used dicts."""
+        assert self._schema("/api/v1/redeem-codes", "get")["$ref"].endswith("PaginatedResponse_RedeemCodeResponse_")
+        assert self._schema("/api/v1/redeem-codes/export", "get")["$ref"].endswith("RedeemCodeExportResponse")
+        assert self._schema("/api/v1/redeem-codes/summary", "get")["$ref"].endswith("RedeemCodeSummaryResponse")
+
+    def test_channel_admin_routes_are_typed(self):
+        """BE-07: channel admin list/create/update/attach used dicts."""
+        assert self._schema("/api/v1/channels/admin/all", "get")["$ref"].endswith("AdminChannelListResponse")
+        assert self._schema("/api/v1/channels/admin", "post", "201")["$ref"].endswith("ChannelAdminRefResponse")
+        assert self._schema("/api/v1/channels/admin/{channel_id}", "patch")["$ref"].endswith("ChannelAdminRefResponse")
+        assert self._schema("/api/v1/channels/admin/{channel_id}/videos", "post")["$ref"].endswith(
+            "ChannelAttachVideosResponse"
+        )
+
     def test_video_admin_reports_and_revisions_are_typed(self):
         """BE-07: video admin pending/quality/revision endpoints used dicts."""
         assert self._schema("/api/v1/videos/admin/pending-count", "get")["$ref"].endswith("PendingCountsResponse")
