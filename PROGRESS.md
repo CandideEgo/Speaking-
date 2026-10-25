@@ -433,3 +433,9 @@
 - `GET /discovery/dictionary` → `DictionaryResponse`（`PaginatedResponse[DictionaryWord]`，ECDICT 额外字段通过 `extra="allow"` 保留）；`GET /discovery/learning-metadata` → `dict[str, LearningMetadataItem]`（示例词/时间戳均建模）。
 - `test_response_contract.py` 新增 4 条断言；无 schema 数据端点从 61 降到 **57**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第九批：discovery 自建词单 CRUD 契约
+
+- 5 条 sets 路由补 `response_model`：创建（201）、重命名、删除、加词、移词，分别用 `SetCreatedResponse` / `SetRenamedResponse` / `SetDeletedResponse` / `SetWordsAddedResponse` / `SetWordRemovedResponse`。
+- `test_response_contract.py` 新增 sets CRUD 断言；无 schema 数据端点从 57 降到 **52**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

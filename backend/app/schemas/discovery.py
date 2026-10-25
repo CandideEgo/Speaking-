@@ -91,3 +91,24 @@ class LearningMetadataItem(BaseModel):
     sample_start_time: float | None = None
     sample_end_time: float | None = None
     sample_word_timestamps: list[WordTimestamp]
+
+
+class SetCreatedResponse(BaseModel):
+    id: str
+
+
+class SetRenamedResponse(BaseModel):
+    id: str
+    name: str
+
+
+class SetDeletedResponse(BaseModel):
+    deleted: bool
+
+
+class SetWordsAddedResponse(BaseModel):
+    added: int
+
+
+class SetWordRemovedResponse(BaseModel):
+    removed: bool

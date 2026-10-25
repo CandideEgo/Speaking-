@@ -334,6 +334,16 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_discovery_set_crud_routes_are_typed(self):
+        """BE-07: user-created set CRUD used bare acknowledgement dicts."""
+        assert self._schema("/api/v1/discovery/sets", "post", "201")["$ref"].endswith("SetCreatedResponse")
+        assert self._schema("/api/v1/discovery/sets/{set_id}", "patch")["$ref"].endswith("SetRenamedResponse")
+        assert self._schema("/api/v1/discovery/sets/{set_id}", "delete")["$ref"].endswith("SetDeletedResponse")
+        assert self._schema("/api/v1/discovery/sets/{set_id}/words", "post")["$ref"].endswith("SetWordsAddedResponse")
+        assert self._schema("/api/v1/discovery/sets/{set_id}/words/{set_word_id}", "delete")["$ref"].endswith(
+            "SetWordRemovedResponse"
+        )
+
     def test_browse_and_discovery_catalog_helpers_are_typed(self):
         """BE-07: categories/featured/dictionary/learning-metadata used dicts."""
         assert self._schema("/api/v1/browse/categories", "get")["$ref"].endswith("CategoriesResponse")

@@ -16,6 +16,11 @@ from app.schemas.discovery import (
     LearningMetadataItem,
     SentenceFavoriteItem,
     SentenceFavoriteStatus,
+    SetCreatedResponse,
+    SetDeletedResponse,
+    SetRenamedResponse,
+    SetWordRemovedResponse,
+    SetWordsAddedResponse,
     SubscriptionState,
 )
 from app.schemas.pagination import PaginatedResponse
@@ -89,7 +94,7 @@ class RenameSet(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
 
-@router.post("/sets", status_code=201)
+@router.post("/sets", status_code=201, response_model=SetCreatedResponse)
 @rate_limit("20/minute")
 async def create_set(
     request: Request, payload: CreateSet, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -101,7 +106,7 @@ async def create_set(
     return {"id": row.id}
 
 
-@router.patch("/sets/{set_id}")
+@router.patch("/sets/{set_id}", response_model=SetRenamedResponse)
 async def rename_set(
     set_id: str, payload: RenameSet, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
@@ -116,7 +121,7 @@ async def rename_set(
     return {"id": row.id, "name": row.name}
 
 
-@router.delete("/sets/{set_id}")
+@router.delete("/sets/{set_id}", response_model=SetDeletedResponse)
 async def delete_set(set_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from sqlalchemy import delete
 
@@ -130,7 +135,7 @@ async def delete_set(set_id: str, user: User = Depends(get_current_user), db: As
     return {"deleted": True}
 
 
-@router.post("/sets/{set_id}/words")
+@router.post("/sets/{set_id}/words", response_model=SetWordsAddedResponse)
 @rate_limit("30/minute")
 async def add_words(
     request: Request,
@@ -146,7 +151,7 @@ async def add_words(
     return result
 
 
-@router.delete("/sets/{set_id}/words/{set_word_id}")
+@router.delete("/sets/{set_id}/words/{set_word_id}", response_model=SetWordRemovedResponse)
 async def remove_word(
     set_id: str, set_word_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
