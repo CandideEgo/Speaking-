@@ -341,6 +341,13 @@ class TestOpenApiResponseModels:
         assert self._schema("/api/v1/exams/attempts", "get")["$ref"].endswith("PaginatedResponse_ExamAttemptItem_")
         assert self._schema("/api/v1/exams/attempts/{session_id}", "get")["$ref"].endswith("ExamAttemptDetailResponse")
 
+    def test_video_like_and_search_suggestion_routes_are_typed(self):
+        """BE-07: like/search helper endpoints used to return bare dicts."""
+        assert self._schema("/api/v1/videos/{video_id}/like", "post")["$ref"].endswith("VideoLikeToggleResponse")
+        assert self._schema("/api/v1/videos/{video_id}/like-status", "get")["$ref"].endswith("VideoLikeStatusResponse")
+        assert self._schema("/api/v1/videos/search/suggest", "get")["$ref"].endswith("SearchSuggestionsResponse")
+        assert self._schema("/api/v1/videos/search/hot", "get")["$ref"].endswith("HotSearchesResponse")
+
     def test_learning_stats_and_continue_routes_are_typed(self):
         """BE-07: continue/progress/weekly stats used to return bare dicts."""
         assert self._schema("/api/v1/learning/continue", "get")["$ref"].endswith("ContinueLearningResponse")

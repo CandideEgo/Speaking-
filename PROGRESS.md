@@ -406,3 +406,9 @@
 - 新增 schema：继续观看项/响应、观看进度、每日分钟、周统计、事件分布；`last_accessed_at` 用 `datetime`。
 - `test_response_contract.py` 新增 learning 4 条路径断言；无 schema 数据端点从 87 降到 **80**（并明确排除固定 410 的 heatmap/weekly-reports 兼容壳）。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第五批：videos 点赞/搜索建议契约
+
+- `/videos/{video_id}/like` 与 `/like-status` 改用 `VideoLikeToggleResponse` / `VideoLikeStatusResponse`，`/videos/search/suggest` 与 `/search/hot` 改用 `SearchSuggestionsResponse` / `HotSearchesResponse`。
+- `test_response_contract.py` 新增 4 条断言；无 schema 数据端点从 80 降到 **76**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

@@ -17,8 +17,10 @@ from app.models.user import User
 from app.models.video import Video
 from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 from app.schemas.video import (
+    HotSearchesResponse,
     RecomputeWordLevelsRequest,
     ReviewRejectRequest,
+    SearchSuggestionsResponse,
     SubtitleBatchUpdate,
     SubtitleCreate,
     SubtitleReorder,
@@ -31,6 +33,8 @@ from app.schemas.video import (
     VideoAdminUpdate,
     VideoCreate,
     VideoDetailResponse,
+    VideoLikeStatusResponse,
+    VideoLikeToggleResponse,
     VideoResponse,
     VideoStatusResponse,
     VideoVocabularyItem,
@@ -191,7 +195,7 @@ async def search_videos(
     return results
 
 
-@router.get("/search/suggest")
+@router.get("/search/suggest", response_model=SearchSuggestionsResponse)
 @rate_limit("30/minute")
 async def suggest_search(
     request: Request,
@@ -203,7 +207,7 @@ async def suggest_search(
     return {"suggestions": await _suggest_titles(db, q, limit)}
 
 
-@router.get("/search/hot")
+@router.get("/search/hot", response_model=HotSearchesResponse)
 @rate_limit("30/minute")
 async def hot_searches(request: Request):
     """D7 热门搜索：Redis ZSET Top 10（1h 缓存），故障时退回静态列表。"""
@@ -1136,7 +1140,7 @@ async def seed_video_full(
     return await _seed_video(db, data.source_url, auto_publish=True)
 
 
-@router.post("/{video_id}/like")
+@router.post("/{video_id}/like", response_model=VideoLikeToggleResponse)
 @rate_limit("30/minute")
 async def toggle_video_like(
     request: Request,
@@ -1148,7 +1152,7 @@ async def toggle_video_like(
     return await _toggle_video_like(db, current_user.id, video_id)
 
 
-@router.get("/{video_id}/like-status")
+@router.get("/{video_id}/like-status", response_model=VideoLikeStatusResponse)
 @rate_limit("30/minute")
 async def video_like_status(
     request: Request,

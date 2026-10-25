@@ -465,6 +465,22 @@ class VideoVocabularyItem(BaseModel):
     created_at: str
 
 
+class VideoLikeToggleResponse(BaseModel):
+    liked: bool
+
+
+class VideoLikeStatusResponse(BaseModel):
+    is_liked: bool
+
+
+class SearchSuggestionsResponse(BaseModel):
+    suggestions: list[str]
+
+
+class HotSearchesResponse(BaseModel):
+    hot: list[str]
+
+
 class SubtitleSearchResult(BaseModel):
     """A video with matching subtitle snippets from subtitle search."""
 
