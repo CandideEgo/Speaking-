@@ -135,6 +135,6 @@
 
 1. **存量库升级准备**：上线 `p7q8r9s0t1u2` 前先清重复 / 孤儿数据（本机 dev 库已查出 58 条重复 join 行、49 条孤儿 reviewer）；清完再跑迁移与漂移门禁。
 2. **退役表清理**：`rubric_criteria` / `speaking_rubrics` / `speaking_attempt_scores` / `video_practice_questions` 及 `speaking_attempts.rubric_id` 仍保留给历史导出与注销清理；确认无消费方后再单独做删除迁移（需产品/合规签字）。
-3. **前端功能收尾**：F5 残余——把 `--hairline-strong` 用作正文色的少数点位收掉；F12 为 dev 并发噪声，按记录不修。
+3. **前端功能收尾**：F5 残余已核对关闭——`--hairline-strong` 现只用于边框/图标分隔，没有正文色用法；F12 为 dev 并发噪声，按记录不修。
 4. **e2e 长尾**：chromium 已有 testing-env 基线（`131 passed / 10 failed / 63 skipped`，其中 4 条并发抖动单跑通过、6 条为已知 fixture 缺口）；firefox / mobile-chrome / mobile-iphone 三个 project 仍未执行，6 条 fixture 缺口待补种子数据。
 5. **生产路径**：真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload 未执行；生产库升级前同样要先做迁移前数据清理。
