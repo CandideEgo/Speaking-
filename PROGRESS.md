@@ -475,3 +475,10 @@
 - 清单同时排除固定 410 的 `/videos/{video_id}/shadowing-sentences` 兼容壳。
 - `test_response_contract.py` 新增 7 条断言；无 schema 数据端点从 31 降到 **23**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第十五批：videos admin 报告/修订契约
+
+- 新增 `PendingCountsResponse`、`TakedownSuggestionsResponse`、`QualityReportItem`、`SubtitleRevisionItem`、`RecomputeWordLevelsResponse`。
+- 6 条 videos admin 路由补 `response_model`：pending-count、takedown-suggestions、quality-reports、两条字幕修订列表、word-levels 重算。
+- `test_response_contract.py` 新增 6 条断言；无 schema 数据端点从 23 降到 **17**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

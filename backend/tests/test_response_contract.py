@@ -334,6 +334,23 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_video_admin_reports_and_revisions_are_typed(self):
+        """BE-07: video admin pending/quality/revision endpoints used dicts."""
+        assert self._schema("/api/v1/videos/admin/pending-count", "get")["$ref"].endswith("PendingCountsResponse")
+        assert self._schema("/api/v1/videos/admin/takedown-suggestions", "get")["$ref"].endswith(
+            "TakedownSuggestionsResponse"
+        )
+        reports = self._schema("/api/v1/videos/admin/{video_id}/quality-reports", "get")
+        assert reports["type"] == "array"
+        for path in (
+            "/api/v1/videos/admin/{video_id}/subtitles/revisions",
+            "/api/v1/videos/admin/{video_id}/subtitles/{subtitle_id}/revisions",
+        ):
+            assert self._schema(path, "get")["$ref"].endswith("PaginatedResponse_SubtitleRevisionItem_")
+        assert self._schema("/api/v1/videos/admin/{video_id}/subtitles/word-levels/recompute", "post")["$ref"].endswith(
+            "RecomputeWordLevelsResponse"
+        )
+
     def test_admin_settings_and_user_action_routes_are_typed(self):
         """BE-07: admin settings/worker/user actions used bare dicts."""
         for method in ("get", "put"):

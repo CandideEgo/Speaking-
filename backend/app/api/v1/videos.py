@@ -18,16 +18,21 @@ from app.models.video import Video
 from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 from app.schemas.video import (
     HotSearchesResponse,
+    PendingCountsResponse,
+    QualityReportItem,
     RecomputeWordLevelsRequest,
+    RecomputeWordLevelsResponse,
     ReviewRejectRequest,
     SearchSuggestionsResponse,
     SubtitleBatchUpdate,
     SubtitleCreate,
     SubtitleReorder,
     SubtitleResponse,
+    SubtitleRevisionItem,
     SubtitleSearchResult,
     SubtitleSplit,
     SubtitleUpdate,
+    TakedownSuggestionsResponse,
     UnlockedVideoIdsResponse,
     VideoAdminResponse,
     VideoAdminStatusResponse,
@@ -273,7 +278,7 @@ async def list_admin_videos(
     )
 
 
-@router.get("/admin/pending-count")
+@router.get("/admin/pending-count", response_model=PendingCountsResponse)
 @rate_limit("30/minute")
 async def get_admin_pending_count(
     request: Request,
@@ -377,7 +382,7 @@ async def retry_video(
     return await _retry_video(db, video_id)
 
 
-@router.get("/admin/takedown-suggestions")
+@router.get("/admin/takedown-suggestions", response_model=TakedownSuggestionsResponse)
 @rate_limit("30/minute")
 async def list_takedown_suggestions(
     request: Request,
@@ -444,7 +449,7 @@ async def retranslate_video(
     return await _retranslate(db, video_id, engine=engine)
 
 
-@router.get("/admin/{video_id}/quality-reports")
+@router.get("/admin/{video_id}/quality-reports", response_model=list[QualityReportItem])
 @rate_limit("30/minute")
 async def get_video_quality_reports(
     request: Request,
@@ -635,7 +640,7 @@ async def update_admin_word_levels(
     return await _update_word_levels(db, video_id, subtitle_id, payload)
 
 
-@router.post("/admin/{video_id}/subtitles/word-levels/recompute")
+@router.post("/admin/{video_id}/subtitles/word-levels/recompute", response_model=RecomputeWordLevelsResponse)
 @rate_limit("10/minute")
 async def recompute_admin_word_levels(
     request: Request,
@@ -663,7 +668,7 @@ async def rollback_admin_subtitle(
     return await _rollback_subtitle(db, video_id, subtitle_id, revision_id, edited_by=current_user.id)
 
 
-@router.get("/admin/{video_id}/subtitles/revisions")
+@router.get("/admin/{video_id}/subtitles/revisions", response_model=PaginatedResponse[SubtitleRevisionItem])
 @rate_limit("30/minute")
 async def list_admin_subtitle_revisions(
     request: Request,
@@ -677,7 +682,9 @@ async def list_admin_subtitle_revisions(
     return await _list_subtitle_revisions(db, video_id, page=page, page_size=page_size)
 
 
-@router.get("/admin/{video_id}/subtitles/{subtitle_id}/revisions")
+@router.get(
+    "/admin/{video_id}/subtitles/{subtitle_id}/revisions", response_model=PaginatedResponse[SubtitleRevisionItem]
+)
 @rate_limit("30/minute")
 async def list_admin_subtitle_revisions_for_one(
     request: Request,

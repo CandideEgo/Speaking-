@@ -487,6 +487,43 @@ class UnlockedVideoIdsResponse(BaseModel):
     quota: int | None = None
 
 
+class PendingCountsResponse(BaseModel):
+    pending_processing: int
+    pending_review: int
+    total: int
+
+
+class TakedownSuggestionsResponse(BaseModel):
+    items: list[VideoResponse]
+
+
+class QualityReportItem(BaseModel):
+    id: str
+    stage: str
+    passed: bool
+    coverage_ratio: float | None = None
+    metrics: dict
+    issues: list[str]
+    segment_count: int | None = None
+    created_at: str | None = None
+
+
+class SubtitleRevisionItem(BaseModel):
+    id: str
+    subtitle_id: str
+    video_id: str
+    edited_by: str | None = None
+    scope: str | None = None
+    before: dict | None = None
+    after: dict | None = None
+    created_at: str | None = None
+
+
+class RecomputeWordLevelsResponse(BaseModel):
+    subtitles_updated: int
+    exam_words_found: int
+
+
 class SubtitleSearchResult(BaseModel):
     """A video with matching subtitle snippets from subtitle search."""
 
