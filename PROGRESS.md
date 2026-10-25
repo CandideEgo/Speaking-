@@ -519,3 +519,11 @@
 - `ChannelCard` 订阅改为乐观更新：点击立即切换文案、同步父层「已订阅 N」与全局订阅事件；请求失败回滚原状态并 toast，响应值异常时再对齐（F7 关闭）。
 - 前端门禁复跑：`npm run check` 通过；`npm run test:unit` **30 文件 / 332 项通过**；订阅回归 e2e（design-rollout「频道订阅刷新后保留并能取消」）**1 passed**。
 - 审计 README 清理过期遗留：删除已修的 F7、已完成的 BE-08/09/11/12 与已实现的前端结构缺口；章节 5 按当前事实重排（存量库升级、退役表、F5 残余/F12 环境噪声、e2e 长尾、生产路径），并更新审计快照到 `173b405`。
+
+### Round 54（同一轮延续）：四个 e2e project 全部跑过
+
+- 同 testing 环境 + `seeword_e2e_full` 种子库补跑：
+  - firefox：**122 passed / 19 failed / 63 skipped**；`--last-failed` 串行 → 10 passed / 9 failed（6 条既有 fixture 缺口 + 3 条 Firefox-only 观看页基线）。
+  - mobile-chrome：**131 passed / 10 failed / 63 skipped**；重跑 → 2 passed / 8 failed（6 条 fixture 缺口 + avatar + 文稿页桌面目录断言在 393px 下隐藏，属 spec/project 错配）。
+  - mobile-iphone：**30 passed / 2 failed**（同一组 239 词/46 题 fixture 缺口）。
+- 审计报告已更新四项目口径；恢复 dev 后端与截图，未删除/跳过用例。跨浏览器残余只记录，未改产品代码。

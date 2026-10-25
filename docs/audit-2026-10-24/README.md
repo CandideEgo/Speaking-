@@ -107,7 +107,7 @@
 | 后端全量 `pytest tests/ -q` | **1401 passed, 16 skipped**（2026-10-25 复跑；16 条需独立 `PG_TEST_URL` 的 integration 默认跳过） |
 | 本轮针对性后端测试 | config 23、exams 21、search 16、behavior 13、auth 4、media + PDF 47、notifications 35、SMS/配置 61 全绿 |
 | e2e 定点 | 断点用例**通过**；`design-rollout` + `public-layout` 共 8 条通过；2026-10-25 重启 dev 前端后 container-align + auth-hydration **3/3** 通过 |
-| e2e 全量（chromium） | 2026-10-25 重建 `seeword_e2e_full` 库（`alembic upgrade head` 到 `q8r9s0t1u2v3` + `seed_e2e.py`）并以 `ENV=testing` 后端复跑：**204 项 → 131 passed / 10 failed / 63 skipped**；`--last-failed` 单跑这 10 条得到 **4 passed / 6 failed**，通过的是并发抖动（avatar、design-rollout 3 条），剩下的 6 条正是已知 fixture 缺口（home-feed 真实数据配比、收藏/订阅持久化、listening 音频 ×2、239 词复习队列、46 题长卷）。相对历史基线均为同一条用例集合，未删除/跳过用例来凑绿 |
+| e2e 全量（chromium） | 2026-10-25 重建 `seeword_e2e_full` 库（`alembic upgrade head` 到 `q8r9s0t1u2v3` + `seed_e2e.py`）并以 `ENV=testing` 后端复跑：**204 项 → 131 passed / 10 failed / 63 skipped**；`--last-failed` 单跑这 10 条得到 **4 passed / 6 failed**，通过的是并发抖动（avatar、design-rollout 3 条），剩下的 6 条正是已知 fixture 缺口（home-feed 真实数据配比、收藏/订阅持久化、listening 音频 ×2、239 词复习队列、46 题长卷）。相对历史基线均为同一条用例集合，未删除/跳过用例来凑绿。2026-10-25 同环境补跑其余 project：**firefox 122 passed / 19 failed / 63 skipped**（串行重跑 19 条 → 10 passed / 9 failed：6 条 fixture 缺口 + 3 条 Firefox-only 观看页基线），**mobile-chrome 131 passed / 10 failed / 63 skipped**（重跑 → 2 passed / 8 failed：6 条 fixture 缺口 + avatar + 文稿页桌面目录断言在 393px 下不成立，属 spec/project 错配），**mobile-iphone 30 passed / 2 failed**（均为同一个 239 词/46 题 fixture 缺口）。 |
 | 浏览器复核（Playwright，1440/390） | 首个 Tab = 「跳到正文」；`aria-pressed` 存在；通知浮层 `dialog` + 空态、无 spinner；`/channels` 清空按钮存在；404 h1 = 「页面不存在」；已设密码账号出现引导、首设密码账号出现表单；触控 `search 44×44 / chip 52×44 / tab 78×60`；断点 1024/820/768/600/390 无侧栏且有底栏、1920/1440 反之；横向溢出 0 |
 | 视觉审计 | 13 路由 × 1440/390 全页 + 暗色 + 1024/820 定点共 57 张；114 次溢出测量 0px |
 | 第二轮结构补齐复核 | 词汇页真实账号（14 词 + 2 个词单）出现到期卡/四项统计/词单网格；练习页出现 3 列试卷与已选条；我的页出现深色会员卡/账户卡；12 条列表路由 h1 实测 `12px / uppercase`、无横向溢出；移动端眉标左对齐（h1 x=16） |
@@ -118,7 +118,7 @@
 ### 未执行（如实标注）
 
 - **全量 e2e 的 6 条剩余失败**：历史实测失败全部是 fixture 数据不足（home-feed 真实数据配比、频道/收藏、listening 音频 ×2、239 词复习队列、46 题长卷）。未删除或跳过这些用例，留待补种子数据；2026-10-25 用 `ENV=testing` + 全新 `seeword_e2e_full` 库复跑已复现同一组 6 条，dev 后端整轮则被限流/假死污染，不作为基线。
-- **e2e 的 firefox / mobile-chrome / mobile-iphone 三个 project**：本轮只跑了 chromium，其余未执行。
+- **e2e 跨浏览器残余**：firefox 3 条观看页基线用例未定位（Firefox-only，Chromium 同用例通过）；mobile-chrome 的 avatar 与文稿页目录断言属跨 project 错配（后者在 393px 会按设计隐藏桌面目录）；均记录未改产品代码。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
 - **对存量库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库就有 58 + 49 条）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。
@@ -136,5 +136,5 @@
 1. **存量库升级准备**：上线 `p7q8r9s0t1u2` 前先清重复 / 孤儿数据（本机 dev 库已查出 58 条重复 join 行、49 条孤儿 reviewer）；清完再跑迁移与漂移门禁。
 2. **退役表清理**：`rubric_criteria` / `speaking_rubrics` / `speaking_attempt_scores` / `video_practice_questions` 及 `speaking_attempts.rubric_id` 仍保留给历史导出与注销清理；确认无消费方后再单独做删除迁移（需产品/合规签字）。
 3. **前端功能收尾**：F5 残余已核对关闭——`--hairline-strong` 现只用于边框/图标分隔，没有正文色用法；F12 为 dev 并发噪声，按记录不修。
-4. **e2e 长尾**：chromium 已有 testing-env 基线（`131 passed / 10 failed / 63 skipped`，其中 4 条并发抖动单跑通过、6 条为已知 fixture 缺口）；firefox / mobile-chrome / mobile-iphone 三个 project 仍未执行，6 条 fixture 缺口待补种子数据。
+4. **e2e 长尾**：四个 project 均已在 testing-env + 种子库跑过（chromium 131/10/63、firefox 122/19/63、mobile-chrome 131/10/63、mobile-iphone 30/2）；稳定失败集中在 6 条 fixture 缺口，另有 Firefox-only 3 条与 mobile-chrome 2 条（后者为 desktop 断言跑在手机 project 的错配）。待补种子数据并逐条处置跨浏览器项。
 5. **生产路径**：真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload 未执行；生产库升级前同样要先做迁移前数据清理。
