@@ -138,3 +138,11 @@
 3. **前端功能收尾**：F5 残余已核对关闭——`--hairline-strong` 现只用于边框/图标分隔，没有正文色用法；F12 为 dev 并发噪声，按记录不修。
 4. **e2e 长尾**：四个 project 均已在 testing-env + 种子库跑过（chromium 131/10/63、firefox 122/19/63、mobile-chrome 131/10/63、mobile-iphone 30/2）；稳定失败集中在 6 条 fixture 缺口，另有 Firefox-only 3 条与 mobile-chrome 2 条（后者为 desktop 断言跑在手机 project 的错配）。待补种子数据并逐条处置跨浏览器项。
 5. **生产路径**：真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload 未执行；生产库升级前同样要先做迁移前数据清理。
+
+## 6. 交付状态（2026-10-25 收尾）
+
+- **审计发现**：前端视觉 30 条全部处置（27 修、3 条有意保留）；前端功能/可访问性 P0/P1 为 0、P2 全修、P3 修 5 留 1（F12 为 dev 并发环境噪声）；后端 31 条已修 30 条 + 1 条契约补充，BE-07 清零。
+- **门禁**：`npm run check`、`npm run test:unit`（332）、后端全量 pytest（1401 passed / 16 skipped）、ruff、mypy `42=42` 均为绿；未调整任何基线、白名单或豁免。
+- **e2e**：四个 project 均已在 `ENV=testing` + `seeword_e2e_full` 种子库跑过；稳定失败只剩 6 条 fixture 数据缺口，另有跨浏览器/跨 project 的已记录项（Firefox-only 3、mobile-chrome 2、mobile-iphone 复用同一缺口）。
+- **提交**：修复与报告全部提交在 `redesign` 分支。
+- **明确未执行**：生产部署、真实支付/短信、生产库迁移执行、nginx reload；以及 6 条 fixture 缺口待补种子数据。
