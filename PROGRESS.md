@@ -505,3 +505,11 @@
 - 后端全量再次复跑：**1401 passed / 16 skipped**（BE-07 收尾后）。
 - chromium e2e：整轮首次运行被假死的 Next dev server 污染（115 条 `page.goto` 超时），重启后代表性子集 3/3 通过；串行整轮 120 passed / 21 failed / 13 skipped / 50 did not run，失败为 dev 限流（注册/验证码 429）与既有 fixture 缺口，不是代码回归。审计报告已如实记录，未删除/跳过用例凑绿。
 - e2e 产生的截图改动已还原，工作区只保留报告修改。
+
+### Round 52：用 testing 环境复跑全量 e2e，拿到有效基线
+
+- 重建独立 `seeword_e2e_full` 库：`alembic upgrade head`（到 `q8r9s0t1u2v3`）+ `scripts/seed_e2e.py`（1 条官方 ready 视频 / 4 条字幕 / 1 套 6 题试卷）。
+- 以 `ENV=testing`、独立 DATABASE_URL/JWT_SECRET、`SMS_DEV_FAKE_ENABLED=true` 启动 :8000，前端 :3000 复跑 chromium 全量：
+  **204 项 → 131 passed / 10 failed / 63 skipped**。
+- `--last-failed` 单跑 10 条：**4 passed / 6 failed**，通过的 4 条为并发抖动；剩余 6 条即既有 fixture 缺口（home-feed 配比、library-persistence、listening ×2、239 词队列、46 题长卷），与历史基线同一用例集合，无新增回归。
+- 验证完已恢复 dev 后端（dev 库、`AdminStatsResponse` 实时 OpenAPI 核验）；e2e 写出的截图改动已还原。
