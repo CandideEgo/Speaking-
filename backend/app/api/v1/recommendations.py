@@ -16,12 +16,16 @@ from app.api.dependencies import get_optional_user
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
+from app.schemas.recommendation import (
+    RecommendationCategoryResponse,
+    RecommendationHomeResponse,
+)
 from app.services.recommendation_service import get_category_feed, get_home_feed
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
 
-@router.get("/home")
+@router.get("/home", response_model=RecommendationHomeResponse)
 @rate_limit("30/minute")
 async def home_feed(
     request: Request,
@@ -34,7 +38,7 @@ async def home_feed(
     return await get_home_feed(db, current_user, page, page_size)
 
 
-@router.get("/category/{tag}")
+@router.get("/category/{tag}", response_model=RecommendationCategoryResponse)
 @rate_limit("30/minute")
 async def category_feed(
     request: Request,

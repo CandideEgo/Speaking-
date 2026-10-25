@@ -11,6 +11,12 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class OkResponse(BaseModel):
+    """Generic acknowledgement for lightweight POST endpoints."""
+
+    ok: bool
+
+
 class UserProfileBrief(BaseModel):
     """Minimal user info shown in community responses."""
 

@@ -334,6 +334,15 @@ class TestOpenApiResponseModels:
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
 
+    def test_recommendation_and_presence_routes_are_typed(self):
+        """BE-07: recommendation feeds, heartbeat and unlocked-ids were dicts."""
+        assert self._schema("/api/v1/recommendations/home", "get")["$ref"].endswith("RecommendationHomeResponse")
+        assert self._schema("/api/v1/recommendations/category/{tag}", "get")["$ref"].endswith(
+            "RecommendationCategoryResponse"
+        )
+        assert self._schema("/api/v1/presence/heartbeat", "post")["$ref"].endswith("OkResponse")
+        assert self._schema("/api/v1/videos/unlocked-ids", "get")["$ref"].endswith("UnlockedVideoIdsResponse")
+
     def test_user_overview_is_typed(self):
         """BE-07: the aggregated profile overview used a bare dict."""
         assert self._schema("/api/v1/users/me/overview", "get")["$ref"].endswith("OverviewResponse")

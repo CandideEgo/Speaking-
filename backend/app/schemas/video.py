@@ -481,6 +481,12 @@ class HotSearchesResponse(BaseModel):
     hot: list[str]
 
 
+class UnlockedVideoIdsResponse(BaseModel):
+    video_ids: list[str]
+    remaining_this_month: int | None = None
+    quota: int | None = None
+
+
 class SubtitleSearchResult(BaseModel):
     """A video with matching subtitle snippets from subtitle search."""
 

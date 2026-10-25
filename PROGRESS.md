@@ -446,3 +446,10 @@
 - 清单明确排除：已退役固定 410 的 heatmap/weekly-reports、vocab-sets celebrate、shadowing 5 条，以及二进制下载端点（导出下载、exam-pdf 文件）。
 - `test_response_contract.py` 新增 overview 断言；无 schema 数据端点从 52 降到 **44**。
 - `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。
+
+### BE-07 第十一批：recommendations / presence / unlocked-ids 契约
+
+- `GET /recommendations/home` → `RecommendationHomeResponse`；`/recommendations/category/{tag}` → `RecommendationCategoryResponse`（分页字段 + tag + personalized）。
+- `POST /presence/heartbeat` → `OkResponse`；`GET /videos/unlocked-ids` → `UnlockedVideoIdsResponse`（内测期恒空但保留形状）。
+- `test_response_contract.py` 新增 4 条断言；无 schema 数据端点从 44 降到 **40**。
+- `ruff check/format` 通过；mypy 42=42 无新增；后端全量测试见本轮结果。

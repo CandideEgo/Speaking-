@@ -28,6 +28,7 @@ from app.schemas.video import (
     SubtitleSearchResult,
     SubtitleSplit,
     SubtitleUpdate,
+    UnlockedVideoIdsResponse,
     VideoAdminResponse,
     VideoAdminStatusResponse,
     VideoAdminUpdate,
@@ -811,7 +812,7 @@ async def list_unlocked_videos(
     return paginated([], page=page, page_size=page_size, total=0)
 
 
-@router.get("/unlocked-ids")
+@router.get("/unlocked-ids", response_model=UnlockedVideoIdsResponse)
 @rate_limit("30/minute")
 async def list_unlocked_video_ids(
     request: Request,
