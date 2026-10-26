@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type Dispatch,
@@ -9,12 +10,16 @@ import {
   type SetStateAction,
 } from "react";
 
-import { type WatchChromeState } from "@/components/watch/WatchChromeProvider";
+import {
+  usePublishWatchChrome,
+  type WatchChromeState,
+} from "@/components/watch/WatchChromeProvider";
 import { ExamLevelSelector } from "@/components/watch/ExamLevelSelector";
 import { cefrWithExamHint } from "@/lib/cefrLevels";
 import type { VideoDetail } from "@/types";
 
 export interface WatchChromeBridgeArgs {
+  enabled: boolean;
   /** 视频详情：顶栏标题、频道名与难度都从它来。 */
   video: VideoDetail | null;
   /** 与页面底栏共用的那支 `<video>`（进度条直读它）。 */
@@ -54,6 +59,7 @@ export interface WatchChromeBridgeArgs {
  * （`<video ref={chrome.attachVideo ?? videoRef}>`）。
  */
 export function useWatchChromeBridge({
+  enabled,
   video,
   videoRef,
   moreOpen,
@@ -70,6 +76,7 @@ export function useWatchChromeBridge({
   onNext,
   isYtMode,
 }: WatchChromeBridgeArgs): WatchChromeState {
+  const publish = usePublishWatchChrome();
   // setMoreOpen 是 useState 的 setter（稳定），列进依赖只是让 eslint 闭嘴，运行期无差别。
   const chromeTimer = useCallback(() => setMoreOpen((v) => !v), [setMoreOpen]);
 
@@ -136,5 +143,9 @@ export function useWatchChromeBridge({
       videoEl,
     ]
   );
+  useEffect(() => {
+    publish?.(enabled ? chrome : null);
+  }, [publish, chrome, enabled]);
+  useEffect(() => () => publish?.(null), [publish]);
   return chrome;
 }

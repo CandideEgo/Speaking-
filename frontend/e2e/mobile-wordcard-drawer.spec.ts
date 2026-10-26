@@ -84,7 +84,7 @@ async function tapWord(page: Page, index = 0) {
 
 async function assertSheetAboveNavigation(page: Page, selector: string) {
   const sheet = await boxOf(page, selector);
-  const tabs = await boxOf(page, '[data-testid="mobile-tab-bar"]');
+  const tabs = await boxOf(page, '[data-shell-bottom-bar="watch"]');
   expect(sheet.y).toBeGreaterThanOrEqual(0);
   expect(sheet.y + sheet.height).toBeLessThanOrEqual(tabs.y + 2);
   expect(sheet.width).toBeCloseTo((await page.viewportSize())!.width, 0);
@@ -104,7 +104,7 @@ for (const height of [812, 600, 480]) {
     );
     await assertSheetAboveNavigation(page, WORD_SHEET);
     const card = await boxOf(page, CARD);
-    const tabs = await boxOf(page, '[data-testid="mobile-tab-bar"]');
+    const tabs = await boxOf(page, '[data-shell-bottom-bar="watch"]');
     const sheet = await boxOf(page, WORD_SHEET);
     expect(sheet.y).toBeCloseTo(Math.max(8, Math.min(card.y + card.height, tabs.y - 240)), 0);
     await page.locator(WORD_SHEET).getByRole("button", { name: "关闭", exact: true }).click();

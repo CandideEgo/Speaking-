@@ -1,4 +1,10 @@
 import { create } from "zustand";
+import {
+  DEFAULT_WATCH_RATIO,
+  WATCH_LAYOUT_STORAGE_KEY,
+  readWatchLayout,
+  type MobileFrameSize,
+} from "@/lib/watchLayout";
 
 /** 字幕显示模式：双语 / 英文 / 中文 / 关闭（D1：S 键循环，含隐藏档；用户可见名见 lib/subtitleModes）。 */
 export type SubtitleMode = "bilingual" | "english" | "chinese" | "hidden";
@@ -31,6 +37,10 @@ interface WatchStore {
   setPanelCollapsed: (collapsed: boolean) => void;
   leftPanelWidth: number;
   setLeftPanelWidth: (width: number) => void;
+  mobileFrameSize: MobileFrameSize;
+  setMobileFrameSize: (size: MobileFrameSize) => void;
+  hydrateLayout: () => void;
+  resetLayout: () => void;
   videoAspectRatio: number;
   setVideoAspectRatio: (ratio: number) => void;
   /** 用户当前选中的考试目标层级 (cet4/cet6/...)，驱动字幕词高亮过滤。
@@ -44,12 +54,24 @@ interface WatchStore {
 const INITIAL_STATE = {
   subtitleMode: "bilingual" as SubtitleMode,
   panelCollapsed: false,
-  leftPanelWidth: 58,
+  leftPanelWidth: DEFAULT_WATCH_RATIO,
+  mobileFrameSize: "standard" as MobileFrameSize,
   videoAspectRatio: 16 / 9,
   selectedExamLevel: null as string | null,
 };
 
-export const useWatchStore = create<WatchStore>((set) => ({
+function persistLayout(leftPanelWidth: number, mobileFrameSize: MobileFrameSize) {
+  try {
+    window.localStorage.setItem(
+      WATCH_LAYOUT_STORAGE_KEY,
+      JSON.stringify({ leftPanelWidth, mobileFrameSize })
+    );
+  } catch {
+    // Layout remains usable when browser storage is unavailable.
+  }
+}
+
+export const useWatchStore = create<WatchStore>((set, get) => ({
   ...INITIAL_STATE,
   hydrateSubtitleMode: () => set({ subtitleMode: loadPersistedSubtitleMode() }),
   setSubtitleMode: (mode) => {
@@ -63,7 +85,31 @@ export const useWatchStore = create<WatchStore>((set) => ({
     set({ subtitleMode: mode });
   },
   setPanelCollapsed: (collapsed) => set({ panelCollapsed: collapsed }),
-  setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
+  setLeftPanelWidth: (width) => {
+    if (!Number.isFinite(width)) return;
+    const leftPanelWidth = Math.min(90, Math.max(10, width));
+    set({ leftPanelWidth });
+    persistLayout(leftPanelWidth, get().mobileFrameSize);
+  },
+  setMobileFrameSize: (mobileFrameSize) => {
+    set({ mobileFrameSize });
+    persistLayout(get().leftPanelWidth, mobileFrameSize);
+  },
+  hydrateLayout: () => {
+    try {
+      set(readWatchLayout(window.localStorage.getItem(WATCH_LAYOUT_STORAGE_KEY)));
+    } catch {
+      // Keep defaults if storage access is blocked.
+    }
+  },
+  resetLayout: () => {
+    set({
+      leftPanelWidth: DEFAULT_WATCH_RATIO,
+      mobileFrameSize: "standard",
+      panelCollapsed: false,
+    });
+    persistLayout(DEFAULT_WATCH_RATIO, "standard");
+  },
   setVideoAspectRatio: (ratio) => set({ videoAspectRatio: ratio }),
   setSelectedExamLevel: (level) => set({ selectedExamLevel: level }),
   reset: () => set(INITIAL_STATE),

@@ -286,7 +286,13 @@ test.describe("移动端滚动形态：画面贴顶常驻（#30 + #31，375×812
       const fixedBottom: string[] = [];
       document.querySelectorAll("body *").forEach((el) => {
         const c = getComputedStyle(el);
-        if (c.position === "fixed" && /px$/.test(c.bottom) && parseFloat(c.bottom) < 200) {
+        if (
+          el.getClientRects().length &&
+          c.visibility !== "hidden" &&
+          c.position === "fixed" &&
+          /px$/.test(c.bottom) &&
+          parseFloat(c.bottom) < 200
+        ) {
           fixedBottom.push(el.tagName + "." + String(el.className).slice(0, 40));
         }
       });

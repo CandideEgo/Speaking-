@@ -10,10 +10,10 @@ export interface SheetGeometry {
 }
 
 /**
- * 手机的壳底部始终是五项全站导航；观看操作位于页面内容中，不参与浮层定位。
- * 桌面导航隐藏时，退回可视区底边。
+ * 词卡让出常驻播放操作与五项导航；桌面导航隐藏时退回可视区底边。
  */
 const TAB_BAR_SELECTOR = '[data-testid="mobile-tab-bar"]';
+const PLAYBACK_BAR_SELECTOR = '[data-shell-bottom-bar="watch"]';
 /** 画框量不到时的兜底顶边（视口底往上 400px ≈ 半屏，见 #26 决议的默认档）。 */
 const FALLBACK_HEIGHT = 400;
 /** 浮层最少留这么多高度，避免极短视口下把内容全挤没。 */
@@ -43,12 +43,18 @@ export function useSheetGeometry(
     let raf = 0;
 
     const measure = () => {
-      const candidate = document.querySelector(TAB_BAR_SELECTOR);
-      const bar = candidate?.getClientRects().length ? candidate : null;
-      const viewportBottom = window.innerHeight;
+      const bar = [PLAYBACK_BAR_SELECTOR, TAB_BAR_SELECTOR]
+        .map((selector) => document.querySelector(selector))
+        .find((candidate) => candidate?.getClientRects().length);
+      const viewportBottom = window.visualViewport
+        ? Math.min(
+            window.innerHeight,
+            window.visualViewport.height + window.visualViewport.offsetTop
+          )
+        : window.innerHeight;
       const barTop = bar ? bar.getBoundingClientRect().top : viewportBottom;
       // 底栏可能被安全区推高；夹一下，别让浮层底边跑到可视区外。
-      const bottom = Math.min(Math.max(barTop, MIN_SHEET_HEIGHT), viewportBottom);
+      const bottom = Math.min(Math.max(barTop, 0), viewportBottom);
       const sentenceCard = document.querySelector('[data-testid="current-sentence-card"]');
       const frame = anchorRef.current?.getBoundingClientRect();
       const anchorBottom = Math.min(
@@ -80,10 +86,19 @@ export function useSheetGeometry(
     measure();
     window.addEventListener("resize", schedule);
     window.addEventListener("scroll", schedule, true);
+    window.visualViewport?.addEventListener("resize", schedule);
+    const observer = new ResizeObserver(schedule);
+    const card = document.querySelector('[data-testid="current-sentence-card"]');
+    if (card) observer.observe(card);
+    if (anchorRef.current) observer.observe(anchorRef.current);
+    const main = anchorRef.current?.closest("main");
+    if (main) observer.observe(main);
     return () => {
       if (raf) window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", schedule);
       window.removeEventListener("scroll", schedule, true);
+      window.visualViewport?.removeEventListener("resize", schedule);
+      observer.disconnect();
     };
   }, [anchorRef, open]);
 

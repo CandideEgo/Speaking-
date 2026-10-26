@@ -14,8 +14,17 @@ import { useAuthStore } from "@/stores/authStore";
 import { useVocabularyStore } from "@/stores/vocabularyStore";
 import { api } from "@/lib/api";
 import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
+import { WatchChromeProvider, WatchShellControls } from "@/components/watch/WatchChromeProvider";
 
 export function MainLayoutInner({ children }: { children: React.ReactNode }) {
+  return (
+    <WatchChromeProvider>
+      <MainLayoutContent>{children}</MainLayoutContent>
+    </WatchChromeProvider>
+  );
+}
+
+function MainLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
@@ -125,6 +134,7 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
             满屏流）仍以滚动容器的高度为基准，几何与「页面自己写容器」时一致。 */}
           <div className="container-page h-full">{children}</div>
         </main>
+        <WatchShellControls />
         <MobileTabBar />
       </div>
     </div>

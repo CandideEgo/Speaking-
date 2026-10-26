@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { clickReplay, mediaState, openWatch, setupWatch, VIDEO_ID } from "./watch-baseline.fixture";
+import {
+  clickLearningAction,
+  clickReplay,
+  mediaState,
+  openWatch,
+  setupWatch,
+  VIDEO_ID,
+} from "./watch-baseline.fixture";
 
 test("当前句同词来源正确，关闭恢复播放，原本暂停则不播放", async ({ page }) => {
   const fixture = await setupWatch(page);
@@ -17,7 +24,7 @@ test("当前句同词来源正确，关闭恢复播放，原本暂停则不播�
     .toBe("second");
   await card.getByRole("button", { name: "关闭", exact: true }).click();
   expect((await mediaState(page)).paused).toBe(true);
-  await page.getByRole("button", { name: "继续播放", exact: true }).click();
+  await clickLearningAction(page, "继续播放");
   await expect.poll(async () => (await mediaState(page)).paused).toBe(false);
   await word.click();
   await expect.poll(async () => (await mediaState(page)).paused).toBe(true);
@@ -35,26 +42,20 @@ test("减少辅助只影响本次，重听到句末停，文稿行连续播放",
   await setupWatch(page);
   await openWatch(page, "?sub=second");
   const preference = await page.evaluate(() => localStorage.getItem("seeword_subtitle_mode"));
-  await page
-    .getByTestId("sentence-actions")
-    .getByRole("button", { name: "少一点辅助再听" })
-    .click();
+  await clickLearningAction(page, "少一点辅助再听");
   await expect(page.getByTestId("current-sentence-zh")).toHaveCount(0);
   await expect(page.locator("#subtitle-1")).not.toContainText("然后我走回家。");
   await expect.poll(async () => (await mediaState(page)).paused).toBe(false);
-  await page.getByTestId("current-sentence-card").click({ position: { x: 4, y: 4 } });
+  await page.getByTestId("current-sentence-card").click({ position: { x: 32, y: 4 } });
   await expect.poll(async () => (await mediaState(page)).paused).toBe(true);
   await expect(page.getByTestId("current-sentence-zh")).toHaveCount(0);
-  await page
-    .getByTestId("sentence-actions")
-    .getByRole("button", { name: "少一点辅助再听" })
-    .click();
+  await clickLearningAction(page, "少一点辅助再听");
   await expect.poll(async () => (await mediaState(page)).paused, { timeout: 7000 }).toBe(true);
   const stopped = await mediaState(page);
   expect(stopped.time).toBeGreaterThanOrEqual(8);
   expect(stopped.time).toBeLessThanOrEqual(8.5);
   expect(await page.evaluate(() => localStorage.getItem("seeword_subtitle_mode"))).toBe(preference);
-  await page.getByRole("button", { name: "继续播放", exact: true }).click();
+  await clickLearningAction(page, "继续播放");
   await expect(page.getByTestId("current-sentence-zh")).toBeVisible();
   await page.locator("#subtitle-1").click();
   await expect
@@ -86,7 +87,7 @@ test("晚到续播不能覆盖显式锚点或用户定位，短会话暂停保�
   const fixture = await setupWatch(page, { saved: 16, delayProgress: 1800 });
   await openWatch(page);
   await page.locator("#subtitle-1").click();
-  await page.getByTestId("current-sentence-card").click({ position: { x: 4, y: 4 } });
+  await page.getByTestId("current-sentence-card").click({ position: { x: 32, y: 4 } });
   await expect.poll(() => fixture.writes.at(-1)).toBeGreaterThanOrEqual(5);
   await page.waitForTimeout(2000); // Deliberately allow the delayed history response to arrive.
   expect((await mediaState(page)).time).toBeLessThan(10);
@@ -123,7 +124,7 @@ test("空字幕仍可播放，没有录音请求或旧功能入口", async ({ pa
   const fixture = await setupWatch(page, { empty: true });
   await openWatch(page);
   await expect(page.getByTestId("watch-status")).toContainText("本段暂无字幕");
-  await page.getByRole("button", { name: "继续播放", exact: true }).click();
+  await clickLearningAction(page, "继续播放");
   await expect.poll(async () => (await mediaState(page)).paused).toBe(false);
   await expect(page.getByRole("button", { name: /录音|跟读/ })).toHaveCount(0);
   expect(
@@ -214,9 +215,9 @@ test("失效原句不自动使用旧时间，保存失败可见且不阻止离�
   await page.getByRole("button", { name: "使用备用时间" }).click();
   await expect.poll(async () => (await mediaState(page)).time).toBeGreaterThanOrEqual(4.75);
   fixture.failProgress(true);
-  await page.getByRole("button", { name: "继续播放", exact: true }).click();
+  await clickLearningAction(page, "继续播放");
   await expect.poll(async () => (await mediaState(page)).paused).toBe(false);
-  await page.getByTestId("current-sentence-card").click({ position: { x: 4, y: 4 } });
+  await page.getByTestId("current-sentence-card").click({ position: { x: 32, y: 4 } });
   await expect(page.getByTestId("watch-status")).toContainText("位置保存失败");
   expect(fixture.writes).toHaveLength(0);
   await page.getByRole("button", { name: "返回", exact: true }).last().click();
@@ -239,10 +240,7 @@ test("极短字幕即使错过首个时钟区间也不会整片播放", async ({
 test("减少辅助后主动点词仍可求助，关闭后继续原句重听", async ({ page }) => {
   await setupWatch(page);
   await openWatch(page, "?sub=second");
-  await page
-    .getByTestId("sentence-actions")
-    .getByRole("button", { name: "少一点辅助再听" })
-    .click();
+  await clickLearningAction(page, "少一点辅助再听");
   await page
     .getByTestId("current-sentence-card")
     .getByRole("button", { name: "查看 walk 的词义" })

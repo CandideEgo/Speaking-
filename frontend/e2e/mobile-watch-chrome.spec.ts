@@ -133,7 +133,7 @@ test.describe("判据（414×896）：零文字画面 / 完整首屏 / 1 次点�
     ).toBe(subtitles[index].text_en.replace(/\s+/g, " ").trim());
     if (subtitles[index].text_zh)
       await expect(page.getByTestId("current-sentence-zh")).toBeVisible();
-    expect(await page.locator(BAR).getAttribute("data-shell-bottom-bar")).toBeNull();
+    expect(await page.locator(BAR).getAttribute("data-shell-bottom-bar")).toBe("watch");
     await expect(page.getByTestId("watch-toggle-play")).toBeVisible();
   });
 

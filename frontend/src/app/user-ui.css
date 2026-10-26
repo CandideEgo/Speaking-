@@ -78,8 +78,6 @@
   --elevation-lift: 0 8px 24px rgba(0, 0, 0, 0.07);
   --max-width-page: 1760px;
 
-  /* 实测 1280×720：页头、句卡和间距合计 418.5px；随根字号缩放。 */
-  --watch-stage-chrome: 26.25rem;
   --text-caption: 0.75rem;
   --text-caption--line-height: 1.125rem;
   --text-meta: 0.8125rem;
@@ -1651,11 +1649,6 @@
 .user-ui .watch-mobile-heading .user-page-desc {
   margin-top: 0;
 }
-@media (max-width: 1023px) and (max-height: 700px) {
-  .user-ui [data-testid="video-frame"] {
-    max-height: 24dvh;
-  }
-}
 .user-ui :is(button, a)[data-variant="dark"] {
   color: var(--canvas);
 }
@@ -2709,5 +2702,164 @@
 @media (min-width: 1025px) {
   .user-mobile-tabs {
     display: none;
+  }
+}
+/* Watching: picture sizing is independent of sentence, actions and notes. */
+.user-ui .user-watch-content {
+  overflow-anchor: none;
+}
+.user-ui .watch-page {
+  padding-top: 0.75rem;
+}
+.user-ui .watch-heading {
+  margin-bottom: 0.5rem;
+}
+.user-ui .watch-page-heading.user-page-header {
+  margin: 0;
+  padding: 0.25rem 0 0.5rem;
+  border: 0;
+}
+.user-ui .watch-page-heading .user-page-title {
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+.user-ui .watch-page-heading .user-page-meta {
+  margin-top: 0.375rem;
+}
+.user-ui .watch-page-heading > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.user-ui .watch-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  row-gap: 1.25rem;
+}
+.user-ui .watch-workspace.is-split {
+  grid-template-columns: var(--watch-video-width) 24px minmax(320px, 1fr);
+  row-gap: 0;
+}
+.user-ui .watch-video-column,
+.user-ui .watch-stage {
+  min-width: 0;
+}
+.user-ui .watch-video-frame {
+  aspect-ratio: 16 / 9;
+  max-height: 55dvh;
+}
+.user-ui .watch-video-frame:has(:fullscreen) {
+  max-height: none;
+}
+.user-ui .watch-media:fullscreen {
+  width: 100%;
+  height: 100%;
+  background: var(--color-surface-dark);
+}
+.user-ui .watch-transcript {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--watch-aside-height, calc(100dvh - 6rem));
+}
+.user-ui .watch-transcript[hidden] {
+  display: none;
+}
+.user-ui .is-split .watch-transcript {
+  position: sticky;
+  top: 1rem;
+}
+.user-ui .watch-divider {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: min(24rem, 55dvh);
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  border-radius: var(--radius-sm);
+}
+.user-ui .watch-divider > span {
+  width: 3px;
+  height: 2.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--hairline);
+}
+.user-ui .watch-divider:hover > span,
+.user-ui .watch-divider:focus-visible > span {
+  background: var(--brand-700);
+}
+.user-ui .watch-divider:focus-visible {
+  outline: 2px solid var(--brand-700);
+  outline-offset: -4px;
+}
+.user-ui .watch-video-frame {
+  container-type: inline-size;
+}
+.user-ui .watch-control-row > button,
+.user-ui .watch-control-row > div {
+  flex-shrink: 0;
+}
+@container (max-width: 620px) {
+  .watch-control-volume-slider,
+  .watch-control-subtitle {
+    display: none;
+  }
+  .watch-control-row {
+    gap: 0.375rem;
+  }
+}
+@media (max-width: 1024px) {
+  .user-ui .user-watch-content {
+    scroll-padding-top: calc(var(--watch-sticky-height, 0px) + 8px);
+  }
+  .user-ui .watch-page button {
+    scroll-margin-block: 8px;
+  }
+  .user-ui .watch-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 0.25rem;
+  }
+  .user-ui .watch-page-heading .user-page-title {
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+  .user-ui .watch-workspace.is-mobile {
+    display: contents;
+  }
+  .user-ui .watch-video-frame.is-mobile {
+    max-height: min(35dvh, max(72px, calc(100dvh - 300px)));
+    border-bottom: 1px solid var(--hairline);
+  }
+  .user-ui .watch-video-frame.is-mobile.is-stuck {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+  .user-ui .watch-video-frame[data-frame-size="compact"] {
+    height: min(144px, 24dvh, max(72px, calc(100dvh - 300px)));
+    aspect-ratio: auto;
+  }
+  .user-ui .watch-transcript {
+    margin-top: 0.75rem;
+    max-height: none;
+  }
+  .user-ui .watch-shell-controls {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .user-ui .watch-page * {
+    scroll-behavior: auto;
+  }
+}
+@media (max-width: 1024px) and (max-height: 500px) {
+  .user-ui .user-watch-content ~ .user-mobile-tabs a {
+    min-height: 44px;
+    flex-direction: row;
+    gap: 0.375rem;
   }
 }

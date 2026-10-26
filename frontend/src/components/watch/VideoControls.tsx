@@ -168,6 +168,7 @@ export function VideoControls({
       className="absolute inset-0 z-10 select-none"
       onPointerMove={handleActivity}
       onClick={handleSurfaceClick}
+      onFocusCapture={() => setVisible(true)}
     >
       {/* 底部控制条 */}
       <div
@@ -193,7 +194,7 @@ export function VideoControls({
           />
         </div>
 
-        <div className="mt-1 flex items-center gap-2.5 text-white">
+        <div className="watch-control-row mt-1 flex items-center gap-2.5 text-white">
           {/* 播放/暂停 */}
           <button
             type="button"
@@ -230,7 +231,7 @@ export function VideoControls({
               step={0.05}
               value={muted ? 0 : volume}
               onChange={(e) => handleVolumeChange(Number(e.target.value))}
-              className="w-16 h-1 cursor-pointer accent-white"
+              className="watch-control-volume-slider w-16 h-1 cursor-pointer accent-white"
             />
           </div>
 
@@ -271,7 +272,7 @@ export function VideoControls({
             type="button"
             onClick={cycleSubtitle}
             aria-label={`字幕：${SUBTITLE_MODE_LABEL[subtitleMode]}（S）`}
-            className="px-2 h-8 rounded-lg text-meta font-medium hover:bg-white/15 transition-colors cursor-pointer"
+            className="watch-control-subtitle px-2 h-8 rounded-lg text-meta font-medium hover:bg-white/15 transition-colors cursor-pointer"
           >
             字幕·{SUBTITLE_MODE_LABEL[subtitleMode]}
           </button>
@@ -282,12 +283,20 @@ export function VideoControls({
               type="button"
               onClick={() => setMenu(menu === "more" ? null : "more")}
               aria-label="更多设置"
+              aria-expanded={menu === "more"}
               className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/15 transition-colors cursor-pointer"
             >
               <MoreHorizontal size={17} />
             </button>
             {menu === "more" && (
-              <div className="absolute bottom-10 right-0 bg-black/85 backdrop-blur rounded-lg py-1.5 px-3 min-w-[150px] space-y-2">
+              <div className="absolute bottom-10 right-0 max-h-[40dvh] overflow-y-auto bg-black/85 backdrop-blur rounded-lg py-1.5 px-3 min-w-[180px] space-y-2">
+                <button
+                  type="button"
+                  onClick={cycleSubtitle}
+                  className="min-h-9 w-full text-left text-meta text-white/85"
+                >
+                  字幕：{SUBTITLE_MODE_LABEL[subtitleMode]}
+                </button>
                 <div>
                   <p className="text-caption text-white/55 mb-1">字幕字号</p>
                   <div className="flex gap-1">

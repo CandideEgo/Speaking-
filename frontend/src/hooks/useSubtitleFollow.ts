@@ -77,9 +77,11 @@ export function useSubtitleFollow({
       followPausedRef.current = true;
     };
     scroller.addEventListener("touchstart", pauseFollow, { passive: true });
+    scroller.addEventListener("pointerdown", pauseFollow, { passive: true });
     scroller.addEventListener("wheel", pauseFollow, { passive: true });
     return () => {
       scroller.removeEventListener("touchstart", pauseFollow);
+      scroller.removeEventListener("pointerdown", pauseFollow);
       scroller.removeEventListener("wheel", pauseFollow);
     };
   }, [isMobile]);

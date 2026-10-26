@@ -160,7 +160,7 @@
   /* 全站唯一容器上限（1320）。gutter 由 .container-page 的 px-4 md:px-6 xl:px-8
      提供，与 stage-3 设计稿 `.page` 的三档 padding 对齐：
      <768 = 16px、768–1279 = 24px、≥1280 = 32px。
-     改 gutter 时同时检查观看页的出血/夹宽几何（.watch-stage-cap）。 */
+     改 gutter 时同时检查观看页分栏与画框几何。 */
   --max-width-page: 1320px;
   /* 正文读宽（通知 / 联系我们 / 练习正文等）。容器仍是 page 1320，读宽只收正文块。 */
   --max-width-measure: 68ch;
@@ -180,7 +180,6 @@
      **DEC-080 待校准**：桌面句卡新增「本句词条 + 学习动作」一行后卡高增加，
      315 尚未跟着改。`watch-desktop-stage.spec.ts` 依赖真实可播媒体，本机跑不了；
      必须在有媒体与后端的机器上量出 slack≈0 后再改这个常量，不许按估算值改写。 */
-  --watch-stage-chrome: 315px;
 
   /* --- Letter spacing --- */
   --tracking-display-xl: -0.035em;
@@ -612,16 +611,6 @@
      gutter 三档与 stage-3 设计稿 `.page` 一致：16 / 24 / 32。 */
   .container-page {
     @apply max-w-page mx-auto px-4 md:px-6 xl:px-8;
-  }
-
-  /* === Watch stage cap (S4) ===
-     桌面端把「画框 + 当前句卡」夹在首屏内：16:9 画框宽高联动，夹住宽度即夹住
-     高度（不引入父级高度链，塌缩黑屏那条不变量不受影响）。max-width 只作用在
-     包装层上，上限同时包住句卡，两者左右边界才重合（桌面档 spec 断言同宽）。
-     移动端不挂这个类（包装层用 display:contents 消盒），出血与贴顶几何零变化。 */
-  .watch-stage-cap {
-    max-width: calc((100dvh - var(--watch-stage-chrome) - env(safe-area-inset-top, 0px)) * 16 / 9);
-    margin-inline: auto;
   }
 
   /* === Display headings (营销页大标题，替代 !font-extrabold 覆盖) === */
