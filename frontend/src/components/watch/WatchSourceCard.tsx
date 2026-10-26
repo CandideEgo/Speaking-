@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatCount } from "@/lib/format";
@@ -14,9 +14,23 @@ import type { ChannelSummary } from "@/types/channels";
 
 export function WatchSourceCard({ video }: { video: VideoCard }) {
   const [channel, setChannel] = useState<ChannelSummary | null>(null);
+  const [channelReload, setChannelReload] = useState(0);
+  const channelRef = useRef<ChannelSummary | null>(null);
+  const loadedSlug = useRef<string | null>(null);
   useEffect(() => {
-    setChannel(null);
-    if (!video.channel_slug) return;
+    channelRef.current = channel;
+  }, [channel]);
+  useEffect(() => {
+    if (!video.channel_slug) {
+      setChannel(null);
+      loadedSlug.current = null;
+      return;
+    }
+    if (loadedSlug.current !== video.channel_slug) {
+      // 只有切换频道时才清空；订阅事件触发的重拉保留当前展示，避免计数闪没。
+      loadedSlug.current = video.channel_slug;
+      setChannel(null);
+    }
     const controller = new AbortController();
     api<{ channel: ChannelSummary }>(
       `/api/v1/channels/${encodeURIComponent(video.channel_slug)}?page_size=4`,
@@ -27,7 +41,7 @@ export function WatchSourceCard({ video }: { video: VideoCard }) {
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [video.channel_slug]);
+  }, [video.channel_slug, channelReload]);
   useEffect(() => {
     const listener = (event: Event) => {
       const change = (event as CustomEvent<SubscriptionChange>).detail;
@@ -46,6 +60,9 @@ export function WatchSourceCard({ video }: { video: VideoCard }) {
             }
           : current
       );
+      // 频道详情请求可能在订阅提交之前就发出：它晚到时会把乐观值覆盖回旧计数。
+      // 频道尚未载入（或正在重拉）时再拉一次权威数据，避免计数停在旧值。
+      if (!channelRef.current) setChannelReload((count) => count + 1);
     };
     window.addEventListener(SUBSCRIPTION_EVENT, listener);
     return () => window.removeEventListener(SUBSCRIPTION_EVENT, listener);

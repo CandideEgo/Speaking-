@@ -38,7 +38,8 @@ test("复习总量、预览与训练分开说明，词性归一化与来源链�
         json: {
           new_words: words.slice(10),
           review_words: words.slice(0, 10),
-          totals: { new_total: 10, due_total: 10 },
+          // 累计到期来自 daily-session 的 due_total（复习队列口径，与 stats.due_count 不同）
+          totals: { new_total: 10, due_total: 239 },
         },
       });
     if (path.endsWith("/sessions/current"))
@@ -57,24 +58,26 @@ test("复习总量、预览与训练分开说明，词性归一化与来源链�
     return route.fulfill({ json: { items: words, total: 20 } });
   });
   await page.goto("/vocabulary");
-  await expect(page.getByRole("heading", { name: "累计到期 239 个词" })).toBeVisible();
-  await expect(page.getByText(/本轮复习 10 个、新词 10 个/)).toBeVisible();
-  await expect(page.getByText(/预览 10 个 · 来自 1 段视频/)).toBeVisible();
-  const first = page.locator('section[aria-labelledby="vocab-list-title"] li').first();
+  await expect(page.getByRole("heading", { name: "先完成这一轮" })).toBeVisible();
+  await expect(page.getByText("本轮复习 10 个 · 新词 10 个", { exact: true })).toBeVisible();
+  await expect(page.getByText("累计还有 239 个到期词", { exact: false })).toBeVisible();
+  const preview = page.getByRole("region", { name: "本轮词汇" });
+  await expect(preview).toBeVisible();
+  const first = preview.getByRole("listitem").first();
   await expect(first).toContainText("动词");
   await expect(first).toContainText("反对");
   await expect(first.getByRole("link", { name: "去原句 →" })).toHaveAttribute(
     "href",
     `/watch/${VIDEO_ID}?from=vocabulary&sub=second&word=objected`
   );
-  const second = page.locator('section[aria-labelledby="vocab-list-title"] li').nth(1);
+  const second = preview.getByRole("listitem").nth(1);
   await expect(second.getByRole("link", { name: "去来源视频 →" })).toHaveAttribute(
     "href",
     `/watch/${VIDEO_ID}?from=vocabulary`
   );
   await expect(page.locator("#main-scroll")).not.toContainText("v:100");
-  await page.getByRole("button", { name: "预览中还有 4 个词 · 展开" }).click();
-  await expect(page.locator('section[aria-labelledby="vocab-list-title"] li')).toHaveCount(10);
+  await page.getByRole("button", { name: "展开本轮全部 20 个词" }).click();
+  await expect(preview.getByRole("listitem")).toHaveCount(20);
   await page.screenshot({ path: "../docs/ui-review-2026-10-21/fixed-vocabulary-390.png" });
   await page.goto("/vocabulary/drill");
   await expect(page.getByRole("heading", { name: "本轮训练 · 20 个词" })).toBeVisible();
@@ -280,7 +283,10 @@ for (const stale of [false, true])
     await expect(task).toContainText("已到片段终点", { timeout: 10000 });
     expect((await mediaState(page)).paused).toBe(true);
     expect((await mediaState(page)).time).toBeLessThan(8.3);
-    await page.getByRole("button", { name: "继续播放", exact: true }).click();
+    // 新版片段任务把「继续播放」收窄成两个显式选择：重听片段 / 继续完整视频；
+    // 结束态默认仍暂停，不会自动续播。
+    await expect(task.getByRole("button", { name: "重听片段", exact: true })).toBeVisible();
+    await expect(task.getByRole("button", { name: "继续完整视频" })).toBeVisible();
     expect((await mediaState(page)).paused).toBe(true);
     await page.screenshot({ path: "../docs/ui-review-2026-10-21/fixed-clip-end.png" });
     await task.getByRole("button", { name: "重听片段", exact: true }).click();

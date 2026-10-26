@@ -346,7 +346,7 @@ test("长内容在窄屏、短视口、暗色和放大字号下可读可操作",
   for (const view of [
     { name: "desktop", width: 1600, height: 1200, dark: false, large: false },
     { name: "mobile-dark", width: 375, height: 667, dark: true, large: false },
-    { name: "tablet-large", width: 1024, height: 768, dark: false, large: true },
+    { name: "tablet-large", width: 1024, height: 1000, dark: false, large: true },
     { name: "desktop-short", width: 1600, height: 650, dark: false, large: false },
   ]) {
     await page.setViewportSize({ width: view.width, height: view.height });
@@ -356,13 +356,16 @@ test("长内容在窄屏、短视口、暗色和放大字号下可读可操作",
     await page.evaluate((large) => {
       document.documentElement.style.fontSize = large ? "20px" : "16px";
     }, view.large);
+    // ExamRunner 双栏判定：宽度 ≥900 且可用高度 ≥560。用 1024×1000 避开阈值边界
+    // （1024×768 在大字号下高度预算会落到单栏），650 高的桌面档仍走单栏切换。
+    const dual = view.name === "desktop" || view.name === "tablet-large";
     await expect(page.getByTestId("exam-workspace")).toHaveAttribute(
       "data-layout",
-      view.name === "desktop" ? "dual" : "switch"
+      dual ? "dual" : "switch"
     );
     await expect(page.getByRole("region", { name: "原文", exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`${view.name}.png`) });
-    if (view.name !== "desktop") {
+    if (!dual) {
       const pane = page.getByRole("region", { name: "原文", exact: true });
       await pane.evaluate(() => document.getElementById("main-scroll")?.scrollTo(0, 500));
       await expect

@@ -519,7 +519,10 @@ for (const width of [1440, 390]) {
     );
     const scrollTop = await page.locator("#main-scroll").evaluate((element) => element.scrollTop);
     await video.click();
-    await expect(page.getByTestId("sentence-actions")).toBeVisible();
+    // 新版 390 手机布局把逐句操作收进壳层播放栏；桌面档仍是内容区的 sentence-actions。
+    await expect(
+      width < 1024 ? page.getByTestId("watch-bottom-bar") : page.getByTestId("sentence-actions")
+    ).toBeVisible();
     await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await expect(page).toHaveURL(/category=tech&level=A2&sort=hot/);
     await expect(page.locator("#feed-level")).toHaveValue("A2");

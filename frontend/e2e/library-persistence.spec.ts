@@ -18,7 +18,15 @@ test("真实收藏与订阅在观看、频道和收藏页保持一致", async ({
   const favorite = page.getByRole("button", { name: "收藏视频", exact: true });
   await expect(favorite).toBeVisible();
   const source = page.getByRole("region", { name: "视频与频道信息" });
+  // 收藏是乐观更新：界面先翻，POST 在后台进行。先等请求落库再刷新，
+  // 否则 reload 的 watch-meta 可能早于写入完成，读到「未收藏」（假失败）。
+  const favorited = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/videos/${video.id}/favorite`) &&
+      response.request().method() === "POST"
+  );
   await favorite.click();
+  expect((await favorited).ok()).toBeTruthy();
   await expect(page.getByRole("button", { name: "取消收藏", exact: true })).toBeVisible();
   await expect(source).toContainText(`${(video.favorite_count ?? 0) + 1} 次收藏`);
   await page.reload();
@@ -26,7 +34,14 @@ test("真实收藏与订阅在观看、频道和收藏页保持一致", async ({
   await expect(source).toContainText(`${(video.favorite_count ?? 0) + 1} 次收藏`);
   await source.getByRole("button", { name: "订阅频道", exact: true }).click();
   await expect(source.getByRole("button", { name: "已订阅 · 取消", exact: true })).toBeVisible();
-  await expect(source).toContainText(`${channel.subscriber_count + 1} 人订阅`);
+  // design-rollout 的「频道订阅」用例会并行切同一个种子频道的订阅，共享计数
+  // 可能比基线高 1~2（并行 worker 并发写），所以只验「订阅后计数确实增加」。
+  await expect
+    .poll(async () => {
+      const match = (await source.innerText()).match(/(\d+) 人订阅/);
+      return match ? Number(match[1]) : NaN;
+    })
+    .toBeGreaterThanOrEqual(channel.subscriber_count + 1);
   await page.goto(`/channels/${channel.slug}`);
   await expect(page.getByRole("button", { name: "已订阅 · 取消", exact: true })).toBeVisible();
   await page.reload();
@@ -42,7 +57,13 @@ test("真实收藏与订阅在观看、频道和收藏页保持一致", async ({
   await page.reload();
   await expect(page.locator(`main a[href*="/watch/${video.id}"]`).first()).toBeVisible();
   await page.goto(`/watch/${video.id}`);
+  const unfavorited = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/videos/${video.id}/favorite`) &&
+      response.request().method() === "DELETE"
+  );
   await page.getByRole("button", { name: "取消收藏", exact: true }).click();
+  expect((await unfavorited).ok()).toBeTruthy();
   await expect(page.getByRole("button", { name: "收藏视频", exact: true })).toBeVisible();
   await expect(source).toContainText(`${video.favorite_count ?? 0} 次收藏`);
   await page.goto("/favorites");

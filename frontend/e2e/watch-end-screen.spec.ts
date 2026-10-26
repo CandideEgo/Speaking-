@@ -77,6 +77,10 @@ for (const [width, height] of VIEWPORTS) {
   }) => {
     const status = await enterEndedWatch(page, request, width, height);
 
+    // 新版观看页在桌面是「分栏 / 上下排布」同一滚动容器，1280×720 首屏放不下
+    // 整段结束态：先滚到说明处再验完整可见。手机档仍要求首屏内（壳层顶部 sticky、
+    // 底部固定导航，人为滚动会把目标推到 sticky 画面下，不能滚）。
+    if (width >= 1024) await status.scrollIntoViewIfNeeded();
     const sb = (await status.boundingBox())!;
     expect(sb.y, "状态行顶边在视口内").toBeGreaterThanOrEqual(0);
     expect(sb.y + sb.height, "状态行底边在视口内").toBeLessThanOrEqual(height + 1);
@@ -85,10 +89,13 @@ for (const [width, height] of VIEWPORTS) {
     await expect(page.getByTestId("end-screen")).toHaveCount(0);
 
     const resume = page.getByRole("button", { name: "继续播放", exact: true }).first();
+    if (width < 1024) {
+      // 手机端把「继续播放」收进 ⋯ 抽屉（桌面档仍在内容区），先打开抽屉。
+      await page.getByRole("button", { name: "更多设置", exact: true }).click();
+      await expect(page.getByTestId("watch-more-sheet")).toBeVisible();
+    }
     await expect(resume).toBeVisible();
-    // 进入结束态时的初始位置就在首屏内（页面不自动滚走）：直接在原位置验几何。
-    // 不要手动 scrollIntoView —— 移动壳顶部是 sticky 画面、底部是固定导航，
-    // 人为滚动反而会把按钮推到 sticky 画面底下，测到的就不是用户看到的状态。
+    if (width >= 1024) await resume.scrollIntoViewIfNeeded();
     const box = (await resume.boundingBox())!;
     expect(box.x, "「继续播放」左边在视口内").toBeGreaterThanOrEqual(0);
     expect(box.y, "「继续播放」顶边在视口内").toBeGreaterThanOrEqual(0);

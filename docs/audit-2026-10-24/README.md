@@ -102,12 +102,12 @@
 | 检查 | 结果 |
 |---|---|
 | 前端 `npm run check`（9 条设计系统 + 会话写入 + `tsc` + ESLint + Prettier） | **通过**（2026-10-25 复跑） |
-| 前端单测 | **30 文件 / 332 项通过**（2026-10-25 复跑仍全绿） |
+| 前端单测 | **31 文件 / 336 项通过**（2026-10-26 复跑，含新增 `watchLayout.test.ts` 4 项） |
 | 后端 `ruff check app tests` | **All checks passed** |
 | 后端全量 `pytest tests/ -q` | **1401 passed, 16 skipped**（2026-10-25 复跑；16 条需独立 `PG_TEST_URL` 的 integration 默认跳过） |
 | 本轮针对性后端测试 | config 23、exams 21、search 16、behavior 13、auth 4、media + PDF 47、notifications 35、SMS/配置 61 全绿 |
 | e2e 定点 | 断点用例**通过**；`design-rollout` + `public-layout` 共 8 条通过；2026-10-25 重启 dev 前端后 container-align + auth-hydration **3/3** 通过 |
-| e2e 全量（chromium） | 2026-10-25 重建 `seeword_e2e_full` 库（`alembic upgrade head` 到 `q8r9s0t1u2v3` + `seed_e2e.py`）并以 `ENV=testing` 后端复跑：**204 项 → 131 passed / 10 failed / 63 skipped**；`--last-failed` 单跑这 10 条得到 **4 passed / 6 failed**，通过的是并发抖动（avatar、design-rollout 3 条），剩下的 6 条正是已知 fixture 缺口（home-feed 真实数据配比、收藏/订阅持久化、listening 音频 ×2、239 词复习队列、46 题长卷）。相对历史基线均为同一条用例集合，未删除/跳过用例来凑绿。2026-10-25 同环境补跑其余 project：**firefox 122 passed / 19 failed / 63 skipped**（串行重跑 19 条 → 10 passed / 9 failed：6 条 fixture 缺口 + 3 条 Firefox-only 观看页基线），**mobile-chrome 131 passed / 10 failed / 63 skipped**（重跑 → 2 passed / 8 failed：6 条 fixture 缺口 + avatar + 文稿页桌面目录断言在 393px 下不成立，属 spec/project 错配），**mobile-iphone 30 passed / 2 failed**（均为同一个 239 词/46 题 fixture 缺口）。 |
+| e2e 全量（2026-10-26 收尾） | 在 `ENV=testing` + `seeword_e2e_full`（已补种子：频道 / 封面 / 听力 WAV / 词库与长卷数据）上复跑 **217 项 → 201 passed / 2 failed / 14 skipped**；失败 2 条（注册跳转、自建词单）`--last-failed` 串行重跑 **2/2 通过**，属并行负载抖动。此前 6 条 fixture 缺口已全部转绿；观看页新增 `watch-layout.mobile.spec.ts` 13 条（可拖分栏 / 壳层播放栏 / 缩放等效视口 / 多手机尺寸）。移动端 WebKit **44 passed / 0 failed**；firefox 按「观看 + 听力 + 返回」子集复跑 **50 passed / 4 failed**（4 条均为 `watch-layout` 并行抖动，串行 4/4 通过）。按收窄口径：chromium + mobile-iphone 每次必跑，firefox 定期 / 子集，mobile-chrome 可选（本轮未重跑）。 |
 | 浏览器复核（Playwright，1440/390） | 首个 Tab = 「跳到正文」；`aria-pressed` 存在；通知浮层 `dialog` + 空态、无 spinner；`/channels` 清空按钮存在；404 h1 = 「页面不存在」；已设密码账号出现引导、首设密码账号出现表单；触控 `search 44×44 / chip 52×44 / tab 78×60`；断点 1024/820/768/600/390 无侧栏且有底栏、1920/1440 反之；横向溢出 0 |
 | 视觉审计 | 13 路由 × 1440/390 全页 + 暗色 + 1024/820 定点共 57 张；114 次溢出测量 0px |
 | 第二轮结构补齐复核 | 词汇页真实账号（14 词 + 2 个词单）出现到期卡/四项统计/词单网格；练习页出现 3 列试卷与已选条；我的页出现深色会员卡/账户卡；12 条列表路由 h1 实测 `12px / uppercase`、无横向溢出；移动端眉标左对齐（h1 x=16） |
@@ -117,8 +117,8 @@
 
 ### 未执行（如实标注）
 
-- **全量 e2e 的 6 条剩余失败**：历史实测失败全部是 fixture 数据不足（home-feed 真实数据配比、频道/收藏、listening 音频 ×2、239 词复习队列、46 题长卷）。未删除或跳过这些用例，留待补种子数据；2026-10-25 用 `ENV=testing` + 全新 `seeword_e2e_full` 库复跑已复现同一组 6 条，dev 后端整轮则被限流/假死污染，不作为基线。
-- **e2e 跨浏览器残余**：firefox 3 条观看页基线用例未定位（Firefox-only，Chromium 同用例通过）；mobile-chrome 的 avatar 与文稿页目录断言属跨 project 错配（后者在 393px 会按设计隐藏桌面目录）；均记录未改产品代码。
+- **e2e 历史 6 条 fixture 缺口**：已在 2026-10-26 通过扩展 `seed_e2e.py`（频道 + 封面图 + 听力 WAV + 词库/长卷数据）修复，6 条用例全部转绿；未删除或跳过任何断言。
+- **e2e 跨浏览器残余**：firefox 的真实缺陷「从观看页返回筛选列表后滚动位置丢失」已定位并修复——`useScrollRestore` 增加路由守卫，离场时共享滚动容器的 0 位置不再覆盖本页存档，firefox 该用例复跑 **10/10**。其余 firefox 失败均为并行负载抖动（串行全过）。mobile-chrome 本轮未重跑（按收窄口径为可选）。
 - **真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload**：按约束不做。
 - **屏幕阅读器真机、真机安全区**：只做了 DOM/ARIA 与几何测量。
 - **生产库执行迁移前需要数据清理**：`p7q8r9s0t1u2` 遇到重复 / 孤儿数据会中止（本机 dev 库原有 58 + 49 条，已于 2026-10-25 清理升级，见第 3 节 Alembic 行）；这是有意的 fail-closed，清理 SQL 见迁移报错信息。**生产库的同类预检未执行**。
@@ -136,14 +136,14 @@
 1. **生产库升级准备**：上线 `p7q8r9s0t1u2` 前先清重复 / 孤儿数据；本机 dev 库已完成（58 条重复 join 行、49 条孤儿 reviewer，外加 `exam_sentences` 缺主键 / 8 个重复 `id` 的补修），升级后漂移门禁为 7 known / 0 new。生产库的同类预检与清理**未执行**。
 2. **退役表清理**：`rubric_criteria` / `speaking_rubrics` / `speaking_attempt_scores` / `video_practice_questions` 及 `speaking_attempts.rubric_id` 仍保留给历史导出与注销清理；确认无消费方后再单独做删除迁移（需产品/合规签字）。
 3. **前端功能收尾**：F5 残余已核对关闭——`--hairline-strong` 现只用于边框/图标分隔，没有正文色用法；F12 为 dev 并发噪声，按记录不修。
-4. **e2e 长尾**：四个 project 均已在 testing-env + 种子库跑过（chromium 131/10/63、firefox 122/19/63、mobile-chrome 131/10/63、mobile-iphone 30/2）；稳定失败集中在 6 条 fixture 缺口，另有 Firefox-only 3 条与 mobile-chrome 2 条（后者为 desktop 断言跑在手机 project 的错配）。待补种子数据并逐条处置跨浏览器项。
+4. **e2e 长尾**：按 2026-10-26 收窄口径——chromium 全量 + mobile-iphone 全量每次必跑（当前 201/2/14 与 44/0，2 条失败串行复跑通过），firefox 定期或只跑观看/听力/返回子集（当前 50/4，4 条均为并行抖动），mobile-chrome 可选；历史 6 条 fixture 缺口与 firefox 滚动恢复均已修。
 5. **生产路径**：真实支付 / 真实短信 / 生产构建 / 部署 / nginx reload 未执行；生产库升级前同样要先做迁移前数据清理。
 
-## 6. 交付状态（2026-10-25 收尾）
+## 6. 交付状态（2026-10-26 收尾）
 
 - **审计发现**：前端视觉 30 条全部处置（27 修、3 条有意保留）；前端功能/可访问性 P0/P1 为 0、P2 全修、P3 修 5 留 1（F12 为 dev 并发环境噪声）；后端 31 条已修 30 条 + 1 条契约补充，BE-07 清零。
-- **门禁**：`npm run check`、`npm run test:unit`（332）、后端全量 pytest（1401 passed / 16 skipped）、ruff、mypy `42=42` 均为绿；未调整任何基线、白名单或豁免。
-- **e2e**：四个 project 均已在 `ENV=testing` + `seeword_e2e_full` 种子库跑过；稳定失败只剩 6 条 fixture 数据缺口，另有跨浏览器/跨 project 的已记录项（Firefox-only 3、mobile-chrome 2、mobile-iphone 复用同一缺口）。
+- **门禁**：`npm run check`、`npm run test:unit`（31 文件 / 336 项）、后端全量 pytest（1401 passed / 16 skipped）、ruff、mypy `42=42` 均为绿；未调整任何基线、白名单或豁免。
+- **e2e**：chromium 全量 201/2/14（2 条串行复跑通过）、mobile-iphone 44/0、firefox 子集 50/4（串行全过）；6 条历史 fixture 缺口与 firefox 滚动恢复已修。按收窄口径 chromium + mobile-iphone 每次必跑，firefox 定期 / 子集，mobile-chrome 可选。
 - **提交**：修复与报告全部提交在 `redesign` 分支。
 - **dev 库迁移**：本机 `seeword` 库已从 `o6p7q8r9s0t1` 清理并升级到 `q8r9s0t1u2v3`（2026-10-25），备份在 `audit_bak_20261025` schema；清理口径与验证见第 3 节 Alembic 行。生产库升级与预检未执行。
-- **明确未执行**：生产部署、真实支付/短信、生产库迁移执行、nginx reload；以及 6 条 fixture 缺口待补种子数据。
+- **明确未执行**：生产部署、真实支付/短信、生产库迁移执行、nginx reload；mobile-chrome 本轮未重跑（可选口径）；firefox 全量未在最终树上复跑（按收窄口径改为子集 + 定期）。

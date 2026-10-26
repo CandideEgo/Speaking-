@@ -151,7 +151,7 @@ test("四类搜索和词单旧入口可用", async ({ page }) => {
   await expect(page).toHaveURL(/\/vocabulary\/sets$/);
 });
 
-test("观看页保留全站导航，播放控制和句子收藏位于内容区", async ({ page }) => {
+test("观看页保留全站导航，播放控制接入壳层、句子收藏在抽屉", async ({ page }) => {
   expect(videoId, "需要 seed_e2e.py 提供观看页数据").toBeTruthy();
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(`/watch/${videoId}`);
@@ -163,10 +163,17 @@ test("观看页保留全站导航，播放控制和句子收藏位于内容区",
   );
   const controls = page.getByTestId("watch-bottom-bar");
   await expect(controls).toBeVisible();
-  expect(await controls.getAttribute("data-shell-bottom-bar")).toBeNull();
+  // 新版手机观看页的播放栏由 WatchChromeProvider 接入壳层：底栏带 watch 标记。
+  expect(await controls.getAttribute("data-shell-bottom-bar")).toBe("watch");
   for (const action of ["watch-prev", "watch-toggle-play", "watch-next", "watch-replay"]) {
     await expect(page.getByTestId(action)).toBeVisible();
   }
+  // 手机端句级操作（含「收藏这句」）收进 ⋯ 抽屉，先打开再操作。
+  async function openMoreSheet() {
+    await page.getByRole("button", { name: "更多设置", exact: true }).click();
+    await expect(page.getByTestId("watch-more-sheet")).toBeVisible();
+  }
+  await openMoreSheet();
   const save = page.getByRole("button", { name: "收藏这句", exact: true });
   const unsave = page.getByRole("button", { name: "已收藏这句", exact: true });
   if (await unsave.isVisible()) await unsave.click();
@@ -174,6 +181,7 @@ test("观看页保留全站导航，播放控制和句子收藏位于内容区",
   await expect(unsave).toHaveAttribute("aria-pressed", "true");
   const sentence = await page.getByTestId("current-sentence-en").innerText();
   await page.reload();
+  await openMoreSheet();
   await expect(unsave).toHaveAttribute("aria-pressed", "true");
   await page.goto("/favorites");
   // 设计收藏页是「视频 / 原句」两个 tab（V-18）：先切到原句再看保存的句子。
@@ -185,6 +193,7 @@ test("观看页保留全站导航，播放控制和句子收藏位于内容区",
   await expect(saved).toHaveAttribute("href", /[?&]sub=/);
   await saved.click();
   await expect(page.getByTestId("current-sentence-en")).toHaveText(sentence);
+  await openMoreSheet();
   await unsave.click();
 });
 

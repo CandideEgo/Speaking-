@@ -536,3 +536,17 @@
   - 迁移重跑又发现 `exam_sentences` 整表缺主键、8 个 `id` 各重复一次（16 行）：备份后去重 18056 → 18048，并补 `exam_sentences_pkey`，随后 `o6p7q8r9s0t1 → p7q8r9s0t1u2 → q8r9s0t1u2v3` 升级成功。
   - 首次去重按 `id` 关联删除时因重复行共享同一 `id`，误删了 116 行（含应保留行）；用备份表回填每键一行并复核（总数 201665、重复组 0、每键恰好 1 行），最终数据正确。清理脚本留在 `.tmp-diag/`（已 gitignore）。
 - 升级后 `scripts/check_schema_drift.py` → **7 known entries, 0 new**；新约束/索引与 `exam_sentences` 主键均已在库中确认。审计 README 的「本机 dev 库未升级」段落已同步改为完成态，生产库预检仍标注未执行。
+
+### Round 56：e2e 残余清零（fixture 种子扩展 + 观看页重构规格对齐 + Firefox 滚动恢复）
+
+- **种子扩展**（`backend/scripts/seed_e2e.py`，幂等）：新增频道（`e2e-channel`，同时写 `channel_ref` 与 `channel_name`）、确定性封面 PNG（`/media/e2e-thumb.png`）、独立听力视频（3 条字幕 + 16kHz WAV 音频，`/media/<id>.wav`），并在结尾用 redis 删除 `video:detail:*` 缓存；`ruff` 通过。此前 6 条 fixture 缺口（home-feed 封面、library-persistence、listening ×2、239 词复习队列、46 题长卷）随之全部转绿，未删除/跳过断言。
+- **规格修正**（保持覆盖）：`library-persistence` 先等收藏 POST/DELETE 响应再 reload，避免乐观更新抢跑；`transcript-document` 的桌面目录断言在 <768 视口跳过（390 用例保留）；`vocabulary-exam-presentation.mobile` 双栏断点用 1024×1000 并显式区分 dual 期望，避开 1024/1025 阈值边界。
+- **观看页重构后的规格对齐**（该重构本身为用户并行完成的未提交工作，本轮只对齐断言、不改其设计）：手机播放栏接入壳层后 `design-rollout` 断言 `data-shell-bottom-bar="watch"` 且句级收藏进 ⋯ 抽屉；`repro-stage1` 改用「放大画面」并断言画框变宽；`ui-review-fixes-mobile` 片段终点改用「重听片段 / 继续完整视频」两个显式选择；`user-information` 390 档用壳层播放栏做锚点；`watch-end-screen` 桌面档允许滚动后验几何、手机档经 ⋯ 抽屉点「继续播放」。
+- **Firefox 真实缺陷修复**（`useScrollRestore`）：从筛选列表进入观看页时，共享 `main#main-scroll` 的归一位置会在组件清理前触发一次 scroll(0) 并覆盖本页存档，Firefox 下返回列表滚动位置丢失（Chromium 因时序不同未复现）。给保存逻辑加「路由守卫」：当前 pathname+search 与 effect 挂载时不一致就不写存档；该用例 Firefox 复跑 **10/10**、Chromium 4/4。
+- **订阅计数竞态**（`WatchSourceCard`）：频道详情请求可能早于订阅提交、晚到后覆盖乐观值；频道未载入时收到订阅事件则重拉权威数据。`library-persistence` 对共享种子频道的计数改为「至少 +1」断言（`design-rollout` 会并行切同一频道订阅）。
+- **最终验证**：`npm run check` 通过；`npm run test:unit` **31 文件 / 336 项通过**。e2e（testing 后端 + `seeword_e2e_full` 种子库）：
+  - chromium 全量 **217 项 → 201 passed / 2 failed / 14 skipped**，2 条（注册跳转、自建词单）`--last-failed` 串行复跑 **2/2 通过**；
+  - mobile-iphone（WebKit）**44 passed / 0 failed**；
+  - firefox 观看 + 听力 + 返回子集 **50 passed / 4 failed**（均为 `watch-layout` 并行抖动，串行 4/4 通过）。
+  - 按 2026-10-26 收窄口径：chromium + mobile-iphone 每次必跑，firefox 定期/子集，mobile-chrome 可选（本轮未重跑，如实标注未执行）。
+- e2e 写出的 9 张 tracked 截图已还原；本轮只提交种子、e2e 规格、`useScrollRestore`/`WatchSourceCard` 修复与两份报告，观看页重构及其新增文件/截图保持未提交（留给对应工作单独提交）。
