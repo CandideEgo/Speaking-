@@ -62,7 +62,7 @@ interface FaqItem {
   link?: { href: string; label: string };
 }
 
-/** 设计稿 contact.html 的 8 条常见问题；口径按产品现状改写（兑换页已退役、会员走 /upgrade）。 */
+/** 设计稿 contact.html 的 8 条常见问题；口径按产品现状改写（会员购买走 /upgrade 的站外收款页）。 */
 const FAQ: FaqItem[] = [
   {
     q: "今天到期的词是怎么算出来的？",
@@ -104,10 +104,10 @@ const FAQ: FaqItem[] = [
     link: { href: "/upgrade", label: "查看会员与价格" },
   },
   {
-    q: "兑换码在哪里输入？有效期多久？",
+    q: "付款后多久开通？在哪里查看会员有效期？",
     body: [
-      "会员通过升级页购买，付款后开通至当前账号，无需输入兑换码。",
-      "如果你拿到的是兑换码或需要人工开通，请发邮件到 support@seeword.top，附上订单号或兑换码，由后台处理。",
+      "会员从升级页进入金数据收款页，在微信内完成付款；支付确认后自动开通到发起购买的当前账号，不需要另外填写手机号。",
+      "付款与开通之间可能有几分钟同步时间，可回升级页或「我的」刷新查看；超过 30 分钟仍未到账，请发邮件到 support@seeword.top 并附上订单号。",
     ],
   },
   {
@@ -121,7 +121,7 @@ const FAQ: FaqItem[] = [
   {
     q: "问题不在上面这些里，怎么反馈最快？",
     body: [
-      "类型选「其他」，正文写清三步：你在哪一页、点了什么、看到什么（期望什么）。账单、发票、兑换码问题请附订单号或兑换码，处理会快很多。",
+      "类型选「其他」，正文写清三步：你在哪一页、点了什么、看到什么（期望什么）。账单、发票问题请附订单号，处理会快很多。",
       "也可以直接发邮件到 support@seeword.top；附件（截图/录屏）走这条路径。",
     ],
   },
@@ -238,9 +238,7 @@ export default function ContactPage() {
                   <MessageSquare size={16} className="text-brand-700" aria-hidden />
                   <span className="text-muted">邮箱</span>
                   <span className="select-all font-mono text-ink">support@seeword.top</span>
-                  <span className="ml-auto text-meta text-muted">
-                    账单、发票、兑换码问题请附上订单号。
-                  </span>
+                  <span className="ml-auto text-meta text-muted">账单、发票问题请附上订单号。</span>
                 </div>
               </Card>
             </section>

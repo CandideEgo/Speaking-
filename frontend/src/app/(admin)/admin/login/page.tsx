@@ -16,6 +16,30 @@ interface LoginResponse {
   refresh_token?: string;
 }
 
+/**
+ * A-30：登录后回跳 `?next=`，但只接受站内 `/admin` 前缀，避免 open redirect。
+ * 拒绝 `//evil.com`、`/\evil.com`、带换行的伪造值，以及会绕回登录页自身的地址。
+ */
+function resolveAdminNext(raw: string | null): string {
+  if (!raw) return "/admin";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/admin";
+  if (/[\\\r\n]/.test(raw)) return "/admin";
+  const path = raw.split(/[?#]/)[0] ?? "";
+  if (path !== "/admin" && !path.startsWith("/admin/")) return "/admin";
+  if (path === "/admin/login") return "/admin";
+  return raw;
+}
+
+/** 从当前地址读 next（登录页自身不读 query 状态，避免额外的 Suspense 边界）。 */
+function currentAdminNext(): string {
+  if (typeof window === "undefined") return "/admin";
+  return resolveAdminNext(new URLSearchParams(window.location.search).get("next"));
+}
+
+const LOGIN_ERROR_ID = "admin-login-error";
+const PHONE_INPUT_ID = "admin-login-phone";
+const PASSWORD_INPUT_ID = "admin-login-password";
+
 export default function AdminLoginPage() {
   const router = useRouter();
   const login = useAdminAuthStore((s) => s.login);
@@ -39,7 +63,7 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ phone, password }),
       });
       login(data.token, data.refresh_token ?? null);
-      router.replace("/admin");
+      router.replace(currentAdminNext());
     } catch (err) {
       setError(apiErrorMessage(err, "登录失败，请重试"));
     } finally {
@@ -137,13 +161,20 @@ export default function AdminLoginPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-copy font-medium text-ink mb-1.5">手机号</label>
+              <label
+                htmlFor={PHONE_INPUT_ID}
+                className="block text-copy font-medium text-ink mb-1.5"
+              >
+                手机号
+              </label>
               <div className="relative">
                 <Phone
                   size={16}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-soft"
+                  aria-hidden
                 />
                 <input
+                  id={PHONE_INPUT_ID}
                   type="tel"
                   inputMode="numeric"
                   maxLength={11}
@@ -152,6 +183,8 @@ export default function AdminLoginPage() {
                   required
                   autoComplete="tel"
                   placeholder="请输入手机号"
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? LOGIN_ERROR_ID : undefined}
                   className={cn(
                     "w-full rounded-lg border border-hairline bg-canvas py-2.5 pl-10 pr-4 text-copy text-ink",
                     "placeholder:text-muted-soft",
@@ -163,19 +196,28 @@ export default function AdminLoginPage() {
             </div>
 
             <div>
-              <label className="block text-copy font-medium text-ink mb-1.5">密码</label>
+              <label
+                htmlFor={PASSWORD_INPUT_ID}
+                className="block text-copy font-medium text-ink mb-1.5"
+              >
+                密码
+              </label>
               <div className="relative">
                 <Lock
                   size={16}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-soft"
+                  aria-hidden
                 />
                 <input
+                  id={PASSWORD_INPUT_ID}
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
                   placeholder="请输入密码"
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? LOGIN_ERROR_ID : undefined}
                   className={cn(
                     "w-full rounded-lg border border-hairline bg-canvas py-2.5 pl-10 pr-10 text-copy text-ink",
                     "placeholder:text-muted-soft",
@@ -186,15 +228,23 @@ export default function AdminLoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                  aria-pressed={showPassword}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-soft hover:text-ink transition-colors"
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
                 </button>
               </div>
             </div>
 
             {error && (
-              <div className="rounded-lg bg-error/10 px-4 py-2.5 text-copy text-error">{error}</div>
+              <div
+                id={LOGIN_ERROR_ID}
+                role="alert"
+                className="rounded-lg bg-error/10 px-4 py-2.5 text-copy text-error-text"
+              >
+                {error}
+              </div>
             )}
 
             <Button type="submit" fullWidth disabled={loading} className="mt-2 h-11">

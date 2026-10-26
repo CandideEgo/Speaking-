@@ -7,7 +7,6 @@ Covers:
 - POST /videos/{id}/unlock 已退役：不消耗额度、恒返回放行 access
 - GET /videos/unlocked + /unlocked-ids 已退役：返回空载荷（表 dormant 保留）
 - shadowing-sentences 对登录用户放行
-- redeeming during the trial stacks from the trial end date（dormant 逻辑保留）
 """
 
 from datetime import UTC, datetime, timedelta
@@ -224,51 +223,3 @@ class TestShadowingSentencesGate:
         video = await _seed_ready_video(db_session, title="ProSentences")
         resp = await client.get(f"/api/v1/videos/{video.id}/shadowing-sentences", headers=pro_headers)
         assert resp.status_code == 410
-
-
-class TestRedeemDuringTrial:
-    async def test_redeem_stacks_from_trial_end(self, client: AsyncClient, db_session):
-        """A redeem code entered during the trial extends from the trial end
-        date (max(current_expires, now) + duration), not from now."""
-        from app.models.redeem import RedeemCode, RedeemStatus
-        from app.models.user import PlanType, User
-
-        trial_end = datetime.now(UTC) + timedelta(days=2)
-        user = User(
-            phone="13500135000",
-            hashed_password="x",
-            name="Trial User",
-            plan=PlanType.pro,
-            plan_expires_at=trial_end,
-            plan_source="trial",
-        )
-        db_session.add(user)
-        db_session.add(
-            RedeemCode(
-                code="TRIALSTACK01",
-                plan=PlanType.pro,
-                duration_days=30,
-                status=RedeemStatus.unused,
-                expires_at=datetime.now(UTC) + timedelta(days=90),
-            )
-        )
-        await db_session.commit()
-        await db_session.refresh(user)
-
-        from app.core.security import create_token
-
-        resp = await client.post(
-            "/api/v1/redeem-codes/redeem",
-            headers={"Authorization": f"Bearer {create_token(user.id)}"},
-            json={"code": "TRIALSTACK01"},
-        )
-        assert resp.status_code == 200, resp.text
-        new_expires = datetime.fromisoformat(resp.json()["plan_expires_at"])
-        # 30 days after the trial end — not 30 days after now.
-        expected = trial_end + timedelta(days=30)
-        assert abs((new_expires - expected).total_seconds()) < 5
-
-        # plan_source flips to the latest entitlement origin.
-        async with TestSessionLocal() as db:
-            fresh = (await db.execute(select(User).where(User.id == user.id))).scalar_one()
-            assert fresh.plan_source == "redeem"

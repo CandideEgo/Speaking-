@@ -28,7 +28,6 @@ app/services/oss_service.py:no-any-return
 app/services/profile_service.py:assignment
 app/services/profile_service.py:operator
 app/services/recommendation_service.py:return-value
-app/services/shadowing_service.py:assignment
 app/services/sms_service.py:union-attr
 app/services/subtitle_metrics_service.py:arg-type
 app/services/transcription/whisper_model.py:no-any-return

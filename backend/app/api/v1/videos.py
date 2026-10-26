@@ -22,10 +22,13 @@ from app.schemas.video import (
     QualityReportItem,
     RecomputeWordLevelsRequest,
     RecomputeWordLevelsResponse,
+    ResegmentResult,
+    ResegmentRollbackResult,
     ReviewRejectRequest,
     SearchSuggestionsResponse,
     SubtitleBatchUpdate,
     SubtitleCreate,
+    SubtitleDeleteResult,
     SubtitleReorder,
     SubtitleResponse,
     SubtitleRevisionItem,
@@ -42,6 +45,7 @@ from app.schemas.video import (
     VideoLikeStatusResponse,
     VideoLikeToggleResponse,
     VideoResponse,
+    VideoScoreResponse,
     VideoStatusResponse,
     VideoUnlockResponse,
     VideoVocabularyItem,
@@ -355,6 +359,10 @@ async def recover_video(
     (resume-safe — skips completed steps). Use this for videos stuck in
     ``processing`` / ``ready_subtitles``; use ``start-processing`` for a fresh
     ``pending_processing`` video.
+
+    A lock that is still inside its step's watchdog budget means a worker is
+    running → 409 (the lock is not deleted). A recover for the same video is
+    accepted at most once per 60 seconds.
     """
     from app.services.video_seed_service import recover_processing as _recover_processing
 
@@ -434,7 +442,10 @@ async def localize_admin_video(
 async def retranslate_video(
     request: Request,
     video_id: str,
-    engine: str | None = Query(None, description="Override translation engine (glm|qwen|hy_mt2|agnes|custom)"),
+    engine: str | None = Query(
+        None,
+        description="Override translation engine (registry keys, e.g. qwen|hy_mt2|glm|agnes|custom|commandcode)",
+    ),
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -444,6 +455,11 @@ async def retranslate_video(
     to retry with a different engine - the same engine + same input would
     reproduce the low coverage. Clears existing text_zh + quality_flag and
     re-dispatches finalize_video.
+
+    Only allowed for ``error`` / ``ready`` videos: a video that is mid-pipeline
+    (``processing`` / ``ready_subtitles`` / ``pending_processing``) answers 409.
+    An unknown ``engine`` answers 422; a Redis single-flight guard blocks double
+    clicks, and a dispatch failure restores the cleared translations (503).
     """
     from app.services.video_seed_service import retranslate_video as _retranslate
 
@@ -553,18 +569,26 @@ async def reorder_admin_subtitles(
     return await _reorder_subtitles(db, video_id, payload, edited_by=current_user.id)
 
 
-@router.delete("/admin/{video_id}/subtitles/{subtitle_id}", response_model=dict)
+@router.delete("/admin/{video_id}/subtitles/{subtitle_id}", response_model=SubtitleDeleteResult)
 @rate_limit("60/minute")
 async def delete_admin_subtitle(
     request: Request,
     video_id: str,
     subtitle_id: str,
+    force: bool = Query(
+        False,
+        description="删除会级联清除该行的用户原句收藏与编辑历史；缺省 409 并返回影响计数，带 force=true 才执行",
+    ),
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete one subtitle and close the gap in sentence_index (canvas editor).
-    Admin only."""
-    return await _delete_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
+
+    Deleting one row also cascades to its sentence favorites and edit history,
+    so a plain delete answers 409 with the affected counts; pass ``?force=true``
+    only after reviewing them. Admin only.
+    """
+    return await _delete_subtitle(db, video_id, subtitle_id, edited_by=current_user.id, force=force)
 
 
 @router.post(
@@ -600,7 +624,7 @@ async def merge_admin_subtitle(
     return await _merge_subtitle(db, video_id, subtitle_id, edited_by=current_user.id)
 
 
-@router.post("/admin/{video_id}/subtitles/resegment", response_model=dict)
+@router.post("/admin/{video_id}/subtitles/resegment", response_model=ResegmentResult)
 @rate_limit("10/minute")
 async def resegment_admin_subtitles(
     request: Request,
@@ -611,11 +635,14 @@ async def resegment_admin_subtitles(
     """Re-cut every subtitle into proper sentences (bulk). Snapshots first so
     the change is reversible via /resegment/rollback. Translations are cleared
     — segmentation changed, so the admin should re-trigger translation after.
-    Admin only."""
+
+    Sentence favorites, edit revisions and vocabulary source links are
+    re-mapped onto the new segments by time overlap instead of being deleted by
+    the FK cascades; the response reports the counts. Admin only."""
     return await _resegment_video(db, video_id, edited_by=current_user.id)
 
 
-@router.post("/admin/{video_id}/subtitles/resegment/rollback", response_model=dict)
+@router.post("/admin/{video_id}/subtitles/resegment/rollback", response_model=ResegmentRollbackResult)
 @rate_limit("10/minute")
 async def rollback_resegment_admin(
     request: Request,
@@ -623,7 +650,11 @@ async def rollback_resegment_admin(
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Restore subtitles from the latest re-segment snapshot. Admin only."""
+    """Restore subtitles from the latest re-segment snapshot.
+
+    User data attached to the re-segmented rows is mapped back onto the
+    restored rows, and rows the original re-segmentation had to drop are
+    re-inserted from the snapshot payload. Admin only."""
     return await _rollback_resegment(db, video_id, edited_by=current_user.id)
 
 
@@ -766,7 +797,7 @@ async def get_admin_video_status(
     return result
 
 
-@router.get("/admin/{video_id}/score", response_model=dict)
+@router.get("/admin/{video_id}/score", response_model=VideoScoreResponse)
 @rate_limit("30/minute")
 async def get_admin_video_score(
     request: Request,
@@ -777,7 +808,7 @@ async def get_admin_video_score(
     """Admin/debug: latest learning_score breakdown for a video (P1).
 
     Returns the per-factor values so the score is explainable, not just the
-    total. 404 if the video has never been scored.
+    total. Typed response (ADM-10); 404 if the video has never been scored.
     """
     from app.services.scoring_service import get_latest_score
 
@@ -1107,7 +1138,14 @@ async def seed_video(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user),
 ):
-    """Seed an official video for the public homepage. Admin only."""
+    """Seed an official video for the public homepage. Admin only.
+
+    Re-seeding a URL that is already in the pipeline (any of
+    pending_processing / processing / ready_subtitles / ready) returns the
+    existing row instead of creating a duplicate + a second GPU run. A
+    URL-level Redis lock turns a double click into 409 while the first request
+    is still working. Only ``error`` rows stay retryable.
+    """
     return await _seed_video(db, data.source_url)
 
 

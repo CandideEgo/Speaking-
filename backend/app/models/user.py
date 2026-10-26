@@ -40,7 +40,8 @@ class User(Base):
     plan: Mapped[PlanType] = mapped_column(SAEnum(PlanType, name="plantype"), default=PlanType.free, nullable=False)
     plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     # Where the current/most recent Pro entitlement came from: "trial" for the
-    # signup trial, "redeem" after a redeem code, null for never-Pro users.
+    # signup trial, "redeem" for historical redeem-code grants (that system is
+    # retired; no new rows are written), null for never-Pro users.
     plan_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     role: Mapped[RoleType] = mapped_column(SAEnum(RoleType, name="roletype"), default=RoleType.user, nullable=False)
     # Timestamp of the last password change/reset. Tokens issued before this
@@ -71,7 +72,6 @@ class User(Base):
     # foreign_keys is required because videos has TWO FKs to users (user_id +
     # reviewed_by); this relationship tracks ownership via user_id.
     videos = relationship("Video", foreign_keys="Video.user_id", back_populates="user")
-    speaking_attempts = relationship("SpeakingAttempt", back_populates="user")
     learning_records = relationship("LearningRecord", back_populates="user")
     vocabulary = relationship("Vocabulary", back_populates="user")
     orders = relationship("Order", back_populates="user")

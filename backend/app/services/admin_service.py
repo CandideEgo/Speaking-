@@ -6,19 +6,21 @@ instances that the route handler serialises via Pydantic schemas.
 
 import json
 import logging
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from enum import Enum
 
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, case, delete, func, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
-from app.core.errors import BadRequestError, NotFoundError
+from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.core.time_utils import to_aware_utc
 from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
+from app.models.jinshuju_payment import JinshujuPayment, JinshujuPaymentStatus
 from app.models.learning import LearningRecord, Vocabulary
 from app.models.order import Order
-from app.models.redeem import RedeemCode, RedeemStatus, RevokedReason
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import paginated
@@ -123,6 +125,14 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     # --- KPI counts ---
     # All user-level counters in ONE scan via conditional aggregation
     # (previously 7 separate COUNT queries).
+    #
+    # ADM-05: ``pro_users`` counts **active** Pro only (plan == pro AND not
+    # expired). The ``plan`` column is never downgraded by any beat job — an
+    # expiry silently leaves ``plan='pro'`` behind — so counting the stored
+    # plan overstates the paying base (audit measured 611 stored vs 284 active).
+    # ``pro_expired_count`` keeps the lapsed rows visible, and ``users_by_plan``
+    # below intentionally stays an as-stored distribution (see its comment).
+    active_pro_condition = or_(User.plan_expires_at.is_(None), User.plan_expires_at > now)
     (
         total_users,
         new_users_7d,
@@ -136,7 +146,7 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
             select(
                 func.count(User.id),
                 func.count(User.id).filter(User.created_at >= ago_7d),
-                func.count(User.id).filter(User.plan == PlanType.pro),
+                func.count(User.id).filter(User.plan == PlanType.pro, active_pro_condition),
                 func.count(User.id).filter(func.date(User.last_active_at) == today),
                 func.count(User.id).filter(User.last_active_at >= ago_7d),
                 func.count(User.id).filter(func.date(User.created_at) == today),
@@ -149,21 +159,13 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
         )
     ).one()
 
-    # Vocabulary KPI — replaces the frozen speaking_attempts count (ADR-0003):
+    # Vocabulary KPI — replaces the retired speaking-attempts count (ADR-0003):
     # speaking progress tracking is gone; vocabulary is the active learning metric.
     total_vocabulary = (await db.execute(select(func.count(Vocabulary.id)))).scalar_one()
 
     # --- Real-time / today KPIs (DEV-FLOW 2026-07 Phase B2) ---
     online_now = await _count_online()
     gpu_queue_depth = await _gpu_queue_depth()
-    redeems_today = (
-        await db.execute(
-            select(func.count(RedeemCode.id)).where(
-                RedeemCode.status == RedeemStatus.redeemed,
-                func.date(RedeemCode.used_at) == today,
-            )
-        )
-    ).scalar_one()
 
     # --- Trend data ---
     # Signup trend: count users created per day
@@ -178,7 +180,7 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     signup_map = {r.d: r.c for r in signup_rows}
 
     # Vocabulary trend: new words added per day (SM-2 vocabulary table). Replaces
-    # the frozen speaking_attempts trend (ADR-0003) — vocabulary is the active
+    # the retired speaking-attempts trend (ADR-0003) — vocabulary is the active
     # learning metric now that AI speaking scoring is removed.
     vocab_rows = (
         await db.execute(
@@ -227,6 +229,9 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     videos_ready = status_counts.get(VideoStatus.ready, 0)
     videos_error_count = status_counts.get(VideoStatus.error, 0)
 
+    # As-stored plan distribution: buckets the ``plan`` column verbatim, so the
+    # ``pro`` bucket includes lapsed memberships (ADM-05). Active Pro is
+    # ``pro_users`` above; the delta between the two is ``pro_expired_count``.
     users_by_plan_rows = (await db.execute(select(User.plan, func.count(User.id)).group_by(User.plan))).all()
     users_by_plan = [{"plan": r[0], "count": r[1]} for r in users_by_plan_rows]
 
@@ -252,10 +257,12 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
         "registered": total_users,
         "watched": int(watched_users or 0),
         "vocab_saved": int(vocab_users or 0),
+        # ADM-05: funnel must use the same active-Pro definition as ``pro_users``,
+        # otherwise the last stage shows stored (mostly expired) plans.
         "pro": pro_users,
     }
 
-    # --- Recent activity (merge-sort from signups + paid orders) ---
+    # --- Recent activity (merge-sort from signups + 金数据 payments) ---
     recent: list[dict] = []
 
     # Signups
@@ -271,27 +278,59 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
 
     # (Speaking-attempts activity source removed per ADR-0003 — AI speaking
     # scoring is gone, so "完成口语评测" entries would only ever describe a
-    # dead feature. The frozen SpeakingAttempt table is no longer surfaced.)
+    # dead feature.)
 
-    # Orders (paid)
-    for o in (
+    # 金数据 payments (ADM-06) — the live revenue source. Applied purchases show
+    # as "开通 Pro"; pending ones (paid but the account isn't registered yet)
+    # still deserve a line so ops can spot missing grants. The legacy ``orders``
+    # table is kept as a fallback for pre-Jinshuju history only.
+    payment_rows = (
         await db.execute(
-            select(Order, User.name, User.phone)
-            .join(User, Order.user_id == User.id)
-            .where(Order.status == "paid")
-            .order_by(Order.created_at.desc())
+            select(JinshujuPayment, User.name, User.phone)
+            .outerjoin(User, JinshujuPayment.user_id == User.id)
+            .where(JinshujuPayment.status.in_([JinshujuPaymentStatus.APPLIED, JinshujuPaymentStatus.PENDING]))
+            .order_by(
+                func.coalesce(JinshujuPayment.entry_created_at, JinshujuPayment.created_at).desc(),
+                JinshujuPayment.id.desc(),
+            )
             .limit(8)
         )
-    ).all():
-        order, name, phone = o
+    ).all()
+    for payment, name, linked_phone in payment_rows:
+        paid_at = payment.entry_created_at or payment.created_at
+        who = name or linked_phone or payment.phone or "用户"
+        tier = payment.tier_name or "Pro"
+        amount = f"（¥{payment.amount_fen / 100:.0f}）" if payment.amount_fen is not None else ""
+        state = "开通 Pro" if payment.status == JinshujuPaymentStatus.APPLIED else "付款待开通"
         recent.append(
             {
-                "id": f"payment-{order.id}",
+                "id": f"payment-{payment.id}",
                 "type": "payment",
-                "summary": f"{name or phone} 升级 Pro (¥{order.amount / 100:.0f})",
-                "created_at": _dt_iso(order.created_at),
+                "summary": f"{who} {state} {tier}{amount}",
+                "created_at": _dt_iso(paid_at),
             }
         )
+
+    if not payment_rows:
+        # Legacy fallback: rows written before the Jinshuju收款链路 switched over.
+        for o in (
+            await db.execute(
+                select(Order, User.name, User.phone)
+                .join(User, Order.user_id == User.id)
+                .where(Order.status == "paid")
+                .order_by(Order.created_at.desc(), Order.id.desc())
+                .limit(8)
+            )
+        ).all():
+            order, name, phone = o
+            recent.append(
+                {
+                    "id": f"payment-{order.id}",
+                    "type": "payment",
+                    "summary": f"{name or phone} 升级 Pro (¥{order.amount / 100:.0f})",
+                    "created_at": _dt_iso(order.created_at),
+                }
+            )
 
     # Sort all by created_at desc and take top 8
     recent.sort(key=lambda x: x["created_at"] or "", reverse=True)
@@ -310,7 +349,6 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
         "gpu_queue_depth": gpu_queue_depth,
         "videos_error_count": videos_error_count,
         "signups_today": signups_today,
-        "redeems_today": redeems_today,
         "trend": {
             "dates": dates_list,
             "signups": signups_list,
@@ -331,6 +369,37 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
 # ---------------------------------------------------------------------------
 
 
+#: 管理列表 keyword 的长度上限（ADM-11：避免把整段文本当 LIKE 模式拖慢全表扫描）。
+_ADMIN_KEYWORD_MAX_LEN = 100
+
+#: PostgreSQL INTEGER（``jinshuju_payments.serial_number``）的上界。
+_INT32_MAX = 2_147_483_647
+
+
+def _like_escape(value: str) -> str:
+    """Escape LIKE metacharacters (``%`` / ``_``) and the escape char itself.
+
+    Same approach as ``video_service``: pass ``escape="\\"`` to every LIKE and
+    escape the user input first. Without this, searching for ``%`` matches the
+    whole table (ADM-11).
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _parse_enum_filter(value: str, enum_cls: type[Enum], label: str):
+    """Turn a raw filter string into an enum member, 400 on unknown values.
+
+    The routes already validate via ``Literal`` (422); this is the defensive
+    service-layer guard for direct callers, and it replaces the old
+    ``except ValueError: pass`` that silently returned the unfiltered list.
+    """
+    try:
+        return enum_cls(value)
+    except ValueError as exc:
+        allowed = "/".join(str(member.value) for member in enum_cls)
+        raise BadRequestError(f"无效的{label}过滤值：{value}（可选 {allowed}）") from exc
+
+
 async def list_admin_users(
     db: AsyncSession,
     page: int = 1,
@@ -343,14 +412,19 @@ async def list_admin_users(
 
     ``plan`` accepts ``free`` / ``pro`` / ``expired`` — the latter matches
     users whose Pro membership has lapsed (prototype 28 已过期 filter).
+
+    Filter values are validated instead of silently ignored (ADM-11), the
+    keyword is LIKE-escaped and length-capped, and ordering carries an ``id``
+    tiebreaker so OFFSET pagination cannot duplicate/skip rows with equal
+    ``created_at`` timestamps (ADM-10).
     """
 
     now = datetime.now(UTC)
 
     # Subqueries for aggregated counts.
-    # Note: speaking_attempts is intentionally omitted — AI speaking scoring was
-    # removed (ADR-0002/0003) and the SpeakingAttempt table is frozen, so a
-    # per-user speaking count is dead data.
+    # Note: speaking-attempt counts are intentionally omitted — AI speaking
+    # scoring was removed (ADR-0002/0003), so a per-user speaking count is
+    # dead data.
     vw_count = (
         select(func.count(LearningRecord.id)).where(LearningRecord.user_id == User.id).correlate(User).scalar_subquery()
     )
@@ -364,10 +438,7 @@ async def list_admin_users(
 
     def _apply_filters(s):
         if role:
-            try:
-                s = s.where(User.role == RoleType(role))
-            except ValueError:
-                pass
+            s = s.where(User.role == _parse_enum_filter(role, RoleType, "角色"))
         if plan:
             if plan == "expired":
                 s = s.where(
@@ -376,13 +447,13 @@ async def list_admin_users(
                     User.plan_expires_at < now,
                 )
             else:
-                try:
-                    s = s.where(User.plan == PlanType(plan))
-                except ValueError:
-                    pass
+                s = s.where(User.plan == _parse_enum_filter(plan, PlanType, "方案"))
         if keyword and keyword.strip():
             k = keyword.strip().lower()
-            s = s.where((func.lower(User.name).contains(k)) | (User.phone.contains(k)))
+            if len(k) > _ADMIN_KEYWORD_MAX_LEN:
+                raise BadRequestError(f"搜索关键词最长 {_ADMIN_KEYWORD_MAX_LEN} 个字符")
+            pattern = f"%{_like_escape(k)}%"
+            s = s.where(func.lower(User.name).like(pattern, escape="\\") | User.phone.like(pattern, escape="\\"))
         return s
 
     stmt = _apply_filters(stmt)
@@ -391,8 +462,8 @@ async def list_admin_users(
     count_stmt = _apply_filters(select(func.count(User.id)))
     total = (await db.execute(count_stmt)).scalar_one()
 
-    # Paginate
-    stmt = stmt.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    # Paginate. ``User.id`` is the deterministic tiebreaker (ADM-10).
+    stmt = stmt.order_by(User.created_at.desc(), User.id).offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(stmt)).all()
 
     items = []
@@ -427,32 +498,71 @@ async def list_admin_users(
 # ---------------------------------------------------------------------------
 
 
-async def get_admin_settings(db: AsyncSession) -> AdminSetting:
-    """Return the singleton settings row, creating it with defaults if absent."""
+#: 首次创建设置单例各尝试几次（并发首建撞主键后重读）。
+_SETTINGS_INSERT_ATTEMPTS = 3
+
+
+async def _select_admin_settings(db: AsyncSession) -> AdminSetting | None:
     result = await db.execute(select(AdminSetting).where(AdminSetting.id == SETTINGS_ROW_ID))
-    settings = result.scalar_one_or_none()
-    if settings is None:
-        settings = AdminSetting(id=SETTINGS_ROW_ID)
-        db.add(settings)
+    return result.scalar_one_or_none()
+
+
+async def get_admin_settings(db: AsyncSession) -> AdminSetting:
+    """Return the singleton settings row, creating it with defaults if absent.
+
+    ADM-14: two concurrent first visits (fresh deploy, or two admins hitting
+    the settings page before anyone saved it) used to race the plain
+    ``add + commit`` into a primary-key ``IntegrityError`` → 500. The insert is
+    now wrapped in a SAVEPOINT: the loser re-reads the winner's row instead of
+    aborting the whole transaction (same pattern as
+    ``home_content_service._get_or_create_*``).
+    """
+    settings = await _select_admin_settings(db)
+    if settings is not None:
+        return settings
+    for _ in range(_SETTINGS_INSERT_ATTEMPTS):
+        candidate = AdminSetting(id=SETTINGS_ROW_ID)
+        try:
+            async with db.begin_nested():
+                db.add(candidate)
+                await db.flush()
+        except IntegrityError:
+            # SAVEPOINT rollback leaves the (never-persisted) candidate attached.
+            if candidate in db:
+                db.expunge(candidate)
+            settings = await _select_admin_settings(db)
+            if settings is not None:
+                return settings
+            continue
         await db.commit()
-        await db.refresh(settings)
-    return settings
+        await db.refresh(candidate)
+        return candidate
+    raise ConflictError("系统设置初始化冲突，请重试")
 
 
 async def update_admin_settings(db: AsyncSession, patch: dict) -> AdminSetting:
     """Apply a partial update to the singleton settings row.
 
-    Raises ``Invalid`` if the thresholds are inconsistent
+    Cross-field validation happens **before** mutating the ORM object (ADM-14):
+    a rejected patch must not leave half-applied attributes on the session
+    (a later request on the same session would see them, and ``rollback`` is
+    not called by the error handler).
+
+    Raises ``BadRequestError`` if the thresholds are inconsistent
     (warn threshold must be >= block threshold).
     """
     settings = await get_admin_settings(db)
+
+    # Merge the patch with the current values on plain python floats, then
+    # validate — only after that touch the instance.
+    block_t = float(patch.get("quality_block_threshold", settings.quality_block_threshold))
+    warn_t = float(patch.get("quality_warn_threshold", settings.quality_warn_threshold))
+    if warn_t < block_t:
+        raise BadRequestError("警告阈值不能低于阻塞阈值")
+
     for key, value in patch.items():
         if value is not None:
             setattr(settings, key, value)
-    block_t = float(settings.quality_block_threshold)
-    warn_t = float(settings.quality_warn_threshold)
-    if warn_t < block_t:
-        raise BadRequestError("警告阈值不能低于阻塞阈值")
     await commit_refresh(db, settings)
     return settings
 
@@ -476,92 +586,8 @@ async def list_admin_accounts(db: AsyncSession) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Redemption records (prototype 29 订单管理 — 兑换码激活记录)
+# User actions (ban / role / plan)
 # ---------------------------------------------------------------------------
-
-
-async def list_redemptions(
-    db: AsyncSession,
-    page: int = 1,
-    page_size: int = 20,
-    status: str | None = None,
-    keyword: str | None = None,
-) -> dict:
-    """List redeem-code activation events (redeemed + refunded/revoked).
-
-    ``status`` filters: ``redeemed`` | ``revoked`` | ``refunded``
-    (refunded == revoked with reason=refund).
-    """
-    base = (
-        select(RedeemCode, User.phone.label("user_phone"))
-        .join(User, RedeemCode.used_by == User.id, isouter=True)
-        .where(RedeemCode.status.in_([RedeemStatus.redeemed, RedeemStatus.revoked]))
-    )
-
-    if status == "redeemed":
-        base = base.where(RedeemCode.status == RedeemStatus.redeemed)
-    elif status == "revoked":
-        base = base.where(
-            RedeemCode.status == RedeemStatus.revoked,
-            RedeemCode.revoked_reason != RevokedReason.refund,
-        )
-    elif status == "refunded":
-        base = base.where(
-            RedeemCode.status == RedeemStatus.revoked,
-            RedeemCode.revoked_reason == RevokedReason.refund,
-        )
-
-    if keyword and keyword.strip():
-        k = keyword.strip().lower()
-        base = base.where((func.lower(RedeemCode.code).contains(k)) | (func.lower(User.phone).contains(k)))
-
-    count_stmt = select(func.count()).select_from(base.subquery())
-    total = (await db.execute(count_stmt)).scalar_one()
-
-    stmt = base.order_by(RedeemCode.used_at.desc().nulls_last()).offset((page - 1) * page_size).limit(page_size)
-    rows = (await db.execute(stmt)).all()
-
-    items = []
-    for code, user_phone in rows:
-        items.append(
-            {
-                "id": code.id,
-                "code": code.code,
-                "user_id": code.used_by,
-                "user_phone": user_phone,
-                "plan": code.plan or "pro",
-                "duration_days": code.duration_days,
-                "status": code.status.value,
-                "revoked_reason": code.revoked_reason.value if code.revoked_reason else None,
-                "used_at": _dt_iso(code.used_at),
-                "created_at": _dt_iso(code.created_at),
-            }
-        )
-
-    return paginated(items, page=page, page_size=page_size, total=total)
-
-
-async def redemption_summary(db: AsyncSession) -> dict:
-    """Status counts for the redemption records stat strip (prototype 29)."""
-    rows = (
-        await db.execute(
-            select(RedeemCode.status, RedeemCode.revoked_reason, func.count(RedeemCode.id)).group_by(
-                RedeemCode.status, RedeemCode.revoked_reason
-            )
-        )
-    ).all()
-    redeemed = 0
-    revoked = 0
-    refunded = 0
-    for st, reason, count in rows:
-        if st == RedeemStatus.redeemed:
-            redeemed += count
-        elif st == RedeemStatus.revoked:
-            if reason == RevokedReason.refund:
-                refunded += count
-            else:
-                revoked += count
-    return {"redeemed": redeemed, "revoked": revoked, "refunded": refunded}
 
 
 async def _get_user_or_raise(db: AsyncSession, user_id: str) -> User:
@@ -572,10 +598,48 @@ async def _get_user_or_raise(db: AsyncSession, user_id: str) -> User:
     return user
 
 
+async def _lock_admin_rows(db: AsyncSession) -> list[User]:
+    """Lock every admin row (stable ``id`` order) and return the fresh state.
+
+    ADM-09 last-admin protection needs a serialisation point: two admins
+    banning/demoting each other can both pass a plain "is there another admin"
+    read under READ COMMITTED and commit into zero usable admins. Locking all
+    admin rows in one deterministic order turns those transactions into a
+    queue (no deadlock, one waits), and ``populate_existing`` makes the waiter
+    re-read the state committed by the transaction it just waited for.
+    """
+    result = await db.execute(
+        select(User)
+        .where(User.role == RoleType.admin)
+        .order_by(User.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return list(result.scalars().all())
+
+
+def _assert_not_last_admin(admins: list[User], user_id: str) -> None:
+    """409 when removing ``user_id`` would leave zero usable admins.
+
+    ``admins`` is the locked admin set; usable = not banned. Called only for
+    actions that actually remove admin usability (ban / demote).
+    """
+    target = next((a for a in admins if a.id == user_id), None)
+    if target is None or target.is_banned:
+        return  # Not an active admin → nothing to lose.
+    others = sum(1 for a in admins if a.id != user_id and not a.is_banned)
+    if others == 0:
+        raise ConflictError("不能移除最后一名可用管理员：请先授予其他账号管理员权限")
+
+
 async def ban_user(db: AsyncSession, user_id: str, is_banned: bool, admin_user_id: str) -> User:
     if user_id == admin_user_id:
         raise BadRequestError("Cannot ban yourself")
     user = await _get_user_or_raise(db, user_id)
+    if is_banned and user.role == RoleType.admin:
+        # Lock all admin rows *before* deciding — see _lock_admin_rows.
+        admins = await _lock_admin_rows(db)
+        _assert_not_last_admin(admins, user_id)
     user.is_banned = is_banned
     await commit_refresh(db, user)
     logger.info("admin_action ban_user actor=%s target=%s banned=%s", admin_user_id, user_id, is_banned)
@@ -585,8 +649,13 @@ async def ban_user(db: AsyncSession, user_id: str, is_banned: bool, admin_user_i
 async def change_user_role(db: AsyncSession, user_id: str, role: str, admin_user_id: str) -> User:
     if user_id == admin_user_id:
         raise BadRequestError("Cannot change your own role")
+    new_role = _parse_enum_filter(role, RoleType, "角色")
     user = await _get_user_or_raise(db, user_id)
-    user.role = RoleType(role)
+    if new_role == RoleType.user and user.role == RoleType.admin:
+        # Demotion is the other way to remove the last usable admin (ADM-09).
+        admins = await _lock_admin_rows(db)
+        _assert_not_last_admin(admins, user_id)
+    user.role = new_role
     await commit_refresh(db, user)
     logger.info("admin_action change_user_role actor=%s target=%s role=%s", admin_user_id, user_id, role)
     return user
@@ -598,14 +667,20 @@ async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_d
     user = result.scalar_one_or_none()
     if not user:
         raise NotFoundError("User not found")
-    user.plan = PlanType(plan)
-    if plan == "pro":
+    new_plan = _parse_enum_filter(plan, PlanType, "方案")
+    user.plan = new_plan
+    if new_plan == PlanType.pro:
         now = datetime.now(UTC)
         current_expires = to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
         base = max(current_expires, now)
         user.plan_expires_at = base + timedelta(days=duration_days)
+        # ADM-17: provenance must say "admin" — otherwise a manual grant keeps
+        # whatever source the account had before (e.g. "trial") or stays NULL,
+        # and exports/source breakdowns lie about where Pro came from.
+        user.plan_source = "admin"
     else:
         user.plan_expires_at = None
+        user.plan_source = None
     await commit_refresh(db, user)
     logger.info(
         "admin_action change_user_plan actor=%s target=%s plan=%s duration_days=%s",
@@ -618,121 +693,212 @@ async def change_user_plan(db: AsyncSession, user_id: str, plan: str, duration_d
 
 
 # ---------------------------------------------------------------------------
-# Redeem code management (ADR-0007)
+# 金数据 payments (replaces the dead legacy ``orders`` admin surface)
 # ---------------------------------------------------------------------------
 
+#: Valid ``JinshujuPayment.status`` filter values. The route already restricts
+#: via ``Literal`` (422); this set is the service-layer guard for direct calls.
+_PAYMENT_STATUS_VALUES = frozenset(
+    {
+        JinshujuPaymentStatus.APPLIED,
+        JinshujuPaymentStatus.PENDING,
+        JinshujuPaymentStatus.IGNORED,
+        JinshujuPaymentStatus.REFUNDED,
+        JinshujuPaymentStatus.ERROR,
+    }
+)
 
-async def revoke_redeem_code(db: AsyncSession, code_id: str, reason: str) -> RedeemCode:
-    """Admin voids an *unused* code (leak / error). Terminal -> revoked.
-
-    Only unused codes can be voided this way; refunding an already-redeemed
-    code (clawing back the granted time) is a separate operation
-    (``refund_redeem_code``) because it must also mutate the user's plan.
-    """
-    result = await db.execute(select(RedeemCode).where(RedeemCode.id == code_id).with_for_update())
-    code = result.scalar_one_or_none()
-    if not code:
-        raise NotFoundError("Redeem code not found")
-    if code.status != RedeemStatus.unused:
-        raise BadRequestError(f"Only unused codes can be revoked (current status: {code.status.value})")
-
-    code.status = RedeemStatus.revoked
-    code.revoked_reason = RevokedReason(reason)
-    await commit_refresh(db, code)
-    logger.info("admin_action revoke_redeem_code code=%s reason=%s", code.code, reason)
-    return code
+#: 已发放（= 钱到账且会员已开）才计入收入；退款/挂起/异常一律不算。
+_PAID_STATUS = JinshujuPaymentStatus.APPLIED
 
 
-async def refund_redeem_code(db: AsyncSession, code_id: str) -> tuple[RedeemCode, User]:
-    """Admin refund clawback on an already-REDEEMED code (ADR-0007).
-
-    Atomic within one transaction: lock the code row, then the user row, set
-    the code to ``revoked(reason=refund)``, and claw back ``duration_days``
-    from ``user.plan_expires_at`` (not below now). If the remaining expiry
-    drops to <= now, downgrade the user to free. Full refund == full
-    clawback; fair and simple (no pro-rating).
-
-    Returns ``(code, user)``. Raises ``Invalid`` if the code is not in the
-    redeemed state, or if its user no longer exists (the code is still revoked
-    in that case but no plan change is possible).
-    """
-    result = await db.execute(select(RedeemCode).where(RedeemCode.id == code_id).with_for_update())
-    code = result.scalar_one_or_none()
-    if not code:
-        raise NotFoundError("Redeem code not found")
-    if code.status != RedeemStatus.redeemed:
-        raise BadRequestError(f"Only redeemed codes can be refunded (current status: {code.status.value})")
-
-    # Mark the code revoked regardless of what happens to the user.
-    code.status = RedeemStatus.revoked
-    code.revoked_reason = RevokedReason.refund
-
-    if not code.used_by:
-        # Redeemed but no user recorded (data integrity edge): revoke only.
-        await commit_refresh(db, code)
-        raise BadRequestError("Redeem code has no associated user; revoked without plan change")
-
-    user_result = await db.execute(select(User).where(User.id == code.used_by).with_for_update())
-    user = user_result.scalar_one_or_none()
-    if not user:
-        # User was deleted; the FK on redeem_codes.used_by is SET NULL, but we
-        # still hold the in-memory used_by from before the lock. Revoke only.
-        await commit_refresh(db, code)
-        raise BadRequestError("Redeem code's user no longer exists; revoked without plan change")
-
-    now = datetime.now(UTC)
-    current_expires = to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
-    new_expires = current_expires - timedelta(days=code.duration_days)
-    if new_expires <= now:
-        user.plan = PlanType.free
-        user.plan_expires_at = None
-    else:
-        # Keep plan=pro with the shortened expiry. (If the user was somehow
-        # already free, leave the plan but record the remaining time.)
-        if user.plan == PlanType.pro:
-            user.plan_expires_at = new_expires
-
-    await commit_refresh(db, code)
-    return code, user
+def _parse_payment_status(value: str) -> str:
+    if value not in _PAYMENT_STATUS_VALUES:
+        allowed = "/".join(sorted(_PAYMENT_STATUS_VALUES))
+        raise BadRequestError(f"无效的付款状态过滤值：{value}（可选 {allowed}）")
+    return value
 
 
-# ---------------------------------------------------------------------------
-# Orders
-# ---------------------------------------------------------------------------
+def _payment_paid_at():
+    """Payment time expression: Jinshuju entry time, falling back to ingest time."""
+    return func.coalesce(JinshujuPayment.entry_created_at, JinshujuPayment.created_at)
 
 
-async def list_admin_orders(
+async def list_admin_payments(
     db: AsyncSession,
     page: int = 1,
     page_size: int = 20,
+    status: str | None = None,
+    keyword: str | None = None,
 ) -> dict:
-    """List all orders with user phone, paginated."""
-    stmt = (
-        select(Order, User.phone.label("user_phone"))
-        .join(User, Order.user_id == User.id, isouter=True)
-        .order_by(Order.created_at.desc())
+    """List 金数据 payment records (LEFT JOIN the linked account), paginated.
+
+    - ``phone`` in each row is the display phone: linked account phone first,
+      then the phone typed on the Jinshuju form (``COALESCE``). Records that
+      have not been matched to an account yet (``user_id IS NULL``) still show
+      the buyer's phone.
+    - ``keyword`` matches the payment phone / linked account phone / trade
+      number / tier name, plus an exact numeric ``serial_number`` match; LIKE
+      metacharacters are escaped.
+    - Stable ordering: ``entry_created_at DESC NULLS LAST, created_at DESC,
+      id DESC`` so OFFSET pagination cannot duplicate/skip rows.
+    - ``raw_json`` is never selected or returned.
+    """
+
+    def _apply_filters(s):
+        if status:
+            s = s.where(JinshujuPayment.status == _parse_payment_status(status))
+        if keyword and keyword.strip():
+            k = keyword.strip().lower()
+            if len(k) > _ADMIN_KEYWORD_MAX_LEN:
+                raise BadRequestError(f"搜索关键词最长 {_ADMIN_KEYWORD_MAX_LEN} 个字符")
+            pattern = f"%{_like_escape(k)}%"
+            conditions = or_(
+                func.lower(JinshujuPayment.phone).like(pattern, escape="\\"),
+                func.lower(User.phone).like(pattern, escape="\\"),
+                func.lower(JinshujuPayment.trade_no).like(pattern, escape="\\"),
+                func.lower(JinshujuPayment.tier_name).like(pattern, escape="\\"),
+            )
+            if k.isdigit() and 0 < int(k) <= _INT32_MAX:
+                # 数据序号可以整段输入（例如 1024）→ 精确匹配，避免被 like 吃掉。
+                # 必须挡 int32：``serial_number`` 是 INTEGER（4 字节），把 11 位
+                # 手机号塞进去会让 asyncpg 抛 "value out of int32 range" → 500。
+                # （SQLite 测试库不校验整数范围，这个坑只在 Postgres 上暴露。）
+                conditions = or_(conditions, JinshujuPayment.serial_number == int(k))
+            s = s.where(conditions)
+        return s
+
+    stmt = _apply_filters(
+        select(
+            JinshujuPayment,
+            User.phone.label("user_phone"),
+            User.name.label("user_name"),
+            func.coalesce(User.phone, JinshujuPayment.phone).label("display_phone"),
+        ).outerjoin(User, JinshujuPayment.user_id == User.id)
     )
 
-    total = (await db.execute(select(func.count(Order.id)))).scalar_one()
+    count_stmt = _apply_filters(
+        select(func.count(JinshujuPayment.id))
+        .select_from(JinshujuPayment)
+        .outerjoin(User, JinshujuPayment.user_id == User.id)
+    )
+    total = (await db.execute(count_stmt)).scalar_one()
 
-    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+    stmt = (
+        stmt.order_by(
+            JinshujuPayment.entry_created_at.desc().nullslast(),
+            JinshujuPayment.created_at.desc(),
+            JinshujuPayment.id.desc(),
+        )
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
     rows = (await db.execute(stmt)).all()
 
     items = []
-    for row in rows:
-        order: Order = row[0]
+    for payment, user_phone, user_name, display_phone in rows:
         items.append(
             {
-                "id": order.id,
-                "order_number": order.order_number,
-                "user_id": order.user_id,
-                "user_phone": row.user_phone,
-                "plan": order.plan,
-                "amount": order.amount,
-                "status": order.status.value if order.status else "pending",
-                "paid_at": _dt_iso(order.paid_at),
-                "created_at": _dt_iso(order.created_at),
+                "id": payment.id,
+                "entry_token": payment.entry_token,
+                "serial_number": payment.serial_number,
+                "phone": display_phone,
+                "user_id": payment.user_id,
+                "user_phone": user_phone,
+                "user_name": user_name,
+                "tier_name": payment.tier_name,
+                "amount_fen": payment.amount_fen,
+                "duration_days": payment.duration_days,
+                "trade_status": payment.trade_status,
+                "trade_no": payment.trade_no,
+                "payment_method": payment.payment_method,
+                "status": payment.status,
+                "error_message": payment.error_message,
+                "entry_created_at": _dt_iso(payment.entry_created_at),
+                "created_at": _dt_iso(payment.created_at),
+                "applied_at": _dt_iso(payment.applied_at),
             }
         )
 
     return paginated(items, page=page, page_size=page_size, total=total)
+
+
+async def payment_summary(db: AsyncSession) -> dict:
+    """Status counters + revenue sums for the payments page (single query).
+
+    Revenue = sum of ``amount_fen`` for ``applied`` records (paid **and**
+    granted); refunded/pending/ignored/error rows are excluded. ``paid_today_*``
+    and ``paid_30d_*`` window on the payment time (``entry_created_at`` with
+    ``created_at`` fallback) using a UTC day boundary, while ``applied_today``
+    counts grants applied today (``applied_at``).
+    """
+    now = datetime.now(UTC)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    ago_30d = now - timedelta(days=30)
+    paid_at = _payment_paid_at()
+
+    row = (
+        await db.execute(
+            select(
+                func.count(JinshujuPayment.id).filter(JinshujuPayment.status == JinshujuPaymentStatus.APPLIED),
+                func.count(JinshujuPayment.id).filter(JinshujuPayment.status == JinshujuPaymentStatus.PENDING),
+                func.count(JinshujuPayment.id).filter(JinshujuPayment.status == JinshujuPaymentStatus.IGNORED),
+                func.count(JinshujuPayment.id).filter(JinshujuPayment.status == JinshujuPaymentStatus.REFUNDED),
+                func.count(JinshujuPayment.id).filter(JinshujuPayment.status == JinshujuPaymentStatus.ERROR),
+                func.coalesce(func.sum(JinshujuPayment.amount_fen).filter(JinshujuPayment.status == _PAID_STATUS), 0),
+                func.coalesce(
+                    func.sum(JinshujuPayment.amount_fen).filter(
+                        JinshujuPayment.status == _PAID_STATUS, paid_at >= ago_30d
+                    ),
+                    0,
+                ),
+                func.coalesce(
+                    func.sum(JinshujuPayment.amount_fen).filter(
+                        JinshujuPayment.status == _PAID_STATUS, paid_at >= today_start
+                    ),
+                    0,
+                ),
+                func.count(JinshujuPayment.id).filter(
+                    JinshujuPayment.status == _PAID_STATUS, JinshujuPayment.applied_at >= today_start
+                ),
+            )
+        )
+    ).one()
+
+    return {
+        "applied": int(row[0] or 0),
+        "pending": int(row[1] or 0),
+        "ignored": int(row[2] or 0),
+        "refunded": int(row[3] or 0),
+        "error": int(row[4] or 0),
+        "paid_total_fen": int(row[5] or 0),
+        "paid_30d_fen": int(row[6] or 0),
+        "paid_today_fen": int(row[7] or 0),
+        "applied_today": int(row[8] or 0),
+    }
+
+
+def enqueue_payment_sync(admin_user_id: str) -> bool:
+    """Enqueue the existing Jinshuju sync Celery task. Never does inline HTTP.
+
+    Returns ``False`` when the integration is disabled/unconfigured (there is
+    nothing to sync) or when the broker rejects the dispatch. The task itself
+    re-checks configuration and failures bubble up to Celery (autoretry).
+    """
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    if not (
+        settings.jinshuju_enabled and settings.jinshuju_access_token.strip() and settings.jinshuju_form_token.strip()
+    ):
+        logger.info("admin_action payments_sync actor=%s skipped=unconfigured", admin_user_id)
+        return False
+    from app.tasks.payment_tasks import sync_jinshuju_payments
+
+    try:
+        sync_jinshuju_payments.delay()
+    except Exception:
+        logger.warning("admin_action payments_sync actor=%s enqueue_failed", admin_user_id, exc_info=True)
+        return False
+    logger.info("admin_action payments_sync actor=%s queued", admin_user_id)
+    return True

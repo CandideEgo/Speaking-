@@ -22,7 +22,6 @@ const PUBLIC_PATHS = [
   "/terms",
   "/privacy",
   "/upgrade",
-  "/redeem",
   // 帮助与反馈页：登录页底部「联系我们」指向这里，未登录也必须能看到开发者联系方式。
   "/contact",
 ];

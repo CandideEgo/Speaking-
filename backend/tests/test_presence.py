@@ -34,7 +34,6 @@ class TestAdminStatsNewKpis:
             "gpu_queue_depth",
             "videos_error_count",
             "signups_today",
-            "redeems_today",
         ):
             assert k in data, f"missing KPI field: {k}"
             assert isinstance(data[k], int)
@@ -42,24 +41,3 @@ class TestAdminStatsNewKpis:
     async def test_stats_requires_admin(self, client: AsyncClient, auth_headers: dict):
         resp = await client.get("/api/v1/admin/stats", headers=auth_headers)
         assert resp.status_code == 403
-
-    async def test_redeems_today_counts_redeemed_codes(
-        self, client: AsyncClient, auth_headers: dict, admin_headers: dict
-    ):
-        """Redeeming a code bumps redeems_today (used_at is today)."""
-        # Generate + redeem one code.
-        gen = await client.post(
-            "/api/v1/redeem-codes/generate",
-            headers=admin_headers,
-            json={"count": 1, "plan": "pro", "duration_days": 30},
-        )
-        code = gen.json()[0]["code"]
-        redeem = await client.post(
-            "/api/v1/redeem-codes/redeem",
-            headers=auth_headers,
-            json={"code": code},
-        )
-        assert redeem.status_code == 200
-
-        stats = await client.get("/api/v1/admin/stats", headers=admin_headers)
-        assert stats.json()["redeems_today"] >= 1

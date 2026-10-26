@@ -6,7 +6,7 @@ no OpenAPI contract. Fields mirror ``channel_service._channel_public`` +
 drop it from the response, so new service keys must be added here too.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.pagination import PaginatedResponse
 from app.schemas.video import VideoResponse
@@ -105,4 +105,7 @@ class ChannelAdminRefResponse(BaseModel):
 
 
 class ChannelAttachVideosResponse(BaseModel):
+    # Rows actually changed by this call (already-attached ids don't count).
     attached: int
+    # Requested ids that don't exist; they were silently ignored before ADM-19.
+    missing_ids: list[str] = Field(default_factory=list)

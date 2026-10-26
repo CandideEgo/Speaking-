@@ -157,6 +157,70 @@ async def test_admin_attach_videos_overwrites_assignment(client, admin_headers, 
     assert video.channel_ref == b.id
 
 
+async def test_admin_attach_videos_reports_missing_and_only_counts_real_changes(client, admin_headers, db_session):
+    """ADM-19: `attached` used to be the matched-row count (already-attached ids
+    included) and nonexistent ids were silently dropped."""
+    target = await _make_channel(db_session, slug="attach-target")
+    other = await _make_channel(db_session, slug="attach-other")
+    already = await _make_video(db_session, channel_ref=target.id)
+    moved = await _make_video(db_session, channel_ref=other.id)
+
+    resp = await client.post(
+        f"/api/v1/channels/admin/{target.id}/videos",
+        json={"video_ids": [already.id, moved.id, moved.id, "no-such-video"]},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    # Only `moved` actually changed; the duplicate id is de-duped and the
+    # missing one is reported back instead of being ignored.
+    assert resp.json() == {"attached": 1, "missing_ids": ["no-such-video"]}
+    await db_session.refresh(moved)
+    assert moved.channel_ref == target.id
+    await db_session.refresh(already)
+    assert already.channel_ref == target.id
+
+
+async def test_admin_attach_videos_rejects_unbounded_batch(client, admin_headers, db_session):
+    channel = await _make_channel(db_session, slug="attach-big")
+    resp = await client.post(
+        f"/api/v1/channels/admin/{channel.id}/videos",
+        json={"video_ids": [f"video-{i}" for i in range(201)]},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 422
+
+
+async def test_admin_create_channel_slug_race_returns_400_not_500(client, admin_headers, db_session, monkeypatch):
+    """Two admins POST the same slug at once: both pass the pre-check, the loser
+    hits the unique index. That must be a readable 400, not the 500 envelope."""
+    await _make_channel(db_session, slug="raced-slug")
+
+    async def _always_free(db, slug, *, exclude_id=None):
+        return False
+
+    monkeypatch.setattr(channel_service, "_slug_exists", _always_free)
+    resp = await client.post(
+        "/api/v1/channels/admin", json={"name": "Race", "slug": "raced-slug"}, headers=admin_headers
+    )
+    assert resp.status_code == 400, resp.text
+    body = resp.json()
+    assert body["code"] == "BAD_REQUEST"
+    assert "slug 已存在" in body["message"]
+
+
+async def test_admin_update_channel_slug_race_returns_400_not_500(client, admin_headers, db_session, monkeypatch):
+    first = await _make_channel(db_session, slug="race-alpha")
+    await _make_channel(db_session, slug="race-beta")
+
+    async def _always_free(db, slug, *, exclude_id=None):
+        return False
+
+    monkeypatch.setattr(channel_service, "_slug_exists", _always_free)
+    resp = await client.patch(f"/api/v1/channels/admin/{first.id}", json={"slug": "race-beta"}, headers=admin_headers)
+    assert resp.status_code == 400, resp.text
+    assert "slug 已存在" in resp.json()["message"]
+
+
 async def test_admin_video_patch_sets_channel_ref(client, admin_headers, db_session):
     channel = await _make_channel(db_session)
     video = await _make_video(db_session)

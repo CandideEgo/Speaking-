@@ -413,20 +413,6 @@ export interface VocabSieveJudgeResponse {
 }
 
 /* ── Admin ── */
-export interface RedeemCode {
-  id: string;
-  code: string;
-  plan: "free" | "pro";
-  duration_days: number;
-  status: "unused" | "redeemed" | "revoked" | "expired";
-  revoked_reason: "leak" | "error" | "refund" | null;
-  expires_at: string | null;
-  used_by: string | null;
-  used_at: string | null;
-  batch_label: string | null;
-  created_at: string;
-}
-
 // 与后端 AdminUserResponse 对齐（不 extends User：admin 响应不含
 // streak_count/longest_streak/onboarding_completed）。
 export interface AdminUser {
@@ -479,7 +465,6 @@ export interface AdminStats {
   gpu_queue_depth: number;
   videos_error_count: number;
   signups_today: number;
-  redeems_today: number;
   trend: AdminStatsTrend;
   videos_by_status: { status: string; count: number }[];
   users_by_plan: { plan: string; count: number }[];
@@ -493,37 +478,6 @@ export interface AdminStats {
     pro: number;
   };
   videos_by_topic: { topic: string; count: number }[];
-}
-
-/** Admin order row — mirrors AdminOrderResponse (backend/app/schemas/admin.py). */
-export interface AdminOrder {
-  id: string;
-  order_number: string;
-  user_id: string;
-  user_phone: string | null;
-  plan: string;
-  /** Amount in fen (cents). Display as ¥{amount/100}. */
-  amount: number;
-  status: string;
-  paid_at: string | null;
-  created_at: string;
-}
-
-/**
- * Redeem-code activation record — powers the 订单管理 page (prototype 29).
- * 非经营性平台无站内支付，订单即兑换码激活记录。
- */
-export interface RedemptionRecord {
-  id: string;
-  code: string;
-  user_id: string | null;
-  user_phone: string | null;
-  plan: string;
-  duration_days: number;
-  status: "redeemed" | "revoked";
-  revoked_reason: "leak" | "error" | "refund" | null;
-  used_at: string | null;
-  created_at: string;
 }
 
 /** Singleton admin settings (prototype 32 系统设置). */
@@ -549,6 +503,49 @@ export interface AdminAccount {
   name: string | null;
   phone: string | null;
   last_active_at: string | null;
+}
+
+/** 金数据付款记录状态（后端 JinshujuPaymentStatus）。 */
+export type AdminPaymentStatus = "applied" | "pending" | "ignored" | "refunded" | "error";
+
+/**
+ * One 金数据 (Jinshuju) payment row — mirrors backend `AdminPaymentRow`.
+ * `raw_json` 是外部表单原始载荷（含买家信息），后端不返回，前端也不该有。
+ * `phone` 是展示用手机号：已绑定账号优先，其次金数据表单填写值；
+ * `user_phone` / `user_name` 是绑定账号自身的字段（未绑定时为 null）。
+ */
+export interface AdminPayment {
+  id: string;
+  entry_token: string | null;
+  serial_number: number;
+  phone: string | null;
+  user_id: string | null;
+  user_phone: string | null;
+  user_name: string | null;
+  tier_name: string | null;
+  amount_fen: number | null;
+  duration_days: number | null;
+  trade_status: string | null;
+  trade_no: string | null;
+  payment_method: string | null;
+  status: AdminPaymentStatus;
+  error_message: string | null;
+  entry_created_at: string | null;
+  created_at: string | null;
+  applied_at: string | null;
+}
+
+/** Mirrors backend `AdminPaymentSummaryResponse` (金额单位：分). */
+export interface AdminPaymentSummary {
+  applied: number;
+  pending: number;
+  ignored: number;
+  refunded: number;
+  error: number;
+  paid_total_fen: number;
+  paid_30d_fen: number;
+  paid_today_fen: number;
+  applied_today: number;
 }
 
 /* ── Profile ── */

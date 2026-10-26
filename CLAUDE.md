@@ -74,7 +74,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 全部在 `backend/app/api/v1/*.py`，注册时统一加 `prefix="/api/v1"`。**唯一例外**是 `media.router` 挂在根——它是 Range-aware 的视频服务，因为 Starlette 的 `StaticFiles` 会吞掉 Range 头，导致 `<video>` 无法拖进度。另 `mock_payments` 只在 `env in (development, testing)` 时挂载。
 
-**已下线功能不是死代码**：跟读/成就/热力图/周报/里程碑与旧录音上传的后端入口统一由 `app/services/retired_features.py::feature_gone` 返回 410 `FEATURE_RETIRED`（`api/v1/shadowing.py`、`learning.py` 的 heatmap/weekly-reports、`learning_plan.py` 的 milestones、`media.py` 的 shadowing-audio），前端 `/weekly-report` 则重定向到个人页进度 tab；这些都是兼容壳。相关表保留只为历史数据导出与注销清理，不要「恢复」这些端点。
+**已下线功能不是死代码**：跟读/成就/热力图/周报/里程碑与旧录音上传的后端入口统一由 `app/services/retired_features.py::feature_gone` 返回 410 `FEATURE_RETIRED`（`api/v1/shadowing.py`、`learning.py` 的 heatmap/weekly-reports、`learning_plan.py` 的 milestones、`media.py` 的 shadowing-audio），前端 `/weekly-report` 则重定向到个人页进度 tab；这些都是兼容壳，不要「恢复」这些端点。**退役功能的用户数据表已在 2026-10-26 的清理迁移 `c3d4e5f6a7b8` 中删除**（`shadowing_attempts` / `weekly_reports` / `speaking_attempts` / `speaking_rubrics` / `rubric_criteria` / `speaking_attempt_scores` / `video_practice_questions`，以及兑换码系统 `redeem_codes`），数据导出与注销清理不再包含这些数据集；存量 `/media/shadowing/` 音频文件仍在磁盘上（仅旧媒体路由可读），需要清理由运维单独执行。
 
 `backend/app/api/dependencies.py` 提供鉴权依赖（见下）。
 
@@ -85,7 +85,7 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 - engine 与 session maker 都 `@lru_cache` **懒建**，不在 import 时建。这是为了让没有 `DATABASE_URL` 的 GPU worker 也能 import 这些模块。
 - FastAPI 路由用 `get_db()` 依赖；Celery 任务等非依赖场景用 `get_async_session_maker()`——后者同时是测试 monkeypatch 的缝。
 
-模型在 `backend/app/models/`，必须由 `app/models/__init__.py` 按依赖序 re-export（`create_app` 会先 import 它们，好让 SQLAlchemy 在任何 `create_all`／Alembic autogenerate 前把 `Base.metadata` 填全）。迁移 83 个 revision 在 `backend/migrations/versions/`。
+模型在 `backend/app/models/`，必须由 `app/models/__init__.py` 按依赖序 re-export（`create_app` 会先 import 它们，好让 SQLAlchemy 在任何 `create_all`／Alembic autogenerate 前把 `Base.metadata` 填全）。迁移 84 个 revision 在 `backend/migrations/versions/`。
 
 核心实体：`User` 拥有 `Video` / `Vocabulary` / `LearningRecord` / `Order` / `UserFavorite` / `UserNote` / `UserVideoUnlock` / `Notification`；`Video` 拥有 `Subtitle`（按 `sentence_index` 排序，含 `text_en` / `text_zh` / 逐词时间戳 `words` / `word_levels`），并冗余 `like_count` / `favorite_count` / `view_count` / `score`，以及管线状态 `status` + `processing_step` + `step_started_at`。`ListeningSession` 保存听力练习的冻结题面、草稿答案与判分结果（见下）。
 
@@ -112,7 +112,7 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 
 ### Celery
 
-`backend/app/tasks/celery_app.py` 定义 `celery_app`，两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `transcribe_video_gpu` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理；Pro/兑换码三个 beat 在内测免费期**已摘掉调度但任务体保留**，旧周报任务保留空操作入口，供已入队消息安全结束。
+`backend/app/tasks/celery_app.py` 定义 `celery_app`，两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `transcribe_video_gpu` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理。**Pro/兑换码 beat 与周报空任务壳已在 2026-10-26 清理中删除**（兑换码任务文件一并删除，已入队的旧消息会以 unregistered task 结束，影响面可忽略）；`reminder_tasks.send_pro_expiring_reminders` 的任务体保留但无调度，供未来恢复付费到期提醒时复用。
 
 Windows 上这些以 NSSM 服务托管（`backend/scripts/run_celery_worker.ps1`、`run_gpu_worker.ps1`）。
 
@@ -177,6 +177,7 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 | [`PROGRESS.md`](PROGRESS.md) | 改版工作项、决策、逐轮验证记录与遗留问题；很长，按阶段标题检索，别整篇读进上下文 |
 | `Start-Redesign.ps1` / `designs/` | 轻量本地启动脚本 / 设计导出原件（只作视觉依据，不作数据来源） |
 | `docs/audit-2026-10-24/` | 第二轮审计报告（前端视觉、前端功能/可访问性、后端架构 31 条发现） |
+| `docs/admin-audit-2026-10-26/` | 后台管理面板专项审计与清理报告（前后端审计、兑换码/退役数据表清理、管线与列表页修复、金数据收款管理面） |
 | `docs/evidence/` | 验收截图与 JSON 报告：`design-redo/`、`audit-2026-10-24/`、`home-design-refresh/` 等 |
 
 页面截图与交互走查脚本在 `frontend/scripts/design-shots.mjs`（`--tag` / `--routes`），输出到 `docs/evidence/design-redo/`。

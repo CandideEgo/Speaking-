@@ -36,7 +36,6 @@ from app.api.v1 import (
     payments,
     presence,
     recommendations,
-    redeem,
     shadowing,
     users,
     videos,
@@ -340,7 +339,6 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix="/api/v1")
     app.include_router(videos.router, prefix="/api/v1")
     app.include_router(favorites.router, prefix="/api/v1")
-    app.include_router(redeem.router, prefix="/api/v1")
     app.include_router(presence.router, prefix="/api/v1")
     app.include_router(payments.router, prefix="/api/v1")
     if settings.env in ("development", "testing"):

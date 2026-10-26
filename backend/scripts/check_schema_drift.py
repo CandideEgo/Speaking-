@@ -37,18 +37,10 @@ from app.core.database import Base
 
 # Known debt: diff key -> why it is allowed for now. Every entry should either
 # disappear when its migration lands, or stay until a product decision is made.
-KNOWN_DRIFT: dict[str, str] = {
-    # Retired speaking/quiz features: tables were removed from the models but
-    # never dropped (history export + account deletion still reference them).
-    # The 2026-10 alignment migration (p7q8r9s0t1u2) fixed everything else.
-    "remove_table:rubric_criteria": "retired speaking rubric feature; table kept for history export",
-    "remove_table:speaking_attempt_scores": "retired speaking feature; table kept for history export",
-    "remove_table:speaking_rubrics": "retired speaking feature; table kept for history export",
-    "remove_table:video_practice_questions": "retired practice feature; table kept for history export",
-    "remove_index:speaking_attempt_scores:ix_speaking_attempt_scores_speaking_attempt_id": "index on a retired table",
-    "remove_index:video_practice_questions:ix_video_practice_questions_video_id": "index on a retired table",
-    "remove_fk:speaking_attempts:rubric_id": "FK to a retired table kept in the DB",
-}
+# Empty since migration ``c3d4e5f6a7b8`` (2026-10 cleanup) dropped the retired
+# speaking/quiz/practice tables this list used to excuse. Keep it empty: new
+# drift must be fixed, not allowlisted.
+KNOWN_DRIFT: dict[str, str] = {}
 
 
 def _table_name(obj) -> str:

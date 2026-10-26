@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, Loader2, Pencil, Plus, Radio, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Pencil, Plus, Radio, RefreshCw, Trash2 } from "lucide-react";
 import {
   createChannel,
   deleteChannel,
@@ -19,6 +19,8 @@ import { FormField } from "@/components/ui/FormField";
 import { Modal } from "@/components/common/Modal";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
+import { AdminSearchInput } from "@/components/admin/ui/AdminSearchInput";
+import { AdminEmptyState } from "@/components/admin/ui/AdminEmptyState";
 import type { AdminChannel } from "@/types";
 
 interface FormState {
@@ -44,6 +46,7 @@ const EMPTY_FORM: FormState = {
 export default function AdminChannelsPage() {
   const [channels, setChannels] = useState<AdminChannel[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [keyword, setKeyword] = useState("");
 
   // Create/edit modal state (null = closed; channel = editing).
   const [editing, setEditing] = useState<AdminChannel | "new" | null>(null);
@@ -65,6 +68,15 @@ export default function AdminChannelsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /** 客户端过滤：名称 / slug / 上游频道 ID（A-34；列表不分页，24 条量级）。 */
+  const q = keyword.trim().toLowerCase();
+  const filteredChannels = (channels ?? []).filter((ch) => {
+    if (!q) return true;
+    return [ch.name, ch.slug, ch.upstream_channel_id ?? ""].some((v) =>
+      v.toLowerCase().includes(q)
+    );
+  });
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -154,7 +166,17 @@ export default function AdminChannelsPage() {
         }
       />
 
-      {error && <div className="text-copy text-error">{error}</div>}
+      {error && (
+        <AdminEmptyState
+          text="加载频道失败"
+          description={error}
+          action={
+            <Button onClick={load} variant="secondary" size="sm" icon={RefreshCw}>
+              重试
+            </Button>
+          }
+        />
+      )}
 
       {channels === null && !error && (
         <div className="flex items-center gap-2 text-copy text-muted py-8 justify-center">
@@ -162,92 +184,141 @@ export default function AdminChannelsPage() {
         </div>
       )}
 
-      {channels !== null && channels.length === 0 && (
-        <div className="text-copy text-muted py-8 text-center">
-          还没有频道，点右上角「新建频道」创建第一个。
-        </div>
+      {!error && channels !== null && channels.length === 0 && (
+        <AdminEmptyState
+          text="还没有频道"
+          description="入库视频会按上游频道 ID 自动建档；也可以点右上角「新建频道」手动创建。"
+        />
       )}
 
-      {channels !== null && channels.length > 0 && (
-        <Card className="overflow-x-auto">
-          <table className="w-full text-copy min-w-[720px]">
-            <thead>
-              <tr className="border-b border-hairline text-left text-meta text-muted uppercase tracking-wider">
-                <th className="px-4 py-3 font-medium">频道</th>
-                <th className="px-4 py-3 font-medium">slug</th>
-                <th className="px-4 py-3 font-medium">上游 ID</th>
-                <th className="px-4 py-3 font-medium text-center">来源</th>
-                <th className="px-4 py-3 font-medium text-center">排序</th>
-                <th className="px-4 py-3 font-medium text-center">视频数</th>
-                <th className="px-4 py-3 font-medium text-center">状态</th>
-                <th className="px-4 py-3 font-medium text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {channels.map((ch) => (
-                <tr key={ch.id} className="border-b border-hairline-soft last:border-b-0">
-                  <td className="px-4 py-3">
-                    <p className="font-semibold text-ink">{ch.name}</p>
-                    {ch.description && (
-                      <p className="text-meta text-muted mt-0.5 line-clamp-1">{ch.description}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-meta text-muted">{ch.slug}</td>
-                  <td className="px-4 py-3 font-mono text-meta text-muted">
-                    {ch.upstream_channel_id || "—"}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`inline-flex items-center gap-1 text-meta font-medium px-2 py-1 rounded-md ${
-                        ch.is_auto ? "text-brand-700 bg-brand-50" : "text-success bg-success-soft"
-                      }`}
-                      title={ch.is_auto ? "视频入库时自动建档" : "管理员手建"}
-                    >
-                      {ch.is_auto ? "自动" : "策展"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center text-muted">{ch.sort_order}</td>
-                  <td className="px-4 py-3 text-center text-muted">{ch.video_count}</td>
-                  <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => toggleVisible(ch)}
-                      className={`inline-flex items-center gap-1 text-meta font-medium px-2 py-1 rounded-md transition-colors ${
-                        ch.is_visible
-                          ? "text-success bg-success-soft"
-                          : "text-muted bg-surface-card"
-                      }`}
-                      title={ch.is_visible ? "点击隐藏" : "点击显示"}
-                    >
-                      {ch.is_visible ? <Eye size={12} /> : <EyeOff size={12} />}
-                      {ch.is_visible ? "可见" : "隐藏"}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="compact"
-                        icon={Pencil}
-                        onClick={() => openEdit(ch)}
-                      >
-                        编辑
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="compact"
-                        icon={Trash2}
-                        className="text-error border-error/40 hover:bg-red-soft"
-                        onClick={() => setDeleting(ch)}
-                      >
-                        删除
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+      {!error && channels !== null && channels.length > 0 && (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-meta text-muted">
+              共 {channels.length} 个频道
+              {q ? ` · 匹配 ${filteredChannels.length} 个` : ""}
+            </p>
+            <AdminSearchInput
+              value={keyword}
+              onChange={setKeyword}
+              placeholder="搜索名称 / slug / 上游 ID..."
+              ariaLabel="搜索频道（名称 / slug / 上游频道 ID）"
+              className="ml-auto w-72 max-w-full"
+            />
+          </div>
+
+          {filteredChannels.length === 0 ? (
+            <AdminEmptyState
+              text="没有匹配的频道"
+              description={`关键词「${keyword.trim()}」没有匹配到频道名称、slug 或上游频道 ID。`}
+              action={
+                <Button onClick={() => setKeyword("")} variant="secondary" size="sm">
+                  清除搜索
+                </Button>
+              }
+            />
+          ) : (
+            <Card className="overflow-x-auto">
+              <table className="w-full text-copy min-w-[720px]">
+                <thead>
+                  <tr className="border-b border-hairline text-left text-meta text-muted uppercase tracking-wider">
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      频道
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      slug
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      上游 ID
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium text-center">
+                      来源
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium text-center">
+                      排序
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium text-center">
+                      视频数
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium text-center">
+                      状态
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium text-right">
+                      操作
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredChannels.map((ch) => (
+                    <tr key={ch.id} className="border-b border-hairline-soft last:border-b-0">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-ink">{ch.name}</p>
+                        {ch.description && (
+                          <p className="text-meta text-muted mt-0.5 line-clamp-1">
+                            {ch.description}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-meta text-muted">{ch.slug}</td>
+                      <td className="px-4 py-3 font-mono text-meta text-muted">
+                        {ch.upstream_channel_id || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 text-meta font-medium px-2 py-1 rounded-md ${
+                            ch.is_auto
+                              ? "text-brand-700 bg-brand-50"
+                              : "text-success-text bg-success-soft"
+                          }`}
+                          title={ch.is_auto ? "视频入库时自动建档" : "管理员手建"}
+                        >
+                          {ch.is_auto ? "自动" : "策展"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-muted">{ch.sort_order}</td>
+                      <td className="px-4 py-3 text-center text-muted">{ch.video_count}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => toggleVisible(ch)}
+                          className={`inline-flex items-center gap-1 text-meta font-medium px-2 py-1 rounded-md transition-colors ${
+                            ch.is_visible
+                              ? "text-success-text bg-success-soft"
+                              : "text-muted bg-surface-card"
+                          }`}
+                          title={ch.is_visible ? "点击隐藏" : "点击显示"}
+                        >
+                          {ch.is_visible ? <Eye size={12} /> : <EyeOff size={12} />}
+                          {ch.is_visible ? "可见" : "隐藏"}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="compact"
+                            icon={Pencil}
+                            onClick={() => openEdit(ch)}
+                          >
+                            编辑
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="compact"
+                            icon={Trash2}
+                            className="text-error-text border-error/40 hover:bg-red-soft"
+                            onClick={() => setDeleting(ch)}
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Create / edit modal */}
@@ -309,16 +380,17 @@ export default function AdminChannelsPage() {
           </FormField>
           <div className="grid grid-cols-2 gap-4">
             <FormField label="排序（小在前）">
-              <Select
-                value={String(form.sort_order)}
-                onChange={(e) => setForm((f) => ({ ...f, sort_order: Number(e.target.value) }))}
-              >
-                {Array.from({ length: 21 }).map((_, i) => (
-                  <option key={i} value={i}>
-                    {i}
-                  </option>
-                ))}
-              </Select>
+              {/* A-33：手动输入，不再限制 0–20；自动建档频道可能有更大的 sort_order。 */}
+              <Input
+                type="number"
+                min={0}
+                max={9999}
+                step={1}
+                value={form.sort_order}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, sort_order: Number(e.target.value) || 0 }))
+                }
+              />
             </FormField>
             <FormField label="是否可见">
               <Select

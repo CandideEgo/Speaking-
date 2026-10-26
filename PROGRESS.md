@@ -550,3 +550,15 @@
   - firefox 观看 + 听力 + 返回子集 **50 passed / 4 failed**（均为 `watch-layout` 并行抖动，串行 4/4 通过）。
   - 按 2026-10-26 收窄口径：chromium + mobile-iphone 每次必跑，firefox 定期/子集，mobile-chrome 可选（本轮未重跑，如实标注未执行）。
 - e2e 写出的 9 张 tracked 截图已还原；本轮只提交种子、e2e 规格、`useScrollRestore`/`WatchSourceCard` 修复与两份报告，观看页重构及其新增文件/截图保持未提交（留给对应工作单独提交）。
+
+### Round 57：后台管理面板审计 + 兑换码/退役用户数据清理 + 收入可视化
+
+- **后台前后端专项审计**：后端 70 条管理路由逐条核验鉴权/限流/契约，发现 19 条（P1×1 / P2×6 / P3×12）；前端后台 8 页在 1440/390 全量走查 + axe/网络/错误路径取证，发现 40 条（P1×1 / P2×21 / P3×18）。报告与全部证据见 [`docs/admin-audit-2026-10-26/README.md`](docs/admin-audit-2026-10-26/README.md)。
+- **兑换码系统彻底删除**：后端路由/模型/schema/Celery 任务/配置/错误码/测试，前端 `/admin/invites`、`/admin/orders`、`/redeem` 与 9 个数据函数/3 个类型/白名单/文案；迁移 `c3d4e5f6a7b8` DROP `redeem_codes` + 两个 enum（scratch 库 downgrade/upgrade 往返与 DDL diff 通过）。
+- **退役用户数据表删除**：同迁移删除 `shadowing_attempts` / `weekly_reports` / `speaking_attempts` / `speaking_rubrics` / `rubric_criteria` / `speaking_attempt_scores` / `video_practice_questions`；对应服务/模型/任务/测试删除，数据导出与注销清理同步收窄，410 兼容壳保留；`check_schema_drift.py` 的 7 条 known debt 清零（现在是硬门 **0 known / 0 new**）。
+- **新增「付费记录」管理面**（替代被删的兑换码/订单面）：`GET /admin/payments`、`/payments/summary`、`/payments/sync` + `/admin/payments` 页面（状态筛选/搜索/分页/三态/390 适配），数据源金数据 `jinshuju_payments`；仪表盘 recent_activity 改读真实付款；收入指标（累计/30 天/今日）可见。
+- **P1 数据安全修复**：重断句/回滚不再经 CASCADE 静默删用户原句收藏、清空字幕编辑审计或断开词汇来源句——捕获后按时间重叠重映射，快照 JSON v2 保存映射与无法映射行，回滚可恢复并返回逐项计数；单行删字幕默认 409 + 影响计数，`?force=true` 才执行。
+- **后端健壮性**：retranslate 状态守卫 + engine 白名单 + 单飞 + 派发失败恢复；recover/retry 活锁 409；seed/seed-full 去重 + URL 锁；settings 首建 SAVEPOINT；最后管理员保护；`pro_users` 只计有效 Pro；公告广播改 Celery 分块批量；频道 slug 并发/attach 上限/缺失 id；列表 total/tiebreaker/typed 响应；长字段与错误回显截断。22 条 finding 修复、其余（持久审计表、GPU 心跳归属、设置死配置接线、部分响应式/URL 状态）明确记录为 deferred。
+- **前端后台 40 条除 A-19/A-20/A-26 显式延后外全部落地**：错误/空/筛选三态与重试、壳层 5xx 不再误踢登录、弹窗/下拉/表单/抽屉 a11y（焦点陷阱、role、inert、标签、skip link、AA 对比度）、搜索防抖、连点闸门、下线/公告二次确认、反馈分页、频道搜索与排序、分页总数、本人行危险操作禁用；A-19 响应式表格→卡片、A-20 移动端字幕编辑器、A-26 URL 状态同属独立设计/架构任务，报告写明理由后延后。
+- **本机 dev 库清理**：新增 `backend/scripts/purge_dev_test_users.py`（默认 dry-run、production 拒绝），删除 609 个合成账号（users 615→6），删除 8 行截图假付款，DROP 旧 `audit_bak_20261025` schema 与 scratch 库，清 Redis 统计缓存；清理前整库备份在 `.tmp-diag/`。
+- **验证**：后端全量 `pytest tests/ -q` → **1460 passed / 14 skipped / 0 failed**（752.94s）；`ruff check/format` 全绿；mypy 基线 **0 new**（基线 42→41）；`alembic current` = `c3d4e5f6a7b8 (head)`；`check_schema_drift.py` 0 known / 0 new；前端 `npm run check` exit 0、`npm run test:unit` 31 文件/336 项；清理后后台 7 页 1440/390 实机 smoke（h1、空态、0 横向溢出、0 console error）通过。生产部署/迁移未执行（迁移不可逆，上线前须备份 + worker 重建，见审计 README §5）。

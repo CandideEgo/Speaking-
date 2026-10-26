@@ -15,7 +15,6 @@ import {
   Menu,
   Radio,
   Settings,
-  Ticket,
   UserCog,
   Video,
   X,
@@ -59,8 +58,7 @@ const NAV: NavSection[] = [
     title: "运营",
     items: [
       { label: "用户管理", href: "/admin/users", icon: UserCog },
-      { label: "订单管理", href: "/admin/orders", icon: CreditCard },
-      { label: "兑换码", href: "/admin/invites", icon: Ticket },
+      { label: "付费记录", href: "/admin/payments", icon: CreditCard },
       { label: "反馈公告", href: "/admin/feedback", icon: Megaphone },
     ],
   },
@@ -232,7 +230,11 @@ export function AdminSidebar() {
       )}
 
       {/* Mobile drawer */}
+      {/* 关闭态仍在 DOM 里（滑出屏幕），若不 inert，10 个离屏链接会留在 Tab 序列
+          里；inert 同时移除焦点与无障碍树，只在打开时挂上。 */}
       <aside
+        aria-label="后台导航"
+        inert={!mobileOpen}
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-canvas border-r border-hairline transform transition-transform duration-300 ease-in-out md:hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -250,7 +252,7 @@ export function AdminSidebar() {
             <X className="h-5 w-5 text-muted" />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav aria-label="后台导航" className="flex-1 overflow-y-auto px-3 py-4">
           <NavLinks pathname={pathname} collapsed={false} onClick={() => setMobileOpen(false)} />
         </nav>
         <div className="border-t border-hairline p-3">
@@ -274,7 +276,7 @@ export function AdminSidebar() {
       >
         <Brand collapsed={collapsed} />
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav aria-label="后台导航" className="flex-1 overflow-y-auto px-3 py-4">
           <NavLinks pathname={pathname} collapsed={collapsed} />
         </nav>
 

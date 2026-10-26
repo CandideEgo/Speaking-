@@ -14,6 +14,8 @@ import { Pagination } from "@/components/admin/Pagination";
 import { SectionCard } from "@/components/admin/SectionCard";
 import { DataTable } from "@/components/admin/DataTable";
 import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
+import { AdminSearchInput } from "@/components/admin/ui/AdminSearchInput";
+import { AdminEmptyState } from "@/components/admin/ui/AdminEmptyState";
 import { Modal } from "@/components/common/Modal";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
@@ -38,6 +40,8 @@ import {
   startProcessing,
 } from "@/lib/adminData";
 import { VideoDetailRow } from "./VideoDetailRow";
+
+const PAGE_SIZE = 20;
 
 const STATUS_FILTERS = [
   { key: "", label: "全部" },
@@ -81,6 +85,7 @@ export default function VideoManager() {
   const router = useRouter();
   const [videos, setVideos] = useState<VideoAdmin[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [reviewStatusFilter, setReviewStatusFilter] = useState("");
   const [qualityFilter, setQualityFilter] = useState("");
@@ -123,22 +128,31 @@ export default function VideoManager() {
     };
   }, []);
 
-  // Worker/queue polling — pauses while the tab is hidden.
-  useVisibilityAwareInterval(async () => {
-    try {
-      const [ws, stats] = await Promise.all([getWorkerStatus(), getAdminStats().catch(() => null)]);
-      setWorkerOnline(ws.worker_online);
-      if (stats) {
-        setQueueDepth(stats.gpu_queue_depth);
-        setErrorCount(stats.videos_error_count);
+  // Worker/queue polling — 60s 且只在「有列表数据」时轮询（空列表/错误态停掉，
+  // 标签页隐藏时 hook 自己暂停），降低 admin/stats 的 30/min 限流压力（A-39）。
+  useVisibilityAwareInterval(
+    async () => {
+      try {
+        const [ws, stats] = await Promise.all([
+          getWorkerStatus(),
+          getAdminStats().catch(() => null),
+        ]);
+        setWorkerOnline(ws.worker_online);
+        if (stats) {
+          setQueueDepth(stats.gpu_queue_depth);
+          setErrorCount(stats.videos_error_count);
+        }
+      } catch {
+        /* swallow — redis may be unavailable */
       }
-    } catch {
-      /* swallow — redis may be unavailable */
-    }
-  }, 30000);
+    },
+    60000,
+    videos.length > 0
+  );
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState<number | null>(null);
 
   const loadIdRef = useRef(0);
 
@@ -146,10 +160,11 @@ export default function VideoManager() {
     async (pg: number) => {
       const loadId = ++loadIdRef.current;
       setLoading(true);
+      setError(null);
       try {
         const data = await listVideos({
           page: pg,
-          page_size: 20,
+          page_size: PAGE_SIZE,
           status: statusFilter,
           review_status: reviewStatusFilter,
           quality: qualityFilter,
@@ -158,10 +173,12 @@ export default function VideoManager() {
         if (loadId !== loadIdRef.current) return;
         setVideos(data.items);
         setHasMore(data.has_more);
+        setTotal(data.total ?? null);
         setPage(pg);
-      } catch {
+      } catch (err) {
         if (loadId !== loadIdRef.current) return;
-        toast.error("加载视频列表失败");
+        setVideos([]);
+        setError(err instanceof Error ? err.message : "加载视频列表失败");
       } finally {
         if (loadId === loadIdRef.current) setLoading(false);
       }
@@ -175,6 +192,9 @@ export default function VideoManager() {
 
   // Delete-confirmation state (replaces native window.confirm).
   const [deleteTarget, setDeleteTarget] = useState<VideoAdmin | null>(null);
+  // Takedown-confirmation state (A-08): 下线会删除本地媒体，必须二次确认。
+  const [takedownTarget, setTakedownTarget] = useState<VideoAdmin | null>(null);
+  const [takedownBusy, setTakedownBusy] = useState(false);
 
   async function handleDelete(video: VideoAdmin) {
     try {
@@ -187,7 +207,7 @@ export default function VideoManager() {
     }
   }
 
-  async function handleTakedown(video: VideoAdmin) {
+  async function doTakedown(video: VideoAdmin) {
     try {
       const updated = await takedownVideo(video.id);
       setVideos((prev) => prev.map((v) => (v.id === video.id ? updated : v)));
@@ -195,6 +215,10 @@ export default function VideoManager() {
     } catch (err) {
       toastApiError(err, "下线失败");
     }
+  }
+
+  function requestTakedown(video: VideoAdmin) {
+    setTakedownTarget(video);
   }
 
   async function handleLocalize(video: VideoAdmin) {
@@ -258,6 +282,51 @@ export default function VideoManager() {
   const patchVideo = useCallback((id: string, patch: Partial<VideoAdmin>) => {
     setVideos((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
   }, []);
+
+  const hasFilters = Boolean(statusFilter || reviewStatusFilter || qualityFilter || keyword.trim());
+
+  function clearFilters() {
+    setStatusFilter("");
+    setReviewStatusFilter("");
+    setQualityFilter("");
+    setKeyword("");
+  }
+
+  /** 列表的「错误 / 真空 / 筛选后为空」三态（A-04）。 */
+  function renderEmpty() {
+    if (error) {
+      return (
+        <AdminEmptyState
+          text="加载视频列表失败"
+          description={error}
+          action={
+            <Button onClick={() => loadVideos(page)} variant="secondary" size="sm" icon={RefreshCw}>
+              重试
+            </Button>
+          }
+        />
+      );
+    }
+    if (hasFilters) {
+      return (
+        <AdminEmptyState
+          text="没有匹配的视频"
+          description="当前筛选下没有结果，可以清除筛选查看全部视频。"
+          action={
+            <Button onClick={clearFilters} variant="secondary" size="sm">
+              清除筛选
+            </Button>
+          }
+        />
+      );
+    }
+    return (
+      <AdminEmptyState
+        text="暂无视频"
+        description="还没有导入视频，可点右上角「添加视频」开始处理。"
+      />
+    );
+  }
 
   // Reject dialog state.
   const [rejectTarget, setRejectTarget] = useState<VideoAdmin | null>(null);
@@ -332,7 +401,7 @@ export default function VideoManager() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-muted">失败视频</span>
-            <span className={cn("font-medium", errorCount > 0 ? "text-error" : "text-ink")}>
+            <span className={cn("font-medium", errorCount > 0 ? "text-error-text" : "text-ink")}>
               {errorCount}
             </span>
           </div>
@@ -356,15 +425,12 @@ export default function VideoManager() {
             value={qualityFilter}
             onChange={setQualityFilter}
           />
-          <Input
-            type="text"
+          <AdminSearchInput
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") loadVideos(1);
-            }}
+            onChange={setKeyword}
             placeholder="搜索标题/标签..."
-            className="max-w-xs py-1.5 ml-auto"
+            ariaLabel="搜索视频（标题 / 标签）"
+            className="ml-auto w-72 max-w-full"
           />
         </div>
 
@@ -384,6 +450,7 @@ export default function VideoManager() {
           rowKey={(v) => v.id}
           loading={loading}
           emptyText="暂无视频"
+          emptyContent={renderEmpty()}
           expandedId={editingId}
           renderRow={(v, isExpanded) => (
             <tr className="text-meta align-top hover:bg-surface-soft/40 transition-colors">
@@ -394,6 +461,7 @@ export default function VideoManager() {
                       src={v.thumbnail_url}
                       alt=""
                       fill
+                      sizes="80px"
                       fallback={
                         <div className="absolute inset-0 flex items-center justify-center">
                           <VideoIcon size={16} className="text-muted-soft" />
@@ -434,7 +502,7 @@ export default function VideoManager() {
                   )}
                 {v.status === "error" && v.error_message && (
                   <div
-                    className="mt-1 text-caption text-error truncate max-w-[180px]"
+                    className="mt-1 text-caption text-error-text truncate max-w-[180px]"
                     title={v.error_message}
                   >
                     {v.error_message}
@@ -499,6 +567,8 @@ export default function VideoManager() {
                     variant="secondary"
                     size="compact"
                     onClick={() => setEditingId(isExpanded ? null : v.id)}
+                    aria-expanded={isExpanded}
+                    aria-controls={`row-detail-${v.id}`}
                     className={cn(isExpanded && "border-ink")}
                   >
                     {isExpanded ? <X size={12} /> : <Pencil size={12} />}
@@ -514,7 +584,7 @@ export default function VideoManager() {
               patchVideo={patchVideo}
               onSaved={() => loadVideos(page)}
               onLocalize={handleLocalize}
-              onTakedown={handleTakedown}
+              onTakedown={requestTakedown}
               onDelete={(vid) => setDeleteTarget(vid)}
               onApprove={handleApprove}
               onReject={(vid) => {
@@ -534,6 +604,8 @@ export default function VideoManager() {
         <Pagination
           page={page}
           hasMore={hasMore}
+          total={total}
+          pageSize={PAGE_SIZE}
           loading={loading}
           onPrev={() => loadVideos(Math.max(1, page - 1))}
           onNext={() => loadVideos(page + 1)}
@@ -600,6 +672,34 @@ export default function VideoManager() {
           const target = deleteTarget;
           setDeleteTarget(null);
           if (target) handleDelete(target);
+        }}
+      />
+
+      {/* Takedown-confirmation dialog (A-08)：下线删除本地媒体，需二次确认。 */}
+      <ConfirmDialog
+        open={!!takedownTarget}
+        tone="danger"
+        title="下线视频"
+        confirmLabel="确认下线"
+        busy={takedownBusy}
+        message={
+          takedownTarget
+            ? `确认下线「${takedownTarget.title}」？下线会从所有公开列表隐藏并删除本地媒体文件；学习记录保留，之后可重新搬运。`
+            : ""
+        }
+        onClose={() => {
+          if (!takedownBusy) setTakedownTarget(null);
+        }}
+        onConfirm={async () => {
+          const target = takedownTarget;
+          if (!target || takedownBusy) return;
+          setTakedownBusy(true);
+          try {
+            await doTakedown(target);
+            setTakedownTarget(null);
+          } finally {
+            setTakedownBusy(false);
+          }
         }}
       />
 

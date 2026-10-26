@@ -24,7 +24,10 @@ class AdminUserRoleRequest(BaseModel):
 
 class AdminUserPlanRequest(BaseModel):
     plan: Literal["free", "pro"]
-    duration_days: int = Field(default=30, ge=1, le=3650)
+    # ``0`` is valid on purpose: revoking Pro has no duration, and the admin
+    # users page already sends ``duration_days: 0`` when revoking. The old
+    # ``ge=1`` made every revoke fail with 422 (found while testing ADM-17).
+    duration_days: int = Field(default=30, ge=0, le=3650)
 
 
 class AdminSettingsUpdate(BaseModel):
@@ -71,29 +74,63 @@ class AdminUserRow(BaseModel):
     learned_words: int = 0
 
 
-class AdminOrderRow(BaseModel):
+class AdminPaymentRow(BaseModel):
+    """One 金数据 (Jinshuju) payment record row.
+
+    ``raw_json`` is deliberately **not** exposed: it contains the full external
+    form payload (buyer phone, WeChat identifiers, ...) and is only needed for
+    server-side debugging. ``phone`` is the display phone (linked account phone
+    when the record was matched to a user, otherwise the phone the buyer typed
+    on the Jinshuju form); ``user_phone``/``user_name`` are the linked account's
+    own fields and stay null for records not yet matched.
+    """
+
     id: str
-    order_number: str
+    entry_token: str | None = None
+    serial_number: int
+    phone: str | None = None
     user_id: str | None = None
     user_phone: str | None = None
-    plan: str | None = None
-    amount: int | None = None
-    status: str
-    paid_at: str | None = None
-    created_at: str | None = None
-
-
-class AdminRedemptionRow(BaseModel):
-    id: str
-    code: str
-    user_id: str | None = None
-    user_phone: str | None = None
-    plan: str
+    user_name: str | None = None
+    tier_name: str | None = None
+    amount_fen: int | None = None
     duration_days: int | None = None
+    trade_status: str | None = None
+    trade_no: str | None = None
+    payment_method: str | None = None
     status: str
-    revoked_reason: str | None = None
-    used_at: str | None = None
+    error_message: str | None = None
+    entry_created_at: str | None = None
     created_at: str | None = None
+    applied_at: str | None = None
+
+
+class AdminPaymentSummaryResponse(BaseModel):
+    """Revenue / payment status counters for the admin payments page.
+
+    All money fields are in fen (分). ``paid_*`` sums only count ``applied``
+    records (money received **and** membership granted); refunded orders are
+    excluded from revenue on purpose. "Today"/"last 30 days" are measured on
+    the payment time (``entry_created_at``, falling back to the local ingest
+    time ``created_at``) and use a **UTC day boundary**, matching the rest of
+    the admin KPIs (timezone note in ``backend/docs``).
+    """
+
+    applied: int = 0
+    pending: int = 0
+    ignored: int = 0
+    refunded: int = 0
+    error: int = 0
+    paid_total_fen: int = 0
+    paid_30d_fen: int = 0
+    paid_today_fen: int = 0
+    applied_today: int = 0
+
+
+class AdminPaymentSyncResponse(BaseModel):
+    """Result of POST /admin/payments/sync — enqueue only, never inline HTTP."""
+
+    queued: bool
 
 
 class AdminSettingsResponse(BaseModel):
@@ -114,12 +151,6 @@ class AdminSettingsResponse(BaseModel):
 
 class WorkerStatusResponse(BaseModel):
     worker_online: bool
-
-
-class RedemptionSummaryResponse(BaseModel):
-    redeemed: int
-    revoked: int
-    refunded: int
 
 
 class AdminStatsTrend(BaseModel):
@@ -172,7 +203,6 @@ class AdminStatsResponse(BaseModel):
     gpu_queue_depth: int
     videos_error_count: int
     signups_today: int
-    redeems_today: int
     trend: AdminStatsTrend
     videos_by_status: list[AdminStatsVideoStatus]
     users_by_plan: list[AdminStatsUserPlan]
@@ -200,6 +230,14 @@ class AdminUserRoleResponse(BaseModel):
 
 
 class AdminUserPlanResponse(BaseModel):
+    """Result of an admin plan grant/revoke.
+
+    ``plan_source`` is additive (ADM-17): admin grants write ``"admin"`` and
+    revokes clear it, so the panel can tell a manual grant from a purchase /
+    trial entitlement.
+    """
+
     id: str
     plan: str
     plan_expires_at: str | None = None
+    plan_source: str | None = None

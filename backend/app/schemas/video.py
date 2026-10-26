@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.exam_levels import validate_word_levels
 
@@ -186,6 +186,14 @@ class VideoAdminResponse(VideoResponse):
         return str(v)
 
 
+# DB columns: videos.title / title_zh / topic_tags are varchar(500). Anything
+# longer used to reach Postgres and surface as a raw HTTP_500 ("value too long
+# for type character varying(500)"); validating here makes it a 422 with the
+# offending field named. Kept next to the model so the column and the schema
+# limit are one fact.
+_VIDEO_TITLE_MAX_LENGTH = 500
+
+
 class VideoAdminUpdate(BaseModel):
     """Partial update payload for the admin video management panel.
 
@@ -193,12 +201,12 @@ class VideoAdminUpdate(BaseModel):
     is validated against the CEFR scale used elsewhere in the app.
     """
 
-    title: str | None = None
+    title: str | None = Field(None, max_length=_VIDEO_TITLE_MAX_LENGTH)
     # Empty string clears the translation (the admin can remove a bad one and
     # let the next re-translate fill it again).
-    title_zh: str | None = None
+    title_zh: str | None = Field(None, max_length=_VIDEO_TITLE_MAX_LENGTH)
     difficulty_level: str | None = None
-    topic_tags: str | None = None
+    topic_tags: str | None = Field(None, max_length=_VIDEO_TITLE_MAX_LENGTH)
     is_official: bool | None = None
     is_featured: bool | None = None
     is_published: bool | None = None
@@ -371,10 +379,16 @@ class RecomputeWordLevelsRequest(BaseModel):
     subtitle_ids: list[str] | None = None  # None = whole video
 
 
+# Rejection reasons are read by the video owner and reported in notifications;
+# 1000 chars is far more than the admin UI can enter and keeps the reason from
+# becoming an unbounded store of pasted text (column itself is TEXT).
+_REJECT_REASON_MAX_LENGTH = 1000
+
+
 class ReviewRejectRequest(BaseModel):
     """Admin rejection payload for a UGC video under review."""
 
-    reason: str
+    reason: str = Field(..., max_length=_REJECT_REASON_MAX_LENGTH)
 
     @field_validator("reason")
     @classmethod
@@ -385,6 +399,13 @@ class ReviewRejectRequest(BaseModel):
         return v
 
 
+# Max characters of a pipeline ``error_message`` echoed by the status endpoints.
+# The raw text can name absolute paths, yt-dlp/cookies details and third-party
+# URLs; the admin status panel only needs the gist. Truncate at the schema
+# boundary instead of dropping the value, so failures stay diagnosable.
+ERROR_MESSAGE_MAX_LENGTH = 500
+
+
 class VideoStatusResponse(BaseModel):
     status: str
     video_url_720p: str | None = None
@@ -393,6 +414,20 @@ class VideoStatusResponse(BaseModel):
     error_message: str | None = None
     # Resume hint: number of existing subtitles (non-zero → resume from finalize)
     subtitle_count: int = 0
+
+    @field_validator("error_message", mode="before")
+    @classmethod
+    def truncate_error_message(cls, v: object) -> object:
+        """ADM-18: cap ``error_message`` at ``ERROR_MESSAGE_MAX_LENGTH`` chars.
+
+        Applies to the admin status response (and to the owner-facing status
+        response it inherits from) so internal pipeline detail cannot be echoed
+        in full. Truncation lives here — at the response boundary — because the
+        stored column must keep the full text for triage.
+        """
+        if isinstance(v, str) and len(v) > ERROR_MESSAGE_MAX_LENGTH:
+            return v[:ERROR_MESSAGE_MAX_LENGTH]
+        return v
 
 
 class VideoAdminStatusResponse(VideoStatusResponse):
@@ -527,6 +562,103 @@ class SubtitleRevisionItem(BaseModel):
     before: dict | None = None
     after: dict | None = None
     created_at: str | None = None
+
+
+class ResegmentResult(BaseModel):
+    """Result of a bulk re-segmentation (ADM-01).
+
+    Re-cutting subtitles changes every subtitle id, which used to silently
+    delete sentence favorites / revision history and null out vocabulary
+    source links through DB cascades. The counts below make the preservation
+    auditable: ``*_remapped`` were re-attached to a new segment, ``*_unmatched``
+    had no time overlap with any new segment (their rows are kept inside the
+    snapshot JSON so a rollback can restore them), ``*_merged`` were duplicates
+    collapsed by the ``(user, subtitle)`` uniqueness rule.
+    """
+
+    before_count: int
+    after_count: int
+    translations_cleared: bool = True
+    snapshot_id: str
+    favorites_total: int = 0
+    favorites_remapped: int = 0
+    favorites_merged: int = 0
+    favorites_unmatched: int = 0
+    revisions_total: int = 0
+    revisions_preserved: int = 0
+    revisions_unmatched: int = 0
+    vocabulary_total: int = 0
+    vocabulary_relinked: int = 0
+    vocabulary_unmatched: int = 0
+
+
+class ResegmentRollbackResult(BaseModel):
+    """Result of rolling back the latest re-segmentation snapshot.
+
+    The current (re-segmented) subtitles are replaced by the snapshotted rows;
+    user data attached to them is re-mapped back by time overlap. The
+    ``*_restored_from_snapshot`` counters report rows that had been dropped by
+    the original re-segmentation and were re-inserted from the snapshot payload.
+    """
+
+    restored_count: int
+    snapshot_id: str
+    favorites_remapped: int = 0
+    favorites_unmatched: int = 0
+    favorites_restored_from_snapshot: int = 0
+    revisions_preserved: int = 0
+    revisions_unmatched: int = 0
+    revisions_restored_from_snapshot: int = 0
+    vocabulary_relinked: int = 0
+    vocabulary_unmatched: int = 0
+    vocabulary_restored_from_snapshot: int = 0
+
+
+class SubtitleDeleteResult(BaseModel):
+    """Typed response for deleting one subtitle (ADM-01 same-source gap).
+
+    Deleting a subtitle used to cascade-delete its sentence favorites and edit
+    history without telling anyone. The endpoint now answers 409 with the
+    affected counts unless the caller passes ``?force=true``; this model is the
+    successful (forced or impact-free) response.
+    """
+
+    deleted_id: str
+    remaining_count: int
+    favorites_deleted: int = 0
+    revisions_deleted: int = 0
+    forced: bool = False
+
+
+class VideoScoreFactors(BaseModel):
+    """Per-factor breakdown of the P1 learning score.
+
+    Every factor is nullable: a signal with no data yet is ``None`` (sorts last
+    / excluded from the weighted sum), not zero.
+    """
+
+    ctr: float | None = None
+    retention: float | None = None
+    watch_time: float | None = None
+    topic_match: float | None = None
+    quality: float | None = None
+    viral: float | None = None
+    freshness: float | None = None
+    bonus: float | None = None
+
+
+class VideoScoreResponse(BaseModel):
+    """Typed ``GET /videos/admin/{video_id}/score`` payload (ADM-10).
+
+    The endpoint used to declare ``response_model=dict`` — the values were real
+    but OpenAPI degraded to ``object``, so generated clients could not see the
+    shape. Field names/values are unchanged from the dict version.
+    """
+
+    video_id: str
+    total_score: float
+    factors: VideoScoreFactors
+    computed_at: str | None = None
 
 
 class RecomputeWordLevelsResponse(BaseModel):

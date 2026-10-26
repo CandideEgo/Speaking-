@@ -44,7 +44,7 @@ export const SECONDARY_NAV: NavItem[] = [
  * - 键必须是导航项的真实 href；表里没有的 href 回退到「自己认领自己」。
  * - `/` 组写成显式清单，**不能**用 `startsWith("/")`：那会吞掉全站、造成双高亮。
  * - 各组的 scope 前缀两两不相交，任意 pathname 最多命中一项。
- * - `/search`（顶栏能力的落地页）、`/pricing`、`/checkout`、`/redeem`（服务端重定向、
+ * - `/search`（顶栏能力的落地页）、`/pricing`、`/checkout`（服务端重定向、
  *   pathname 停留不了）刻意不进表 —— 停在它们上面不高亮。
  */
 export const ACTIVE_SCOPE: Record<string, string[]> = {

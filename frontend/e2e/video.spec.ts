@@ -40,15 +40,6 @@ test.describe("Watch Page", () => {
 });
 
 test.describe("Auth Surface", () => {
-  test("redeem page is public, then redirects to the home URL", async ({ page }) => {
-    await page.goto("/redeem");
-    await expect(page.locator("body")).toBeVisible();
-    // D0 白名单：/redeem 未登录可访问（墙放行），退役后的页面 redirect("/")；
-    // 登录墙随后由 "/" 触发 —— next 参数为 "/" 而不是 "/redeem"。
-    await page.waitForURL(/\/login/, { timeout: 10000 });
-    expect(new URL(page.url()).searchParams.get("next")).toBe("/");
-  });
-
   test("login form can be submitted with the Enter key", async ({ page }) => {
     await page.goto("/login");
     await switchToPasswordLogin(page);

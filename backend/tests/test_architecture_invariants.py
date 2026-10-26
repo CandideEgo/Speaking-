@@ -358,6 +358,9 @@ class TestAuthenticationHasOneChain:
 # （2026-08-27 砍）。功能删了，模型和表留着——于是每次基于 `create_all` 的测试
 # 都要建它们，每个 autogenerate diff 都要绕开它们。表在迁移 `d1e2f3a4b5c6` 里删掉，
 # 这个测试守的是另一半：别再长出声明同名的模型。
+#
+# 2026-10 审计又清掉一批（券码系统、冻结的口语评测、跟读/周报、练习题缓存），
+# 表在迁移 `c3d4e5f6a7b8` 里删除；同样不允许模型复活它们。
 DROPPED_TABLES = frozenset(
     {
         "video_comments",
@@ -366,6 +369,15 @@ DROPPED_TABLES = frozenset(
         "subtitle_mergeable_updates",
         "learning_plans",
         "learning_plan_items",
+        # 2026-10 backend cleanup (migration c3d4e5f6a7b8)
+        "redeem_codes",
+        "speaking_attempts",
+        "speaking_rubrics",
+        "rubric_criteria",
+        "speaking_attempt_scores",
+        "shadowing_attempts",
+        "weekly_reports",
+        "video_practice_questions",
     }
 )
 

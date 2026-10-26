@@ -158,7 +158,7 @@ describe("navigationActive：不双高亮", () => {
   });
 
   it("无归属路径命中 0 项", () => {
-    for (const pathname of ["/search", "/pricing", "/checkout", "/redeem"]) {
+    for (const pathname of ["/search", "/pricing", "/checkout"]) {
       expect(activeHrefs(pathname), `${pathname} 不该高亮`).toEqual([]);
     }
   });

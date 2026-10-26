@@ -16,7 +16,7 @@ constraint as exams.py).
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_admin_user, get_optional_user
@@ -105,7 +105,10 @@ class ChannelUpdate(BaseModel):
 
 
 class ChannelAttachVideos(BaseModel):
-    video_ids: list[str] = Field(..., min_length=1)
+    # 200 is the ceiling for one transactional attach: the endpoint resolves the
+    # ids with a single SELECT + one UPDATE, and an unbounded IN list lets a
+    # single request hold a transaction over arbitrary many rows (ADM-19).
+    video_ids: list[str] = Field(..., min_length=1, max_length=200)
 
 
 @router.get("/admin/all", response_model=AdminChannelListResponse)
@@ -206,16 +209,40 @@ async def admin_attach_videos(
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Set this channel as the curated home for the given videos (overwrite)."""
+    """Set this channel as the curated home for the given videos (overwrite).
+
+    Returns the number of rows that actually changed plus ``missing_ids`` for
+    ids that do not exist. Re-sending an already-attached id is a no-op and is
+    not counted — the old ``UPDATE ... WHERE id IN (...)`` returned the matched
+    row count, which made the number lie (ADM-19).
+    """
     channel = await db.get(Channel, channel_id)
     if channel is None:
         raise HTTPException(status_code=404, detail="频道不存在")
-    result = await db.execute(update(Video).where(Video.id.in_(payload.video_ids)).values(channel_ref=channel_id))
-    await db.commit()
-    try:
-        await channel_service.invalidate_channel_caches(payload.video_ids)
-    except Exception:
-        import logging
+    # De-dupe while keeping the caller's order so the response is deterministic.
+    requested_ids = list(dict.fromkeys(payload.video_ids))
+    rows = (await db.execute(select(Video.id, Video.channel_ref).where(Video.id.in_(requested_ids)))).all()
+    existing = {video_id: channel_ref for video_id, channel_ref in rows}
+    missing_ids = [video_id for video_id in requested_ids if video_id not in existing]
+    changed_ids = [video_id for video_id, channel_ref in rows if channel_ref != channel_id]
 
-        logging.getLogger(__name__).warning("channel attach cache invalidation failed", exc_info=True)
-    return {"attached": result.rowcount}
+    attached = 0
+    if changed_ids:
+        result = await db.execute(
+            update(Video)
+            .where(Video.id.in_(changed_ids), or_(Video.channel_ref.is_(None), Video.channel_ref != channel_id))
+            .values(channel_ref=channel_id)
+        )
+        rowcount = result.rowcount
+        # -1 / None means the driver does not expose it; fall back to the
+        # pre-query result (still better than counting no-ops as attached).
+        attached = rowcount if rowcount is not None and rowcount >= 0 else len(changed_ids)
+    await db.commit()
+    if changed_ids:
+        try:
+            await channel_service.invalidate_channel_caches(changed_ids)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning("channel attach cache invalidation failed", exc_info=True)
+    return {"attached": attached, "missing_ids": missing_ids}

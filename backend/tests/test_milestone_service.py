@@ -19,7 +19,6 @@ from app.core.security import create_token, hash_password
 from app.models.learning import Vocabulary
 from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.milestone import MasterySnapshot, UserMilestone
-from app.models.shadowing import ShadowingAttempt
 from app.models.user import PlanType, RoleType, User
 from app.services.milestone_service import (
     check_and_award,

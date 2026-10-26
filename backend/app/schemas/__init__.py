@@ -34,17 +34,6 @@ from app.schemas.payment import (
     OrderStatusResponse,
     PaymentStatusResponse,
 )
-
-# ── 兑换码 ──
-from app.schemas.redeem import (
-    RedeemCodeGenerate,
-    RedeemCodeRedeem,
-    RedeemCodeResponse,
-    RedeemRefundResponse,
-    RedeemResponse,
-    RedeemRevokeRequest,
-    RedeemRevokeResponse,
-)
 from app.schemas.user import (
     ChangePasswordRequest,
     ChangePhoneRequest,

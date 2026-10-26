@@ -22,6 +22,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import BadRequestError
 from app.models.channel import Channel
@@ -178,7 +179,7 @@ async def _latest_covers(db: AsyncSession, channel_ids: list[str]) -> dict[str, 
     stmt = (
         select(Video.channel_ref, Video.thumbnail_url)
         .where(Video.channel_ref.in_(channel_ids), *_PUBLIC_VIDEO_FILTER)
-        .order_by(Video.channel_ref, Video.created_at.desc())
+        .order_by(Video.channel_ref, Video.created_at.desc(), Video.id.desc())
     )
     covers: dict[str, str | None] = {}
     for ref, thumb in (await db.execute(stmt)).all():
@@ -227,7 +228,9 @@ async def list_public_channels(
     channels = list(
         (
             await db.execute(
-                select(Channel).where(Channel.is_visible.is_(True)).order_by(Channel.sort_order, Channel.name)
+                select(Channel)
+                .where(Channel.is_visible.is_(True))
+                .order_by(Channel.sort_order, Channel.name, Channel.id)
             )
         ).scalars()
     )
@@ -238,7 +241,9 @@ async def list_public_channels(
         if n == 0:
             continue
         # Curated rows first (sort_order, name); auto rows after, biggest first.
-        key = (0, c.sort_order, c.name) if not c.is_auto else (1, -n, c.name)
+        # ``c.id`` is the tiebreaker so equal order/name/count rows keep a stable
+        # page order (ADM-15).
+        key = (0, c.sort_order, c.name, c.id) if not c.is_auto else (1, -n, c.name, c.id)
         entries.append((key, c, n))
     entries.sort(key=lambda e: e[0])
 
@@ -308,7 +313,9 @@ async def get_channel_detail(
     videos = list(
         (
             await db.execute(
-                public_stmt.order_by(Video.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+                public_stmt.order_by(Video.created_at.desc(), Video.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
             )
         ).scalars()
     )
@@ -476,7 +483,11 @@ async def channel_slugs_for(db: AsyncSession, videos: Iterable[Video]) -> dict[s
 
 
 async def list_admin_channels(db: AsyncSession) -> list[dict]:
-    channels = list((await db.execute(select(Channel).order_by(Channel.sort_order, Channel.name))).scalars())
+    # id tiebreaker: sort_order/name collide freely on seeded rows and OFFSET-free
+    # consumers (frontend table) still expect a deterministic order (ADM-15).
+    channels = list(
+        (await db.execute(select(Channel).order_by(Channel.sort_order, Channel.name, Channel.id))).scalars()
+    )
     counts = await public_video_counts(db, [c.id for c in channels])
     covers = await _latest_covers(db, [c.id for c in channels])
     out = []
@@ -495,6 +506,35 @@ async def list_admin_channels(db: AsyncSession) -> list[dict]:
     return out
 
 
+async def _slug_exists(db: AsyncSession, slug: str, *, exclude_id: str | None = None) -> bool:
+    """Fast-path duplicate check for a friendly error before touching the DB.
+
+    This is deliberately **only** the fast path: the check-then-act window
+    between this SELECT and the INSERT/UPDATE is real (two admins saving the
+    same slug at once), so callers must still treat the unique index as the
+    authority by catching ``IntegrityError`` (ADM-19).
+    """
+    stmt = select(Channel.id).where(Channel.slug == slug)
+    if exclude_id is not None:
+        stmt = stmt.where(Channel.id != exclude_id)
+    return (await db.execute(stmt)).scalar_one_or_none() is not None
+
+
+def _integrity_conflict_message(exc: IntegrityError, *, slug: str | None, upstream: str | None) -> str:
+    """Turn a unique-constraint violation into the admin-facing 400 message.
+
+    ``channels`` has two unique columns (slug and upstream_channel_id); the
+    original error text names the column/constraint on both Postgres and
+    SQLite, so use it to say which one actually collided.
+    """
+    detail = str(getattr(exc, "orig", exc))
+    if upstream and "upstream" in detail:
+        return f"上游频道 ID 已被占用: {upstream}"
+    if slug:
+        return f"slug 已存在: {slug}"
+    return "slug 已存在"
+
+
 async def create_channel(db: AsyncSession, payload: dict) -> Channel:
     name = (payload.get("name") or "").strip()
     if not name:
@@ -502,7 +542,7 @@ async def create_channel(db: AsyncSession, payload: dict) -> Channel:
     slug = (payload.get("slug") or "").strip().lower() or slugify(name)
     if not SLUG_RE.match(slug):
         raise BadRequestError("slug 只能包含小写字母、数字和连字符（首尾须为字母/数字）")
-    exists = (await db.execute(select(Channel.id).where(Channel.slug == slug))).scalar_one_or_none()
+    exists = await _slug_exists(db, slug)
     if exists:
         raise BadRequestError(f"slug 已存在: {slug}")
 
@@ -517,7 +557,13 @@ async def create_channel(db: AsyncSession, payload: dict) -> Channel:
         is_visible=bool(payload.get("is_visible", True)),
     )
     db.add(channel)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        # Lost the check-then-act race (or an unindexed duplicate upstream id):
+        # report a business error instead of letting the 500 envelope escape.
+        await db.rollback()
+        raise BadRequestError(_integrity_conflict_message(exc, slug=slug, upstream=upstream)) from exc
     if upstream:
         # Attach existing videos already scraped from this upstream channel.
         from sqlalchemy import update
@@ -541,17 +587,21 @@ async def update_channel(db: AsyncSession, channel_id: str, payload: dict) -> Ch
         if field in payload and payload[field] is not None:
             setattr(channel, field, payload[field])
     slug_in = payload.get("slug")
+    slug: str | None = None
     if slug_in:
         slug = str(slug_in).strip().lower()
         if not SLUG_RE.match(slug):
             raise BadRequestError("slug 只能包含小写字母、数字和连字符（首尾须为字母/数字）")
-        clash = (
-            await db.execute(select(Channel.id).where(Channel.slug == slug, Channel.id != channel_id))
-        ).scalar_one_or_none()
-        if clash:
+        if await _slug_exists(db, slug, exclude_id=channel_id):
             raise BadRequestError(f"slug 已存在: {slug}")
         channel.slug = slug
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        # Same race as create_channel: the unique index is the real guard.
+        await db.rollback()
+        upstream = payload.get("upstream_channel_id") or None
+        raise BadRequestError(_integrity_conflict_message(exc, slug=slug, upstream=upstream)) from exc
     return channel
 
 

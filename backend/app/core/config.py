@@ -207,10 +207,6 @@ class Settings(BaseSettings):
     jinshuju_purchase_token_secret: str = ""
     jinshuju_purchase_token_ttl_minutes: int = 1440
 
-    # Redeem code lifecycle (ADR-0007). Pro is sold via WeChat mini-shop +
-    # redeem codes (no on-site payment per ICP compliance).
-    redeem_code_unused_expiry_days: int = 180  # unused codes auto-expire after N days
-
     # Free-tier video unlock quota (产品设计规划 §2.2): Free users may unlock
     # this many videos per calendar month; each unlock is permanent. Quotas
     # reset on the 1st, unused quotas do not roll over.

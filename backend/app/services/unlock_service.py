@@ -37,9 +37,12 @@ class UnlockQuotaExhaustedError(Exception):
 def is_active_pro(user: User | None) -> bool:
     """True iff the user is on an unexpired Pro plan (trial counts as Pro).
 
-    Mirrors the frontend ``isProUser`` helper: the downgrade beat runs hourly,
-    so between expiry and the next tick ``plan`` is still ``pro`` — the expiry
-    check keeps the gate honest in that window.
+    Mirrors the frontend ``isProUser`` helper: **there is no downgrade job** —
+    the promise of "an hourly beat flips plan back to free" was never
+    implemented, so ``plan`` stays ``pro`` after expiry. The expiry check is
+    therefore the only thing keeping Pro gates honest; admin KPIs must use the
+    same definition of "active Pro" (``plan == pro AND (plan_expires_at IS NULL
+    OR plan_expires_at > now)``) instead of counting the stored ``plan`` column.
     """
     if user is None or user.plan != PlanType.pro:
         return False

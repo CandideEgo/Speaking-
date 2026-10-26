@@ -56,7 +56,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **用户端与观看页导航**：用户端视觉变量放在 `.user-ui` 作用域（`src/app/user-ui.css`），避免调整学习页面时改变管理端。观看页共享全站导航；手机播放栏由 `WatchChromeProvider` 接入壳层，在五项底部导航上方以常规流常驻。词卡下边界取播放栏上沿，短视口保留 240px 操作空间。修改播放布局时同时运行 `mobile-*.spec.ts` 的行为与遮挡检查。
 
-观看页以 1024/1025px 区分手机与桌面，桌面是否分栏再由实际内容宽度决定。画框尺寸独立于当前句、操作和笔记；布局约束与本机偏好契约在 `src/lib/watchLayout.ts`。调整布局时运行 `watch-desktop-stage.spec.ts` 与 `watch-layout.mobile.spec.ts`；观看闭环与四种浏览器的隔离测试见 `e2e/watch-baseline-mobile.spec.ts`。旧录音表和文件只供历史数据保留、导出与注销清理，观看页不再读取录音记录。
+观看页以 1024/1025px 区分手机与桌面，桌面是否分栏再由实际内容宽度决定。画框尺寸独立于当前句、操作和笔记；布局约束与本机偏好契约在 `src/lib/watchLayout.ts`。调整布局时运行 `watch-desktop-stage.spec.ts` 与 `watch-layout.mobile.spec.ts`；观看闭环与四种浏览器的隔离测试见 `e2e/watch-baseline-mobile.spec.ts`。旧录音表已在 2026-10-26 清理迁移 `c3d4e5f6a7b8` 中删除，观看页不再读取录音记录；历史录音文件仍留在媒体目录，仅旧媒体路由的 token 鉴权可读。
 
 **`devIndicators: false` 是故意的，不是随手关的**（[`next.config.js`](next.config.js)）：Next 的 dev 徽标正好压在观看页底栏「上一句」的中心点上（实测 `elementFromPoint(52, 868)` 命中 `NEXTJS-PORTAL`），挪到右下角又压「跟读」，而底栏四角没有一个位置不压按钮——所以唯一能同时保住真机可点性与自动化判据的取值是整个关掉。编译/运行时错误浮层不受影响。
 

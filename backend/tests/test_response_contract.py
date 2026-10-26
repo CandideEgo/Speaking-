@@ -181,15 +181,17 @@ class TestCardShapes:
         assert [i["title"] for i in body["items"]] == ["cold"]
         assert sorted(body["items"][0].keys()) == _CARD_ITEM_KEYS
 
-    async def test_admin_feedback_dict_endpoint(self, client, db_session, admin_headers):
-        """``response_model=dict`` sites have no enforced shape at all.
+    async def test_admin_feedback_list_is_typed_with_total(self, client, db_session, admin_headers):
+        """ADM-10: this used to be ``response_model=dict`` and omit ``total``.
 
-        The envelope here is missing `total`, which every other list endpoint
-        returns — exactly the kind of drift an unbound response model allows.
+        It is now a typed ``PaginatedResponse[AdminFeedbackRow]`` — the shared
+        envelope keys, ``total`` included, like every other admin list.
         """
         resp = await client.get(_ADMIN_FEEDBACK, headers=admin_headers)
         assert resp.status_code == 200
-        assert sorted(resp.json().keys()) == ["has_more", "items", "page", "page_size"]
+        body = resp.json()
+        assert sorted(body.keys()) == _ENVELOPE_KEYS
+        assert body["total"] == 0
 
 
 class TestCardScopesDifferByValueNotByShape:
@@ -346,16 +348,9 @@ class TestOpenApiResponseModels:
         ):
             assert self._schema(path, "post")["$ref"].endswith(name)
 
-    def test_unlock_and_redemption_summary_are_typed(self):
-        """BE-07: legacy unlock and admin redemption summary used dicts."""
+    def test_unlock_response_is_typed(self):
+        """BE-07: legacy unlock used a plain dict."""
         assert self._schema("/api/v1/videos/{video_id}/unlock", "post")["$ref"].endswith("VideoUnlockResponse")
-        assert self._schema("/api/v1/admin/redemptions/summary", "get")["$ref"].endswith("RedemptionSummaryResponse")
-
-    def test_redeem_code_admin_routes_are_typed(self):
-        """BE-07: redeem-code list/export/summary used dicts."""
-        assert self._schema("/api/v1/redeem-codes", "get")["$ref"].endswith("PaginatedResponse_RedeemCodeResponse_")
-        assert self._schema("/api/v1/redeem-codes/export", "get")["$ref"].endswith("RedeemCodeExportResponse")
-        assert self._schema("/api/v1/redeem-codes/summary", "get")["$ref"].endswith("RedeemCodeSummaryResponse")
 
     def test_channel_admin_routes_are_typed(self):
         """BE-07: channel admin list/create/update/attach used dicts."""
@@ -392,6 +387,47 @@ class TestOpenApiResponseModels:
         assert self._schema("/api/v1/admin/users/{user_id}/ban", "patch")["$ref"].endswith("AdminUserBanResponse")
         assert self._schema("/api/v1/admin/users/{user_id}/role", "patch")["$ref"].endswith("AdminUserRoleResponse")
         assert self._schema("/api/v1/admin/users/{user_id}/plan", "patch")["$ref"].endswith("AdminUserPlanResponse")
+
+    def test_admin_payments_routes_are_typed(self):
+        """金数据 payment surface: typed list/summary/sync + no raw_json leak."""
+        assert self._schema("/api/v1/admin/payments", "get")["$ref"].endswith("PaginatedResponse_AdminPaymentRow_")
+        assert self._schema("/api/v1/admin/payments/summary", "get")["$ref"].endswith("AdminPaymentSummaryResponse")
+        assert self._schema("/api/v1/admin/payments/sync", "post")["$ref"].endswith("AdminPaymentSyncResponse")
+
+        from app.main import create_app
+
+        row_schema = create_app().openapi()["components"]["schemas"]["AdminPaymentRow"]
+        properties = row_schema["properties"]
+        for field in (
+            "id",
+            "entry_token",
+            "serial_number",
+            "phone",
+            "user_id",
+            "user_phone",
+            "user_name",
+            "tier_name",
+            "amount_fen",
+            "duration_days",
+            "trade_status",
+            "trade_no",
+            "payment_method",
+            "status",
+            "error_message",
+            "entry_created_at",
+            "created_at",
+            "applied_at",
+        ):
+            assert field in properties, f"AdminPaymentRow missing field: {field}"
+        # The external raw payload carries buyer PII and must never be exposed.
+        assert "raw_json" not in properties
+
+    def test_legacy_admin_orders_route_is_gone(self):
+        """ADM-19/§5: the dead ``GET /admin/orders`` surface was removed."""
+        from app.main import create_app
+
+        paths = create_app().openapi()["paths"]
+        assert "/api/v1/admin/orders" not in paths
 
     def test_notes_exam_pdf_and_payment_routes_are_typed(self):
         """BE-07: notes list, exam PDF list and payment polling used dicts."""

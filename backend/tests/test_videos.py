@@ -123,6 +123,41 @@ class TestAdminListVideos:
         assert len(data["items"]) == 2
         assert data["has_more"] is True
 
+    async def test_list_reports_real_total(self, client: AsyncClient, admin_headers: dict):
+        """ADM-10: the service already counted rows but never passed ``total`` on."""
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            await _seed_video_rows(db, count=3)
+
+        resp = await client.get("/api/v1/videos/admin?page=1&page_size=2", headers=admin_headers)
+        data = resp.json()
+        assert data["total"] == 3
+        assert data["has_more"] is True
+        assert len(data["items"]) == 2
+
+    async def test_list_order_has_id_tiebreaker(self, client: AsyncClient, admin_headers: dict):
+        """Bulk-imported videos often share ``created_at``; OFFSET paging over a
+        single timestamp column can then repeat or skip rows."""
+        from datetime import UTC, datetime
+
+        from tests.conftest import TestSessionLocal
+
+        stamp = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+        async with TestSessionLocal() as db:
+            videos = await _seed_video_rows(db, count=3)
+            for video in videos:
+                video.created_at = stamp
+            await db.commit()
+            seeded_ids = {video.id for video in videos}
+
+        page1 = (await client.get("/api/v1/videos/admin?page=1&page_size=2", headers=admin_headers)).json()
+        page2 = (await client.get("/api/v1/videos/admin?page=2&page_size=2", headers=admin_headers)).json()
+        assert page1["total"] == page2["total"] == 3
+        seen = [item["id"] for item in page1["items"] + page2["items"]]
+        assert len(seen) == len(set(seen)) == 3
+        assert set(seen) == seeded_ids
+
 
 class TestAdminUpdateVideo:
     async def test_update_requires_admin(self, client: AsyncClient, auth_headers: dict, db_session):
@@ -337,3 +372,99 @@ class TestAdminLocalizeVideo:
 
         resp = await client.post(f"/api/v1/videos/admin/{v.id}/localize", headers=admin_headers)
         assert resp.status_code == 409
+
+    async def test_localize_nonexistent_returns_404(self, client: AsyncClient, admin_headers: dict):
+        resp = await client.post("/api/v1/videos/admin/does-not-exist/localize", headers=admin_headers)
+        assert resp.status_code == 404
+
+    async def test_localize_second_request_is_blocked_and_dispatches_once(
+        self, client: AsyncClient, admin_headers: dict, monkeypatch
+    ):
+        """ADM-14: the second click must 409 without dispatching a second task."""
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            (v,) = await _seed_video_rows(db, count=1, status="ready")
+            vid = v.id
+
+        first = await client.post(f"/api/v1/videos/admin/{vid}/localize", headers=admin_headers)
+        assert first.status_code == 200
+
+        def _localize_dispatches() -> list:
+            return [
+                call
+                for call in getattr(monkeypatch, "_celery_calls", [])
+                if call[0].endswith("localize_video") and call[1] == (vid,)
+            ]
+
+        assert len(_localize_dispatches()) == 1
+        second = await client.post(f"/api/v1/videos/admin/{vid}/localize", headers=admin_headers)
+        assert second.status_code == 409
+        assert len(_localize_dispatches()) == 1
+
+    async def test_localize_guard_is_a_conditional_update(self, client: AsyncClient, admin_headers: dict):
+        """The double-dispatch guard is the UPDATE's rowcount, not a Python status
+        read: the emitted statement must carry a ``status != processing`` predicate,
+        otherwise two requests that both read ``ready`` would both dispatch."""
+        from sqlalchemy import event
+
+        from tests.conftest import TestSessionLocal, test_engine
+
+        async with TestSessionLocal() as db:
+            (v,) = await _seed_video_rows(db, count=1, status="ready")
+            vid = v.id
+
+        updates: list[str] = []
+
+        def _capture(conn, cursor, statement, parameters, context, executemany):
+            if statement.lstrip().upper().startswith("UPDATE VIDEOS"):
+                updates.append(statement)
+
+        event.listen(test_engine.sync_engine, "before_cursor_execute", _capture)
+        try:
+            resp = await client.post(f"/api/v1/videos/admin/{vid}/localize", headers=admin_headers)
+        finally:
+            event.remove(test_engine.sync_engine, "before_cursor_execute", _capture)
+
+        assert resp.status_code == 200, resp.text
+        assert len(updates) == 1
+        normalized = " ".join(updates[0].lower().split())
+        assert " set " in normalized
+        assert " where " in normalized
+        assert "status" in normalized and "!=" in normalized
+
+
+class TestAdminDemoVideoSerialization:
+    async def test_demo_grant_takes_the_serialization_lock(self, client: AsyncClient, admin_headers: dict, monkeypatch):
+        """ADM-14: granting ``is_demo`` goes through the cross-admin lock."""
+        from unittest.mock import AsyncMock
+
+        from app.services import video_service
+        from tests.conftest import TestSessionLocal
+
+        lock = AsyncMock()
+        monkeypatch.setattr(video_service, "_serialize_demo_grant", lock)
+
+        async with TestSessionLocal() as db:
+            (v,) = await _seed_video_rows(db, count=1)
+            vid = v.id
+
+        resp = await client.patch(f"/api/v1/videos/admin/{vid}", headers=admin_headers, json={"is_demo": True})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["is_demo"] is True
+        lock.assert_awaited_once()
+
+        # Non-demo updates don't contend for the single-demo invariant.
+        lock.reset_mock()
+        resp = await client.patch(
+            f"/api/v1/videos/admin/{vid}", headers=admin_headers, json={"admin_notes": "internal"}
+        )
+        assert resp.status_code == 200
+        lock.assert_not_awaited()
+
+    async def test_serialization_lock_is_a_noop_off_postgres(self, db_session):
+        """SQLite (tests/local) serializes writers itself; the helper must not
+        emit PostgreSQL-only SQL there nor raise."""
+        from app.services.video_service import _serialize_demo_grant
+
+        await _serialize_demo_grant(db_session)  # no-op, no exception

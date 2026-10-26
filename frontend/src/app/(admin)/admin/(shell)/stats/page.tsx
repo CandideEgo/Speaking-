@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import {
   Activity,
+  AlertTriangle,
   BookOpen,
   Cpu,
   CreditCard,
@@ -30,7 +30,8 @@ import {
 } from "recharts";
 
 import { cn } from "@/lib/utils";
-import { AdminPageHeader, AdminSkeleton } from "@/components/admin/ui";
+import { apiErrorMessage } from "@/lib/errors";
+import { AdminEmptyState, AdminPageHeader, AdminSkeleton } from "@/components/admin/ui";
 import { Button } from "@/components/ui/Button";
 import type { AdminStats, RecentActivityType } from "@/types";
 import { getAdminStats } from "@/lib/adminData";
@@ -99,7 +100,7 @@ function KpiCard({
       <div className="mt-1 flex items-center gap-2">
         <p className="text-meta text-muted">{label}</p>
         {delta && (
-          <span className="inline-flex items-center gap-0.5 text-meta font-medium text-success">
+          <span className="inline-flex items-center gap-0.5 text-meta font-medium text-success-text">
             <TrendingUp size={12} />
             {delta}
           </span>
@@ -128,7 +129,7 @@ function ChartCard({
     <Card padding={5}>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-copy font-semibold text-ink">{title}</h3>
+          <h2 className="text-copy font-semibold text-ink">{title}</h2>
           {description && <p className="text-meta text-muted mt-0.5">{description}</p>}
         </div>
         {actions}
@@ -145,6 +146,7 @@ function ChartCard({
 export default function AdminStatsPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [range, setRange] = useState<7 | 30 | 90>(30);
   const ct = useChartTheme();
 
@@ -162,22 +164,86 @@ export default function AdminStatsPage() {
 
   const load = useCallback(async (days: number) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await getAdminStats(days);
       setStats(data);
-    } catch {
-      toast.error("加载统计数据失败");
+    } catch (err) {
+      setLoadError(apiErrorMessage(err, "加载统计数据失败，请稍后重试"));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    load(range);
+    void load(range);
   }, [range, load]);
 
-  if (loading || !stats) {
-    return <AdminSkeleton.Page />;
+  const refreshButton = (
+    <Button
+      onClick={() => load(range)}
+      disabled={loading}
+      variant="secondary"
+      size="sm"
+      icon={RefreshCw}
+      className={loading ? "[&_svg]:animate-spin" : ""}
+    >
+      刷新
+    </Button>
+  );
+
+  const header = (
+    <AdminPageHeader
+      title="数据统计"
+      description="平台核心指标与趋势分析"
+      actions={refreshButton}
+    />
+  );
+
+  if (!stats) {
+    // A-03：加载中 / 失败 / 无数据是三态，不再把失败混成永久骨架。
+    return (
+      <div className="space-y-6">
+        {header}
+        {loading ? (
+          <div aria-busy="true">
+            <p className="sr-only" role="status">
+              正在加载统计数据…
+            </p>
+            <AdminSkeleton.Cards />
+            <div className="mt-4">
+              <AdminSkeleton.Chart />
+            </div>
+          </div>
+        ) : loadError ? (
+          <Card padding={5}>
+            <AdminEmptyState
+              icon={<AlertTriangle size={28} className="text-warning" />}
+              text="无法加载统计数据"
+              description={loadError}
+              action={
+                <Button onClick={() => load(range)} variant="secondary" size="sm" icon={RefreshCw}>
+                  重试
+                </Button>
+              }
+            />
+          </Card>
+        ) : (
+          <Card padding={5}>
+            <AdminEmptyState
+              icon={<AlertTriangle size={28} className="text-muted-soft" />}
+              text="暂无统计数据"
+              description="后端返回了空数据，请稍后重试或检查统计接口。"
+              action={
+                <Button onClick={() => load(range)} variant="secondary" size="sm" icon={RefreshCw}>
+                  重试
+                </Button>
+              }
+            />
+          </Card>
+        )}
+      </div>
+    );
   }
 
   const slice = range;
@@ -211,22 +277,23 @@ export default function AdminStatsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <AdminPageHeader
-        title="数据统计"
-        description="平台核心指标与趋势分析"
-        actions={
-          <Button
-            onClick={() => load(range)}
-            disabled={loading}
-            variant="secondary"
-            size="sm"
-            icon={RefreshCw}
-            className={loading ? "[&_svg]:animate-spin" : ""}
-          >
-            刷新
+      {header}
+
+      {/* 刷新失败但仍有上次数据：保留内容，顶部给出错误条 + 重试（A-03） */}
+      {loadError && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-error/30 bg-red-soft px-4 py-3 text-meta text-error-text"
+        >
+          <span className="flex items-center gap-2">
+            <AlertTriangle size={14} aria-hidden />
+            {loadError}（当前显示的是上次成功加载的数据）
+          </span>
+          <Button onClick={() => load(range)} variant="secondary" size="sm" icon={RefreshCw}>
+            重试
           </Button>
-        }
-      />
+        </div>
+      )}
 
       {/* KPI Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -248,7 +315,6 @@ export default function AdminStatsPage() {
           icon={Crown}
           label="Pro 用户"
           value={stats.pro_users.toLocaleString()}
-          delta={`${stats.redeems_today} 兑换`}
           tone="amber"
         />
         <KpiCard icon={Activity} label="实时在线" value={stats.online_now} tone="brand" />
@@ -403,7 +469,7 @@ export default function AdminStatsPage() {
                 ["注册用户", stats.funnel.registered, ct.series.brand],
                 ["观看视频", stats.funnel.watched, "#ff7a45"],
                 ["收藏词汇", stats.funnel.vocab_saved, ct.series.indigo],
-                ["兑换 Pro", stats.funnel.pro, ct.series.success],
+                ["开通 Pro", stats.funnel.pro, ct.series.success],
               ] as [string, number, string][]
             ).map(([label, value, color]) => {
               const pct = stats.funnel.registered

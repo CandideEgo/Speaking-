@@ -12,9 +12,9 @@ import {
   CreditCard,
   Cpu,
   Crown,
-  Flag,
   RefreshCw,
   ServerCog,
+  Settings,
   TrendingUp,
   UserPlus,
   Users,
@@ -85,7 +85,7 @@ function KpiCard({
       <div className="mt-1 flex items-center gap-2">
         <p className="text-meta text-muted">{label}</p>
         {delta && (
-          <span className="inline-flex items-center gap-0.5 text-meta font-medium text-success">
+          <span className="inline-flex items-center gap-0.5 text-meta font-medium text-success-text">
             <TrendingUp size={12} />
             {delta}
           </span>
@@ -112,7 +112,7 @@ function StatusBadge({ online }: { online: boolean | null }) {
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-meta font-medium",
-        online ? "bg-success-soft text-success" : "bg-error/10 text-error"
+        online ? "bg-success-soft text-success-text" : "bg-error/10 text-error-text"
       )}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", online ? "bg-success" : "bg-error")} />
@@ -160,20 +160,28 @@ export default function AdminDashboardPage() {
 
   if (!stats && error) {
     return (
-      <AdminEmptyState
-        text="加载概览失败"
-        description="无法获取运营数据，请检查网络后重试"
-        action={
-          <Button onClick={load} variant="secondary" size="sm" icon={RefreshCw}>
-            重试
-          </Button>
-        }
-      />
+      <div className="space-y-6">
+        <AdminPageHeader title="运营概览" description="实时掌握平台运行状态" />
+        <AdminEmptyState
+          text="加载概览失败"
+          description="无法获取运营数据，请检查网络后重试"
+          action={
+            <Button onClick={load} variant="secondary" size="sm" icon={RefreshCw}>
+              重试
+            </Button>
+          }
+        />
+      </div>
     );
   }
 
   if (loading || !stats) {
-    return <AdminSkeleton.Page />;
+    return (
+      <div className="space-y-6">
+        <AdminPageHeader title="运营概览" description="实时掌握平台运行状态" />
+        <AdminSkeleton.Page />
+      </div>
+    );
   }
 
   const pendingProcessing = ugc?.pending_processing ?? 0;
@@ -221,7 +229,6 @@ export default function AdminDashboardPage() {
           icon={Crown}
           label="Pro 用户"
           value={stats.pro_users.toLocaleString()}
-          delta={`${stats.redeems_today} 兑换`}
           tone="amber"
         />
         <KpiCard
@@ -271,7 +278,7 @@ export default function AdminDashboardPage() {
                 <span
                   className={cn(
                     "text-copy font-medium",
-                    stats.gpu_queue_depth > 0 ? "text-warning" : "text-muted"
+                    stats.gpu_queue_depth > 0 ? "text-warning-text" : "text-muted"
                   )}
                 >
                   {stats.gpu_queue_depth} 任务
@@ -285,7 +292,7 @@ export default function AdminDashboardPage() {
                 <span
                   className={cn(
                     "text-copy font-medium",
-                    stats.videos_error_count > 0 ? "text-error" : "text-muted"
+                    stats.videos_error_count > 0 ? "text-error-text" : "text-muted"
                   )}
                 >
                   {stats.videos_error_count}
@@ -323,9 +330,9 @@ export default function AdminDashboardPage() {
           {[
             { href: "/admin/videos", label: "视频管理", icon: Video },
             { href: "/admin/users", label: "用户管理", icon: Users },
-            { href: "/admin/orders", label: "订单管理", icon: CreditCard },
-            { href: "/admin/invites", label: "兑换码", icon: Flag },
+            { href: "/admin/payments", label: "付费记录", icon: CreditCard },
             { href: "/admin/stats", label: "数据统计", icon: TrendingUp },
+            { href: "/admin/settings", label: "系统设置", icon: Settings },
           ].map((item) => (
             <Link
               key={item.href}

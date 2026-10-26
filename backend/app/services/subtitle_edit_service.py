@@ -1,12 +1,15 @@
 """Subtitle editing service — CRUD for subtitle rows and word-level annotations."""
 
+import uuid
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
-from app.core.errors import BadRequestError, NotFoundError
+from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.models.subtitle_revision import AUDITED_FIELDS, SubtitleRevision
 from app.schemas.pagination import paginated
 from app.schemas.video import (
@@ -319,6 +322,22 @@ async def reorder_subtitles(
     return [SubtitleResponse.model_validate(s) for s in ordered]
 
 
+async def lock_video_row(db: AsyncSession, video_id: str) -> None:
+    """Serialize subtitle-index allocation by locking the owning video row.
+
+    ``create_subtitle`` derives ``sentence_index`` from ``max(index) + 1``; two
+    concurrent appends would read the same max and insert two rows with the
+    same index (``sentence_index`` has no unique constraint, so nothing else
+    stops it — only ordering in the editor breaks). ``SELECT ... FOR UPDATE``
+    on the parent video row makes the read-allocate-insert sequence atomic in
+    Postgres; SQLite (the test DB) ignores the clause, which is why the lock is
+    also asserted structurally in the tests rather than by racing two writers.
+    """
+    from app.models.video import Video
+
+    await db.execute(select(Video.id).where(Video.id == video_id).with_for_update())
+
+
 async def create_subtitle(
     db: AsyncSession,
     video_id: str,
@@ -332,9 +351,14 @@ async def create_subtitle(
     The English text may be empty (a placeholder the admin fills in); when
     present, word_levels are derived from ECDICT. Timing is validated against
     existing rows (non-overlap) before commit.
+
+    The index allocation is serialized with ``lock_video_row`` (ADM-14) so
+    concurrent appends cannot produce duplicate indices.
     """
     from app.models.subtitle import Subtitle
     from app.services.ecdict import annotate_text
+
+    await lock_video_row(db, video_id)
 
     last_q = select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index.desc()).limit(1)
     last = (await db.execute(last_q)).scalar_one_or_none()
@@ -369,16 +393,28 @@ async def delete_subtitle(
     subtitle_id: str,
     *,
     edited_by: str | None = None,
+    force: bool = False,
 ) -> dict:
     """Delete one subtitle and close the gap in ``sentence_index``.
 
     Subtitles after the deleted row shift down by one so indices stay
     contiguous. Deleting never creates overlaps (gaps are allowed), so no
-    timing re-validation is needed. Returns ``{deleted_id, remaining_count}``.
-    """
-    from sqlalchemy import update
+    timing re-validation is needed.
 
+    ADM-01: the same DB cascades that made bulk re-segmentation lossy apply
+    here too —
+    ``sentence_favorites`` / ``subtitle_revisions`` cascade-delete and
+    ``vocabulary.subtitle_id`` is set null. A plain delete therefore answers
+    409 with the affected counts; the caller must pass ``force=True`` to accept
+    losing them. The cascades are executed explicitly (not left to the DB) so
+    the behaviour is identical on Postgres and the SQLite test DB.
+
+    Returns ``{deleted_id, remaining_count, favorites_deleted, revisions_deleted,
+    forced}``.
+    """
+    from app.models.learning import Vocabulary
     from app.models.subtitle import Subtitle
+    from app.models.user_content import SentenceFavorite
 
     result = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
     sub = result.scalar_one_or_none()
@@ -386,6 +422,36 @@ async def delete_subtitle(
         raise NotFoundError("Subtitle not found")
     if sub.video_id != video_id:
         raise BadRequestError("Subtitle does not belong to this video")
+
+    favorites = (
+        await db.scalar(
+            select(func.count()).select_from(SentenceFavorite).where(SentenceFavorite.subtitle_id == subtitle_id)
+        )
+    ) or 0
+    revisions = (
+        await db.scalar(
+            select(func.count()).select_from(SubtitleRevision).where(SubtitleRevision.subtitle_id == subtitle_id)
+        )
+    ) or 0
+
+    if (favorites or revisions) and not force:
+        raise ConflictError(
+            f"删除该字幕会一并清除 {favorites} 条用户原句收藏、{revisions} 条编辑历史；"
+            f"确认无影响后请带 ?force=true 重试",
+            detail={
+                "subtitle_id": subtitle_id,
+                "affected_favorites": favorites,
+                "affected_revisions": revisions,
+            },
+        )
+
+    if favorites:
+        await db.execute(delete(SentenceFavorite).where(SentenceFavorite.subtitle_id == subtitle_id))
+    if revisions:
+        await db.execute(delete(SubtitleRevision).where(SubtitleRevision.subtitle_id == subtitle_id))
+    # Mirror the DB's ON DELETE SET NULL so the vocabulary row never keeps a
+    # dangling subtitle id on a backend that does not enforce FKs (SQLite).
+    await db.execute(update(Vocabulary).where(Vocabulary.subtitle_id == subtitle_id).values(subtitle_id=None))
 
     deleted_index = sub.sentence_index
     await db.delete(sub)
@@ -405,7 +471,13 @@ async def delete_subtitle(
 
     count_q = select(Subtitle).where(Subtitle.video_id == video_id)
     remaining = len((await db.execute(count_q)).scalars().all())
-    return {"deleted_id": subtitle_id, "remaining_count": remaining}
+    return {
+        "deleted_id": subtitle_id,
+        "remaining_count": remaining,
+        "favorites_deleted": favorites,
+        "revisions_deleted": revisions,
+        "forced": force,
+    }
 
 
 async def split_subtitle(
@@ -657,6 +729,19 @@ async def rollback_subtitle(
     for field, old_value in revision.before.items():
         setattr(subtitle, field, old_value)
 
+    # ADM-13: every other write path validates timing; rollback was the one
+    # gap. If a neighbor moved since the original edit, restoring the old
+    # start/end can overlap it — which would silently corrupt the timeline for
+    # playback and make later edits fail validation. Roll the transaction back
+    # (no partial state) and answer 409 with guidance instead.
+    try:
+        await _validate_timing(db, video_id, subtitle)
+    except BadRequestError as exc:
+        await db.rollback()
+        raise ConflictError(
+            f"回滚后的时间轴与相邻字幕冲突，已取消回滚：{exc.message}。请先修正相邻字幕时间后重试"
+        ) from exc
+
     after_snap = _snapshot(subtitle)
 
     scope = await _determine_edit_scope(db, video_id)
@@ -677,7 +762,11 @@ async def list_subtitle_revisions(
 ) -> dict:
     """List subtitle edit revisions for a video (optionally filtered to one subtitle).
 
-    Returns the standard paginated envelope (items/page/page_size/has_more), newest first.
+    Returns the standard paginated envelope (items/page/page_size/has_more/total),
+    newest first. ``total`` (ADM-10) is the full filtered count so the admin UI
+    can render "共 N 条" instead of only "has more". Ordering adds ``id`` as a
+    tiebreaker so equal ``created_at`` timestamps (batch imports / bulk edits in
+    the same second) cannot make rows repeat or vanish across pages.
     """
     from app.models.subtitle_revision import SubtitleRevision
 
@@ -685,10 +774,19 @@ async def list_subtitle_revisions(
     page_size = max(1, min(page_size, 200))
     offset = (page - 1) * page_size
 
-    stmt = select(SubtitleRevision).where(SubtitleRevision.video_id == video_id)
+    filters = [SubtitleRevision.video_id == video_id]
     if subtitle_id is not None:
-        stmt = stmt.where(SubtitleRevision.subtitle_id == subtitle_id)
-    stmt = stmt.order_by(SubtitleRevision.created_at.desc()).offset(offset).limit(page_size + 1)
+        filters.append(SubtitleRevision.subtitle_id == subtitle_id)
+
+    total = (await db.scalar(select(func.count()).select_from(SubtitleRevision).where(*filters))) or 0
+
+    stmt = (
+        select(SubtitleRevision)
+        .where(*filters)
+        .order_by(SubtitleRevision.created_at.desc(), SubtitleRevision.id.desc())
+        .offset(offset)
+        .limit(page_size + 1)
+    )
 
     result = await db.execute(stmt)
     rows = result.scalars().all()
@@ -699,6 +797,7 @@ async def list_subtitle_revisions(
         [_revision_to_dict(r) for r in items],
         page=page,
         page_size=page_size,
+        total=total,
         has_more=has_more,
     )
 
@@ -777,20 +876,389 @@ def _resegment_segments(subs: list) -> list[dict]:
     ]
 
 
+# ---------------------------------------------------------------------------
+# User-data preservation across wholesale subtitle replacement (ADM-01)
+# ---------------------------------------------------------------------------
+#
+# Re-segmenting (and rolling back) replaces every subtitle row with new ids.
+# Three user-owned things hang off ``subtitles.id`` and used to be destroyed by
+# the DB cascades without a trace:
+#
+#   * ``sentence_favorites.subtitle_id``     ON DELETE CASCADE  → user收藏消失
+#   * ``subtitle_revisions.subtitle_id``     ON DELETE CASCADE  → 编辑历史归零
+#   * ``vocabulary.subtitle_id``             ON DELETE SET NULL → 来源句断链
+#
+# The helpers below capture those rows before the swap, re-attach them to new
+# rows by time overlap, and mirror the cascades explicitly for whatever could
+# not be mapped (so the behaviour is the same on Postgres and on the SQLite
+# test DB). Rows that cannot be mapped are also serialised into the snapshot
+# JSON (``user_data.lost``) so a rollback can restore them.
+
+
+def _subtitle_snapshot_dict(sub) -> dict:
+    """Serialisable copy of one subtitle row for the re-segment snapshot."""
+    return {
+        "id": sub.id,
+        "start_time": sub.start_time,
+        "end_time": sub.end_time,
+        "text_en": sub.text_en,
+        "text_zh": sub.text_zh,
+        "sentence_index": sub.sentence_index,
+        "words": sub.words,
+        "grammar_note": sub.grammar_note,
+        "speaker": sub.speaker,
+        "word_levels": sub.word_levels,
+    }
+
+
+def _segment_bounds(seg: dict) -> tuple[float, float]:
+    """``(start, end)`` of a segment.
+
+    Accepts the re-cut segments (``start`` / ``end``) and the snapshot rows
+    (``start_time`` / ``end_time``) so the same mapper serves both directions.
+    """
+    if "start" in seg:
+        return float(seg["start"]), float(seg["end"])
+    return float(seg["start_time"]), float(seg["end_time"])
+
+
+def _map_interval_to_segment(start: float, end: float, segments: list[dict]) -> int | None:
+    """Index of the segment that best preserves the interval ``[start, end)``.
+
+    Resolution order (the audit's suggested mapping):
+
+    1. the segment whose ``[seg_start, seg_end)`` contains the old start time —
+       when several do (nested/boundary cases), the shortest wins;
+    2. otherwise the segment with the largest positive time overlap;
+    3. ``None`` when nothing overlaps — the caller keeps the row in the snapshot
+       payload instead of deleting it silently.
+    """
+    containing: list[tuple[int, float]] = []
+    best_index: int | None = None
+    best_overlap = 0.0
+    for index, seg in enumerate(segments):
+        seg_start, seg_end = _segment_bounds(seg)
+        if seg_start <= start < seg_end:
+            containing.append((index, seg_end - seg_start))
+        overlap = min(end, seg_end) - max(start, seg_start)
+        if overlap > best_overlap + 1e-9:
+            best_overlap = overlap
+            best_index = index
+    if containing:
+        return min(containing, key=lambda item: item[1])[0]
+    return best_index
+
+
+@dataclass
+class _UserDataCapture:
+    """Rows tied to subtitle ids that are about to be replaced (as plain dicts)."""
+
+    favorites: list[dict] = dc_field(default_factory=list)
+    revisions: list[dict] = dc_field(default_factory=list)
+    vocabulary: list[dict] = dc_field(default_factory=list)
+
+
+@dataclass
+class _RemapPlan:
+    """How captured rows will be re-attached to the new subtitle ids."""
+
+    # new_subtitle_id -> [row ids to UPDATE]
+    favorites_move: dict[str, list[str]] = dc_field(default_factory=dict)
+    revisions_move: dict[str, list[str]] = dc_field(default_factory=dict)
+    vocabulary_move: dict[str, list[str]] = dc_field(default_factory=dict)
+    # Rows that could not be attached to any new segment (kept in the snapshot).
+    favorites_unmatched: list[dict] = dc_field(default_factory=list)
+    revisions_unmatched: list[dict] = dc_field(default_factory=list)
+    vocabulary_unmatched: list[dict] = dc_field(default_factory=list)
+    # Favorites collapsed by the ``(user, subtitle)`` uniqueness rule (they are
+    # not lost — only the duplicate row is; it is kept in the snapshot too).
+    favorites_merged: list[dict] = dc_field(default_factory=list)
+
+
+async def _capture_subtitle_user_data(db: AsyncSession, video_id: str, subtitle_ids: list[str]) -> _UserDataCapture:
+    """Snapshot favorites / revision history / vocabulary links before the swap."""
+    from app.models.learning import Vocabulary
+    from app.models.user_content import SentenceFavorite
+
+    capture = _UserDataCapture()
+    if not subtitle_ids:
+        return capture
+    id_set = set(subtitle_ids)
+
+    favorites = (
+        (await db.execute(select(SentenceFavorite).where(SentenceFavorite.subtitle_id.in_(subtitle_ids))))
+        .scalars()
+        .all()
+    )
+    capture.favorites = [
+        {
+            "id": row.id,
+            "user_id": row.user_id,
+            "subtitle_id": row.subtitle_id,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in favorites
+    ]
+
+    revisions = (
+        (await db.execute(select(SubtitleRevision).where(SubtitleRevision.video_id == video_id))).scalars().all()
+    )
+    capture.revisions = [
+        {
+            "id": row.id,
+            "subtitle_id": row.subtitle_id,
+            "video_id": row.video_id,
+            "edited_by": row.edited_by,
+            "scope": row.scope,
+            "before": row.before,
+            "after": row.after,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in revisions
+        if row.subtitle_id in id_set
+    ]
+
+    vocabulary = (await db.execute(select(Vocabulary).where(Vocabulary.subtitle_id.in_(subtitle_ids)))).scalars().all()
+    capture.vocabulary = [{"id": row.id, "user_id": row.user_id, "subtitle_id": row.subtitle_id} for row in vocabulary]
+    return capture
+
+
+def _build_remap_plan(capture: _UserDataCapture, id_by_old: dict[str, str | None]) -> _RemapPlan:
+    """Decide the new owner of every captured row (pure: no DB access)."""
+    plan = _RemapPlan()
+
+    seen_favorites: set[tuple[str, str]] = set()
+    for row in capture.favorites:
+        new_id = id_by_old.get(row["subtitle_id"])
+        if new_id is None:
+            plan.favorites_unmatched.append(row)
+            continue
+        key = (row["user_id"], new_id)
+        if key in seen_favorites:
+            plan.favorites_merged.append(row)
+            continue
+        seen_favorites.add(key)
+        plan.favorites_move.setdefault(new_id, []).append(row["id"])
+
+    for row in capture.revisions:
+        new_id = id_by_old.get(row["subtitle_id"])
+        if new_id is None:
+            plan.revisions_unmatched.append(row)
+        else:
+            plan.revisions_move.setdefault(new_id, []).append(row["id"])
+
+    for row in capture.vocabulary:
+        new_id = id_by_old.get(row["subtitle_id"])
+        if new_id is None:
+            plan.vocabulary_unmatched.append(row)
+        else:
+            plan.vocabulary_move.setdefault(new_id, []).append(row["id"])
+
+    return plan
+
+
+def _remap_counts(plan: _RemapPlan) -> dict[str, int]:
+    return {
+        "favorites_remapped": sum(len(ids) for ids in plan.favorites_move.values()),
+        "favorites_merged": len(plan.favorites_merged),
+        "favorites_unmatched": len(plan.favorites_unmatched),
+        "revisions_preserved": sum(len(ids) for ids in plan.revisions_move.values()),
+        "revisions_unmatched": len(plan.revisions_unmatched),
+        "vocabulary_relinked": sum(len(ids) for ids in plan.vocabulary_move.values()),
+        "vocabulary_unmatched": len(plan.vocabulary_unmatched),
+    }
+
+
+async def _apply_remap_plan(db: AsyncSession, plan: _RemapPlan) -> None:
+    """Point the captured rows at their new subtitle ids (before old rows die)."""
+    from app.models.learning import Vocabulary
+    from app.models.user_content import SentenceFavorite
+
+    for new_id, ids in plan.favorites_move.items():
+        await db.execute(update(SentenceFavorite).where(SentenceFavorite.id.in_(ids)).values(subtitle_id=new_id))
+    for new_id, ids in plan.revisions_move.items():
+        await db.execute(update(SubtitleRevision).where(SubtitleRevision.id.in_(ids)).values(subtitle_id=new_id))
+    for new_id, ids in plan.vocabulary_move.items():
+        await db.execute(update(Vocabulary).where(Vocabulary.id.in_(ids)).values(subtitle_id=new_id))
+
+
+async def _drop_user_data_for_removed_subtitles(db: AsyncSession, subtitle_ids: list[str]) -> None:
+    """Mirror the DB cascades explicitly for subtitles that are about to go.
+
+    Postgres applies these itself (CASCADE / SET NULL), but the SQLite test DB
+    does not enforce foreign keys — doing the statements ourselves keeps
+    production and tests on one behaviour and makes the lossy part explicit
+    (rows that were not remapped are deleted / unlinked here, and recorded in
+    the snapshot by the caller).
+    """
+    from app.models.learning import Vocabulary
+    from app.models.user_content import SentenceFavorite
+
+    if not subtitle_ids:
+        return
+    await db.execute(delete(SentenceFavorite).where(SentenceFavorite.subtitle_id.in_(subtitle_ids)))
+    await db.execute(delete(SubtitleRevision).where(SubtitleRevision.subtitle_id.in_(subtitle_ids)))
+    await db.execute(update(Vocabulary).where(Vocabulary.subtitle_id.in_(subtitle_ids)).values(subtitle_id=None))
+
+
+def _snapshot_payload(
+    segments: list[dict],
+    id_by_old: dict[str, str | None],
+    capture: _UserDataCapture,
+    plan: _RemapPlan,
+) -> dict:
+    """Snapshot JSON: restorable segments + mapping + the user rows involved.
+
+    v2 shape (dict). v1 snapshots are plain lists; ``_parse_snapshot_payload``
+    accepts both so existing rows stay rollback-able. ``user_data.lost`` keeps
+    every row that could not be remapped (unmatched + collapsed duplicates), so
+    a rollback can put it back on the restored subtitle.
+    """
+    return {
+        "version": 2,
+        "segments": segments,
+        "mapping": {old_id: new_id for old_id, new_id in id_by_old.items()},
+        "user_data": {
+            "captured": {
+                "favorites": capture.favorites,
+                "revisions": capture.revisions,
+                "vocabulary": capture.vocabulary,
+            },
+            "lost": {
+                "favorites": plan.favorites_unmatched + plan.favorites_merged,
+                "revisions": plan.revisions_unmatched,
+                "vocabulary": plan.vocabulary_unmatched,
+            },
+        },
+    }
+
+
+def _parse_snapshot_payload(raw) -> tuple[list[dict], dict]:
+    """Normalise a snapshot's ``segments_json`` into ``(segments, metadata)``.
+
+    Handles both the v2 dict shape written above and the v1 plain-list shape
+    written before ADM-01; the latter simply has no preservation metadata.
+    """
+    if isinstance(raw, dict) and "segments" in raw:
+        return list(raw.get("segments") or []), raw
+    return list(raw or []), {}
+
+
+async def _restore_lost_user_data(db: AsyncSession, lost: dict, restored_id_by_old: dict[str, str]) -> dict[str, int]:
+    """Re-insert rows the original re-segmentation could not map.
+
+    ``lost`` holds rows keyed by their ORIGINAL subtitle id; the caller passes
+    the original-id → restored-row-id map. Only rows whose original subtitle is
+    part of this snapshot can be restored; the rest stay in the snapshot JSON.
+    """
+    from app.models.learning import Vocabulary
+    from app.models.user_content import SentenceFavorite
+
+    restored = {"favorites": 0, "revisions": 0, "vocabulary": 0}
+
+    favorite_rows = [row for row in lost.get("favorites", []) if restored_id_by_old.get(str(row.get("subtitle_id")))]
+    if favorite_rows:
+        target_ids = {restored_id_by_old[row["subtitle_id"]] for row in favorite_rows}
+        existing_rows = (
+            await db.execute(
+                select(SentenceFavorite.user_id, SentenceFavorite.subtitle_id).where(
+                    SentenceFavorite.subtitle_id.in_(target_ids)
+                )
+            )
+        ).all()
+        existing: set[tuple[str, str]] = {(row[0], row[1]) for row in existing_rows}
+        for row in favorite_rows:
+            favorite_new_id = restored_id_by_old[row["subtitle_id"]]
+            key = (row["user_id"], favorite_new_id)
+            if key in existing:
+                continue
+            db.add(
+                SentenceFavorite(
+                    id=row["id"],
+                    user_id=row["user_id"],
+                    subtitle_id=favorite_new_id,
+                    created_at=_parse_snapshot_dt(row.get("created_at")),
+                )
+            )
+            existing.add(key)
+            restored["favorites"] += 1
+
+    revision_rows = [row for row in lost.get("revisions", []) if restored_id_by_old.get(str(row.get("subtitle_id")))]
+    if revision_rows:
+        existing_ids = set(
+            (
+                await db.execute(
+                    select(SubtitleRevision.id).where(SubtitleRevision.id.in_([row["id"] for row in revision_rows]))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for row in revision_rows:
+            if row["id"] in existing_ids:
+                continue
+            db.add(
+                SubtitleRevision(
+                    id=row["id"],
+                    subtitle_id=restored_id_by_old[row["subtitle_id"]],
+                    video_id=row.get("video_id"),
+                    edited_by=row.get("edited_by"),
+                    scope=row.get("scope") or "fork",
+                    before=row.get("before") or {},
+                    after=row.get("after") or {},
+                    created_at=_parse_snapshot_dt(row.get("created_at")),
+                )
+            )
+            existing_ids.add(row["id"])
+            restored["revisions"] += 1
+
+    for row in lost.get("vocabulary", []):
+        vocabulary_new_id = restored_id_by_old.get(str(row.get("subtitle_id")))
+        if vocabulary_new_id is None:
+            continue
+        result = await db.execute(
+            update(Vocabulary)
+            .where(Vocabulary.id == row["id"], Vocabulary.subtitle_id.is_(None))
+            .values(subtitle_id=vocabulary_new_id)
+        )
+        # ``rowcount`` may be -1 when the driver does not report it; clamp so
+        # the counter can never go negative.
+        restored["vocabulary"] += max(0, int(getattr(result, "rowcount", 0) or 0))
+
+    return restored
+
+
+def _parse_snapshot_dt(value: str | None) -> datetime:
+    """Parse an ISO timestamp stored in the snapshot (falls back to now)."""
+    if value:
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            pass
+    return datetime.now(UTC)
+
+
 async def resegment_video(
     db: AsyncSession,
     video_id: str,
     *,
     edited_by: str | None = None,
 ) -> dict:
-    """Re-segment every subtitle of a video.
+    """Re-segment every subtitle of a video while preserving user data (ADM-01).
 
     Snapshots the current subtitles (so the change is reversible), re-cuts
     them into proper sentences, and replaces the rows. Translations (text_zh)
     are dropped because the English segmentation changed — the admin can
     re-trigger translation afterwards.
 
-    Returns ``{before_count, after_count, translations_cleared, snapshot_id}``.
+    Sentence favorites, edit revisions and vocabulary source links are captured
+    before the swap and re-attached to the new segments by time overlap (see the
+    helpers above); the response reports exactly what happened. Nothing is
+    dropped silently: unmappable rows are kept inside the snapshot JSON
+    (``user_data.lost``) and restored by ``rollback_resegment``.
+
+    Returns the ``ResegmentResult`` payload: ``{before_count, after_count,
+    translations_cleared, snapshot_id, favorites_*, revisions_*, vocabulary_*}``.
     """
     from app.models.subtitle import Subtitle
     from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
@@ -801,58 +1269,74 @@ async def resegment_video(
     if not subs:
         raise BadRequestError("视频没有字幕，无法重断句")
 
-    snapshot = SubtitleResegmentSnapshot(
-        video_id=video_id,
-        segments_json=[
-            {
-                "start_time": s.start_time,
-                "end_time": s.end_time,
-                "text_en": s.text_en,
-                "text_zh": s.text_zh,
-                "sentence_index": s.sentence_index,
-                "words": s.words,
-                "grammar_note": s.grammar_note,
-                "speaker": s.speaker,
-                "word_levels": s.word_levels,
-            }
-            for s in subs
-        ],
-        before_count=len(subs),
-        applied_by=edited_by,
-    )
-    db.add(snapshot)
-
     new_segs = _resegment_segments(subs)
     if not new_segs:
         raise BadRequestError("重断句失败：无法从现有字幕生成新分段")
 
-    for s in subs:
-        await db.delete(s)
+    old_ids = [s.id for s in subs]
+    capture = await _capture_subtitle_user_data(db, video_id, old_ids)
+
+    # Pre-generate ids so user data can be re-pointed before anything is
+    # flushed: no need to read generated defaults back from the DB.
+    new_rows = [
+        Subtitle(
+            id=str(uuid.uuid4()),
+            video_id=video_id,
+            start_time=seg["start"],
+            end_time=seg["end"],
+            text_en=seg["text"],
+            text_zh=None,  # translations cleared — segmentation changed
+            sentence_index=index,
+            words=seg.get("words"),
+            word_levels=annotate_text(seg["text"]) or None,
+        )
+        for index, seg in enumerate(new_segs)
+    ]
+
+    id_by_old: dict[str, str | None] = {}
+    for old in subs:
+        index = _map_interval_to_segment(old.start_time, old.end_time, new_segs)
+        id_by_old[old.id] = new_rows[index].id if index is not None else None
+
+    plan = _build_remap_plan(capture, id_by_old)
+
+    snapshot = SubtitleResegmentSnapshot(
+        video_id=video_id,
+        segments_json=_snapshot_payload(
+            [_subtitle_snapshot_dict(s) for s in subs],
+            id_by_old,
+            capture,
+            plan,
+        ),
+        before_count=len(subs),
+        applied_by=edited_by,
+    )
+    db.add(snapshot)
+    for row in new_rows:
+        db.add(row)
+    await db.flush()  # new rows exist → the remap UPDATEs satisfy the FKs
+
+    await _apply_remap_plan(db, plan)
     await db.flush()
 
-    for i, seg in enumerate(new_segs):
-        levels = annotate_text(seg["text"])
-        db.add(
-            Subtitle(
-                video_id=video_id,
-                start_time=seg["start"],
-                end_time=seg["end"],
-                text_en=seg["text"],
-                text_zh=None,  # translations cleared — segmentation changed
-                sentence_index=i,
-                words=seg.get("words"),
-                word_levels=levels or None,
-            )
-        )
+    await _drop_user_data_for_removed_subtitles(db, old_ids)
+    for old in subs:
+        await db.delete(old)
+    await db.flush()
 
-    snapshot.after_count = len(new_segs)
+    snapshot.after_count = len(new_rows)
     await db.commit()
     await invalidate_video_detail_cache(video_id)
+
     return {
         "before_count": len(subs),
-        "after_count": len(new_segs),
+        "after_count": len(new_rows),
         "translations_cleared": True,
         "snapshot_id": snapshot.id,
+        "favorites_total": len(capture.favorites),
+        "revisions_total": len(capture.revisions),
+        "vocabulary_total": len(capture.vocabulary),
+        **_remap_counts(plan),
     }
 
 
@@ -862,10 +1346,14 @@ async def rollback_resegment(
     *,
     edited_by: str | None = None,
 ) -> dict:
-    """Restore subtitles from the latest re-segment snapshot.
+    """Restore subtitles from the latest re-segment snapshot (ADM-01 reverse).
 
     Deletes the current (re-segmented) subtitles and re-inserts the snapshotted
-    rows, including their translations. The snapshot is marked rolled back.
+    rows, including their translations. User data attached to the current rows
+    is re-mapped back onto the restored rows by time overlap (same helper as the
+    forward direction), and rows that the original re-segmentation had to drop
+    are re-inserted from the snapshot payload. The snapshot is marked rolled
+    back, so the mapping is never applied twice.
     """
     from app.models.subtitle import Subtitle
     from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
@@ -883,29 +1371,75 @@ async def rollback_resegment(
     if snapshot is None:
         raise BadRequestError("没有可回滚的重断句快照")
 
-    cur_result = await db.execute(select(Subtitle).where(Subtitle.video_id == video_id))
-    for s in cur_result.scalars().all():
-        await db.delete(s)
+    segments, meta = _parse_snapshot_payload(snapshot.segments_json)
+    if not segments:
+        raise BadRequestError("重断句快照为空，无法回滚")
+
+    cur_rows = list(
+        (await db.execute(select(Subtitle).where(Subtitle.video_id == video_id).order_by(Subtitle.sentence_index)))
+        .scalars()
+        .all()
+    )
+    cur_ids = [row.id for row in cur_rows]
+    capture = await _capture_subtitle_user_data(db, video_id, cur_ids)
+
+    restored_rows = [
+        Subtitle(
+            id=str(uuid.uuid4()),
+            video_id=video_id,
+            start_time=seg["start_time"],
+            end_time=seg["end_time"],
+            text_en=seg["text_en"],
+            text_zh=seg.get("text_zh"),
+            sentence_index=seg["sentence_index"],
+            words=seg.get("words"),
+            grammar_note=seg.get("grammar_note"),
+            speaker=seg.get("speaker"),
+            word_levels=seg.get("word_levels"),
+        )
+        for seg in segments
+    ]
+    id_by_cur: dict[str, str | None] = {}
+    for row in cur_rows:
+        index = _map_interval_to_segment(row.start_time, row.end_time, segments)
+        id_by_cur[row.id] = restored_rows[index].id if index is not None else None
+    plan = _build_remap_plan(capture, id_by_cur)
+    # Original (snapshot-time) subtitle id → the row it is being restored as.
+    restored_id_by_old = {seg["id"]: row.id for seg, row in zip(segments, restored_rows, strict=False) if seg.get("id")}
+
+    for row in restored_rows:
+        db.add(row)
+    await db.flush()  # restored rows exist → the remap UPDATEs satisfy the FKs
+
+    await _apply_remap_plan(db, plan)
     await db.flush()
 
-    for seg in snapshot.segments_json:
-        db.add(
-            Subtitle(
-                video_id=video_id,
-                start_time=seg["start_time"],
-                end_time=seg["end_time"],
-                text_en=seg["text_en"],
-                text_zh=seg.get("text_zh"),
-                sentence_index=seg["sentence_index"],
-                words=seg.get("words"),
-                grammar_note=seg.get("grammar_note"),
-                speaker=seg.get("speaker"),
-                word_levels=seg.get("word_levels"),
-            )
-        )
+    # Rows the forward re-segmentation could not map are not attached to any
+    # current subtitle; bring them back from the snapshot payload.
+    lost = (meta.get("user_data") or {}).get("lost") or {}
+    lost_counts = await _restore_lost_user_data(db, lost, restored_id_by_old)
+
+    await _drop_user_data_for_removed_subtitles(db, cur_ids)
+    for row in cur_rows:
+        await db.delete(row)
+    await db.flush()
 
     snapshot.rolled_back = True
     snapshot.rolled_back_at = datetime.now(UTC)
     await db.commit()
     await invalidate_video_detail_cache(video_id)
-    return {"restored_count": len(snapshot.segments_json), "snapshot_id": snapshot.id}
+
+    counts = _remap_counts(plan)
+    return {
+        "restored_count": len(restored_rows),
+        "snapshot_id": snapshot.id,
+        "favorites_remapped": counts["favorites_remapped"],
+        "favorites_unmatched": counts["favorites_unmatched"],
+        "favorites_restored_from_snapshot": lost_counts["favorites"],
+        "revisions_preserved": counts["revisions_preserved"],
+        "revisions_unmatched": counts["revisions_unmatched"],
+        "revisions_restored_from_snapshot": lost_counts["revisions"],
+        "vocabulary_relinked": counts["vocabulary_relinked"],
+        "vocabulary_unmatched": counts["vocabulary_unmatched"],
+        "vocabulary_restored_from_snapshot": lost_counts["vocabulary"],
+    }

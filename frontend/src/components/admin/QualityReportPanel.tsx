@@ -52,7 +52,7 @@ function ReportRow({ r }: { r: QualityReport }) {
         <span
           className={cn(
             "text-meta font-medium px-2 py-0.5 rounded-pill",
-            passed ? "bg-success/15 text-success" : "bg-error/15 text-error"
+            passed ? "bg-success/15 text-success-text" : "bg-error/15 text-error-text"
           )}
         >
           {passed ? "通过" : "未通过"}
@@ -76,7 +76,7 @@ function ReportRow({ r }: { r: QualityReport }) {
       </div>
 
       {r.issues && r.issues.length > 0 && (
-        <div className="mt-2 flex items-start gap-1.5 text-meta text-error">
+        <div className="mt-2 flex items-start gap-1.5 text-meta text-error-text">
           <AlertTriangle size={12} className="mt-0.5 flex-shrink-0" />
           <div className="space-y-0.5">
             {r.issues.map((iss, i) => (
@@ -169,7 +169,7 @@ export function QualityReportPanel({ videoId }: { videoId: string }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-copy font-medium text-ink">换引擎重翻译：</span>
           {blocked && (
-            <span className="text-meta text-warning flex items-center gap-1">
+            <span className="text-meta text-warning-text flex items-center gap-1">
               <AlertTriangle size={12} />
               存在未通过的质量检查
             </span>
