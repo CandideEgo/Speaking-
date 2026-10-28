@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { ArrowLeft, Radio } from "lucide-react";
+import { ArrowLeft, Play, Radio } from "lucide-react";
 import { ChannelStartCard, type ChannelStartBasis } from "@/components/channels/ChannelStartCard";
 import { ChannelSubscribeButton } from "@/components/channels/ChannelSubscribeButton";
 import { ChannelVideoRow } from "@/components/channels/ChannelVideoRow";
@@ -299,7 +299,8 @@ export default function ChannelDetailPage() {
   if (channel?.total_view_count != null) {
     headerFacts.push({
       key: "views",
-      label: `${formatCount(channel.total_view_count)} 次本站播放`,
+      label: formatCount(channel.total_view_count),
+      title: "本站播放完成次数",
     });
   }
   if (channel?.recent_video_count && channel.recent_video_count > 0) {
@@ -413,9 +414,13 @@ export default function ChannelDetailPage() {
                         <span
                           key={fact.key}
                           title={fact.title}
+                          aria-label={
+                            fact.key === "views" ? `本站播放 ${fact.label} 次` : undefined
+                          }
                           className="inline-flex items-center gap-2 whitespace-nowrap"
                         >
                           {index > 0 && <FactSeparator />}
+                          {fact.key === "views" && <Play size={13} aria-hidden />}
                           {fact.label}
                         </span>
                       ))}

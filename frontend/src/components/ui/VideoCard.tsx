@@ -130,7 +130,10 @@ export function VideoCard({
         href={watchHref(videoId, entry)}
         onClick={() => trackClick(videoId, clickSource())}
         padding={0}
-        className={cn("group min-w-0 border-0 bg-transparent transition-none", className)}
+        className={cn(
+          "video-poster group min-w-0 border-0 bg-transparent transition-none",
+          className
+        )}
       >
         <div className="relative aspect-video overflow-hidden rounded-md bg-surface-card">
           <Image
@@ -166,7 +169,7 @@ export function VideoCard({
           )}
         </div>
 
-        <div className="min-w-0 pt-2.5">
+        <div className="video-poster-copy min-w-0 pt-2.5">
           <p className="flex min-w-0 items-center gap-1.5 text-caption text-muted">
             {channelName && (
               <span
@@ -197,7 +200,7 @@ export function VideoCard({
           </p>
           <p
             lang="en"
-            className="mt-1 line-clamp-2 text-copy font-semibold leading-snug tracking-tight text-ink transition-colors group-hover:text-brand-700"
+            className="video-poster-title mt-1 line-clamp-2 text-copy font-semibold leading-snug tracking-tight text-ink transition-colors group-hover:text-brand-700"
             title={video.title}
           >
             {video.title}

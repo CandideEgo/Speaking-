@@ -100,6 +100,8 @@ function homeVideoToItem(v: VideoCard): VideoItem {
     status: v.status,
     storage_mode: v.storage_mode,
     created_at: v.created_at,
+    upload_date: v.upload_date,
+    published_at: v.published_at,
   };
 }
 

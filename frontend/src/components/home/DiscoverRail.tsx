@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CirclePlay, Flame } from "lucide-react";
+import { ArrowUpRight, CirclePlay, Check, Flame } from "lucide-react";
 
 import { ErrorState } from "@/components/common/ErrorState";
 import { Skeleton } from "@/components/common/SkeletonCard";
@@ -59,32 +59,7 @@ export function DiscoverContinue() {
       </p>
     );
   }
-  if (!item) {
-    // Design keeps this strip as a permanent module (V-24): hiding it on a
-    // fresh account shifts the whole first screen up by one row.
-    return (
-      <div
-        data-testid="continue-learning-placeholder"
-        className="mb-4 flex items-center gap-3 rounded-md border border-dashed border-hairline bg-canvas p-2.5"
-      >
-        <span className="grid aspect-video w-24 shrink-0 place-items-center rounded-sm bg-surface-card text-muted">
-          <CirclePlay size={20} aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <span className="text-caption font-semibold uppercase tracking-[0.07em] text-brand-700">
-            继续观看
-          </span>
-          <span className="mt-0.5 block text-copy font-semibold text-ink">
-            看一段视频就会出现在这里
-          </span>
-          <span className="mt-0.5 block text-meta text-muted">
-            自动记住上次播放位置，回来接着看。
-          </span>
-        </div>
-        <span className="shrink-0 text-caption text-muted">未开始</span>
-      </div>
-    );
-  }
+  if (!item) return null;
   const { video } = item;
   const progress = Math.max(0, Math.min(100, Math.round(item.progress_percentage)));
   const remaining = item.remaining_seconds;
@@ -95,7 +70,7 @@ export function DiscoverContinue() {
         from: "home",
         extra: { t: Math.floor(item.position_seconds) },
       })}
-      className="group mb-4 flex items-center gap-3 rounded-md border border-hairline bg-canvas p-2.5 transition-colors hover:border-hairline-strong"
+      className="discover-resume group mb-5 flex items-center gap-3 rounded-md border border-hairline bg-surface-soft p-3 transition-colors hover:border-hairline-strong"
       data-testid="continue-learning-rail"
     >
       <span className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-sm bg-surface-card">
@@ -108,10 +83,11 @@ export function DiscoverContinue() {
         <span className="mt-0.5 block truncate text-copy font-semibold text-ink">
           {video.title_zh?.trim() || video.title}
         </span>
-        <span className="mt-0.5 block truncate text-meta text-muted">
-          {video.title}
-          {remaining != null && remaining > 0 ? ` · 还剩 ${formatDuration(remaining)}` : ""}
-        </span>
+        {remaining != null && remaining > 0 && (
+          <span className="mt-0.5 block text-meta text-muted">
+            还剩 {formatDuration(remaining)}
+          </span>
+        )}
         <VideoMetadata video={video} className="mt-1" />
         <span className="mt-1.5 block h-[3px] overflow-hidden rounded-pill bg-surface-card">
           <span
@@ -188,13 +164,15 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
   const weekProgress = Math.round((weekDays / 7) * 100);
 
   return (
-    <aside className="flex flex-col gap-3" aria-label="今天的进度">
-      {/* 首页 rail 与设计一致：白底发丝线卡。深色实心卡只留给词汇 due-card
-          与会员 member-card —— 这里用深色会在暗色模式下与画布同色、边界消失。 */}
-      <section className="rounded-md border border-hairline bg-canvas p-[18px]">
+    <aside className="discover-learning" aria-label="今天的进度">
+      <div className="discover-learning-heading">
+        <span className="discover-learning-dot" aria-hidden />
+        我的学习
+      </div>
+      <section className="discover-learning-section">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-copy font-semibold text-ink">今天到期</h2>
-          <span className="text-caption text-muted">复习</span>
+          <h2 className="text-meta font-semibold text-ink">今天到期</h2>
+          {due === 0 && <Check size={16} className="text-brand-700" aria-hidden />}
         </div>
         <p className="mt-2 flex items-baseline gap-1.5">
           <span className="text-[2.625rem] font-semibold leading-none tracking-tight tabular-nums text-ink">
@@ -203,15 +181,14 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
           <span className="text-meta text-muted">个单词</span>
         </p>
         <p className="mt-2 text-meta leading-relaxed text-muted">
-          {due > 0
-            ? "先复习到期的词，大约 2 分钟。复习过的词会从到期列表里移走。"
-            : "今天的到期词已经清空。"}
+          {due > 0 ? "趁记忆还新鲜，再见一面。" : "已全部复习，去发现新的表达吧。"}
         </p>
         <Link
-          href="/vocabulary/review"
-          className="mt-3 flex h-9 w-full items-center justify-center rounded-pill bg-action-primary text-meta font-semibold text-on-primary transition-colors hover:bg-action-primary-hover"
+          href={due > 0 ? "/vocabulary/review" : "/vocabulary"}
+          className="discover-review-link"
         >
           {due > 0 ? "开始复习" : "看全部词汇"}
+          <ArrowUpRight size={15} aria-hidden />
         </Link>
         <Link
           href="/vocabulary"
@@ -221,9 +198,9 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
         </Link>
       </section>
 
-      <section className="rounded-md border border-hairline bg-canvas p-3.5">
+      <section className="discover-learning-section">
         <div className="flex items-center justify-between">
-          <h2 className="text-copy font-semibold text-ink">正在学</h2>
+          <h2 className="text-meta font-semibold text-ink">正在学</h2>
           <Link href="/channels" className="text-meta text-brand-700 hover:underline">
             全部
           </Link>
@@ -261,21 +238,21 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
         )}
       </section>
 
-      <section className="rounded-md border border-hairline bg-canvas p-3.5">
+      <section className="discover-learning-section">
         <div className="flex items-center justify-between">
-          <h2 className="text-copy font-semibold text-ink">本周节奏</h2>
+          <h2 className="text-meta font-semibold text-ink">本周节奏</h2>
           <span className="text-caption text-muted">记录</span>
         </div>
-        <dl className="mt-2 space-y-1 text-meta">
-          <div className="flex justify-between">
+        <dl className="discover-week-stats">
+          <div>
             <dt className="text-muted">有学习的天数</dt>
             <dd className="tabular-nums text-ink">{week ? `${week.days_active} / 7 天` : "—"}</dd>
           </div>
-          <div className="flex justify-between">
+          <div>
             <dt className="text-muted">累计学习</dt>
             <dd className="tabular-nums text-ink">{week ? `${week.minutes} 分钟` : "—"}</dd>
           </div>
-          <div className="flex justify-between">
+          <div>
             <dt className="text-muted">连续学习</dt>
             <dd className="flex items-center gap-1 tabular-nums text-ink">
               <Flame size={12} className="text-brand-500" aria-hidden />
@@ -287,6 +264,7 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
           className="mt-2.5 h-1.5 overflow-hidden rounded-pill bg-surface-card"
           role="progressbar"
           aria-label="本周学习天数"
+          title="按实际发生的学习记录统计"
           aria-valuemin={0}
           aria-valuemax={7}
           aria-valuenow={weekDays}
@@ -296,9 +274,6 @@ export function DiscoverRail({ initialDue = 0 }: { initialDue?: number }) {
             style={{ width: `${weekProgress}%` }}
           />
         </div>
-        <p className="mt-2 text-meta leading-relaxed text-muted">
-          只记录发生过的学习；没有任务打卡，也不补记。
-        </p>
       </section>
     </aside>
   );

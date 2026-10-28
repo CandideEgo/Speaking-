@@ -260,7 +260,8 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
           onClick={onPrev}
           disabled={sentenceNavDisabled}
           aria-label="上一句"
-          title="上一句"
+          title="上一句（A）"
+          aria-keyshortcuts="a"
           className="flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           <SkipBack size={19} />
@@ -288,7 +289,8 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
           onClick={onNext}
           disabled={sentenceNavDisabled}
           aria-label="下一句"
-          title="下一句"
+          title="下一句（D）"
+          aria-keyshortcuts="d"
           className="flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           下一句
@@ -300,7 +302,8 @@ function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
           data-testid="watch-replay"
           onClick={onReplay}
           aria-label="重听本句"
-          title="重听本句，到句末暂停"
+          title="重听本句（R），到句末暂停"
+          aria-keyshortcuts="r"
           className={cn(
             "flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold transition-colors cursor-pointer",
             "text-muted hover:text-ink"

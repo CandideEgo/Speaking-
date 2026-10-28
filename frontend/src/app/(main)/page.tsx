@@ -106,35 +106,37 @@ export default function HomePage() {
       <HomeEditorialHeader />
       <DiscoverContinue />
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
-        {editorial.status === "editorial" && editorial.page.lead ? (
-          <HomeEditorialHero page={editorial.page} />
-        ) : editorial.status === "loading" ? (
-          <EditorialSkeleton />
-        ) : (
-          <FeaturedListening onSettled={markFeaturedSettled} />
-        )}
+      <div className="home-discover-columns">
+        <div className="min-w-0">
+          {editorial.status === "editorial" && editorial.page.lead ? (
+            <HomeEditorialHero page={editorial.page} />
+          ) : editorial.status === "loading" ? (
+            <EditorialSkeleton />
+          ) : (
+            <FeaturedListening onSettled={markFeaturedSettled} />
+          )}
+
+          {/* id 锚点：站内「去浏览」类入口统一落到 `/`，需要时可 #feed 定位 */}
+          <section id="feed" aria-label="视频列表" className="home-video-feed mt-9 scroll-mt-6">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+              <div className="min-w-0">
+                <h2 className="text-[1.125rem] font-semibold tracking-tight text-ink">继续发现</h2>
+              </div>
+              <Link
+                href="/channels"
+                className="inline-flex items-center gap-1 text-meta font-semibold text-body transition-colors hover:text-ink"
+              >
+                全部频道
+                <ArrowRight size={13} aria-hidden />
+              </Link>
+            </div>
+            <Suspense fallback={<FeedSkeleton />}>
+              <HomeFeed layoutReady={layoutReady} />
+            </Suspense>
+          </section>
+        </div>
         <DiscoverRail />
       </div>
-
-      {/* id 锚点：站内「去浏览」类入口统一落到 `/`，需要时可 #feed 定位 */}
-      <section id="feed" aria-label="视频列表" className="home-video-feed mt-9 scroll-mt-6">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-          <div className="min-w-0">
-            <h2 className="text-[1.125rem] font-semibold tracking-tight text-ink">继续发现</h2>
-          </div>
-          <Link
-            href="/channels"
-            className="inline-flex items-center gap-1 text-meta font-semibold text-body transition-colors hover:text-ink"
-          >
-            全部频道
-            <ArrowRight size={13} aria-hidden />
-          </Link>
-        </div>
-        <Suspense fallback={<FeedSkeleton />}>
-          <HomeFeed layoutReady={layoutReady} />
-        </Suspense>
-      </section>
 
       <HomeSubscribedChannels />
     </div>
@@ -159,7 +161,7 @@ function EditorialSkeleton() {
 
 function FeedSkeleton() {
   return (
-    <div className="mt-5 grid grid-cols-1 gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3 min-[2100px]:grid-cols-4">
+    <div className="home-feed-grid mt-5">
       {Array.from({ length: 8 }).map((_, i) => (
         <VideoCardSkeleton key={i} />
       ))}

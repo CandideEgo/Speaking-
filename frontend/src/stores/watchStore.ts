@@ -32,9 +32,8 @@ interface WatchStore {
    *  模块初始化时读会在「服务端无 storage、首帧用默认值 / 客户端读到已存值」
    *  之间产生 hydration 不一致；改为首帧恒为 bilingual，由挂载 effect 补一次。 */
   hydrateSubtitleMode: () => void;
-  /** 右侧字幕面板是否折叠为窄轨（按需展开） */
-  panelCollapsed: boolean;
-  setPanelCollapsed: (collapsed: boolean) => void;
+  immersive: boolean;
+  setImmersive: (immersive: boolean) => void;
   leftPanelWidth: number;
   setLeftPanelWidth: (width: number) => void;
   mobileFrameSize: MobileFrameSize;
@@ -53,7 +52,7 @@ interface WatchStore {
 
 const INITIAL_STATE = {
   subtitleMode: "bilingual" as SubtitleMode,
-  panelCollapsed: false,
+  immersive: false,
   leftPanelWidth: DEFAULT_WATCH_RATIO,
   mobileFrameSize: "standard" as MobileFrameSize,
   videoAspectRatio: 16 / 9,
@@ -84,7 +83,7 @@ export const useWatchStore = create<WatchStore>((set, get) => ({
     }
     set({ subtitleMode: mode });
   },
-  setPanelCollapsed: (collapsed) => set({ panelCollapsed: collapsed }),
+  setImmersive: (immersive) => set({ immersive }),
   setLeftPanelWidth: (width) => {
     if (!Number.isFinite(width)) return;
     const leftPanelWidth = Math.min(90, Math.max(10, width));
@@ -106,7 +105,6 @@ export const useWatchStore = create<WatchStore>((set, get) => ({
     set({
       leftPanelWidth: DEFAULT_WATCH_RATIO,
       mobileFrameSize: "standard",
-      panelCollapsed: false,
     });
     persistLayout(DEFAULT_WATCH_RATIO, "standard");
   },

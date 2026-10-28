@@ -12,6 +12,7 @@ import { ShellSkeleton } from "@/components/common/ShellSkeleton";
 import { DeletionBanner } from "@/components/profile/DeletionBanner";
 import { useAuthStore } from "@/stores/authStore";
 import { useVocabularyStore } from "@/stores/vocabularyStore";
+import { useWatchStore } from "@/stores/watchStore";
 import { api } from "@/lib/api";
 import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
 import { WatchChromeProvider, WatchShellControls } from "@/components/watch/WatchChromeProvider";
@@ -32,6 +33,7 @@ function MainLayoutContent({ children }: { children: React.ReactNode }) {
 
   const pathname = usePathname();
   const isWatch = pathname.startsWith("/watch/");
+  const immersive = useWatchStore((s) => s.immersive) && isWatch;
   const fetchVocabStats = useVocabularyStore((s) => s.fetchStats);
 
   // Vocab due badges live in three chrome surfaces. Refresh once per shell
@@ -87,7 +89,7 @@ function MainLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   // D0 登录墙：受保护路由已被 middleware 302 到 /login；能走到这里的未登录访问
-  // 只剩白名单页（/redeem、/upgrade 等），直接渲染页面内容（不带应用 shell）。
+  // 只剩白名单页（/upgrade、/contact 等），直接渲染页面内容（不带应用 shell）。
   // 设计应用壳（index.html:90-113）只有 sidebar/topbar/main：登录后的页面不再
   // 渲染 SiteFooter；未登录白名单页保留协议入口。
   if (!isAuthenticated) {
@@ -105,7 +107,7 @@ function MainLayoutContent({ children }: { children: React.ReactNode }) {
   // 壳统一管理安全区和常规流底部导航，内容滚动区不再补固定底栏占位。
   return (
     <div
-      className="user-ui user-shell h-dvh overflow-hidden"
+      className={`user-ui user-shell h-dvh overflow-hidden${immersive ? " is-watch-immersive" : ""}`}
       style={{
         paddingTop: "env(safe-area-inset-top, 0px)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",

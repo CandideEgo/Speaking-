@@ -93,7 +93,8 @@
   --home-learning-ink: color-mix(in srgb, var(--body) 80%, var(--success-text));
 }
 
-.dark .user-ui {
+.dark .user-ui,
+.user-ui.is-watch-immersive {
   --canvas: #0a0a0a;
   --surface-soft: #111113;
   --surface-card: #1a1a1c;
@@ -1151,9 +1152,7 @@
   display: none;
 }
 .user-ui .home-video-feed {
-  /* 设计 .section 的上间距是 38px；此前被 1.4rem 覆盖成 22.4px（V-11）。 */
-  margin-top: 2.375rem;
-  padding-top: 1rem;
+  margin-top: 1.5rem;
   /* 空结果仍保留一屏列表区域，避免容器收缩把筛选栏拉走。 */
   min-height: calc(100dvh - 4rem);
 }
@@ -2801,6 +2800,431 @@
 .user-ui .watch-control-row > div {
   flex-shrink: 0;
 }
+.user-ui .home-discover-columns {
+  display: grid;
+  align-items: start;
+  gap: 1.5rem;
+}
+.user-ui .home-video-feed {
+  container-type: inline-size;
+}
+.user-ui .home-feed-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 1.75rem 1.25rem;
+}
+@media (min-width: 1280px) {
+  .user-ui .home-discover-columns {
+    grid-template-columns: minmax(0, 1fr) 17rem;
+  }
+}
+.user-ui .discover-feature {
+  container-type: inline-size;
+  background: linear-gradient(120deg, var(--brand-50), var(--canvas) 65%);
+}
+.user-ui .discover-feature-grid {
+  display: grid;
+  align-items: center;
+}
+.user-ui .discover-feature-cover {
+  display: block;
+}
+.user-ui .discover-feature-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-on-dark) 45%, transparent);
+  border-radius: 50%;
+  color: var(--color-on-dark);
+  background: color-mix(in srgb, var(--color-surface-dark) 55%, transparent);
+  backdrop-filter: blur(8px);
+  transition: transform 150ms ease;
+}
+.user-ui .discover-feature-cover:hover .discover-feature-play {
+  transform: scale(1.08);
+}
+.user-ui .discover-feature-copy {
+  padding: 1.25rem;
+}
+.user-ui .discover-feature-title {
+  font-size: clamp(1.375rem, 3.4cqw, 1.875rem);
+  line-height: 1.23;
+}
+@container (min-width: 660px) {
+  .user-ui .discover-feature-grid {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    padding: 0.75rem;
+  }
+  .user-ui .discover-feature-cover {
+    border-radius: var(--radius-md);
+  }
+  .user-ui .discover-feature-copy {
+    padding: 0.75rem 1rem 0.75rem 1.5rem;
+  }
+}
+.user-ui .discover-learning {
+  overflow: hidden;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+.user-ui .discover-learning-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.125rem 1.25rem 0;
+  color: var(--muted-c);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.user-ui .discover-learning-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--brand-700);
+}
+.user-ui .discover-learning-section {
+  margin-inline: 1.25rem;
+  padding-block: 1.125rem;
+}
+.user-ui .discover-learning-section + .discover-learning-section {
+  border-top: 1px solid var(--hairline);
+}
+.user-ui .discover-review-link {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  color: var(--brand-700);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.user-ui .discover-review-link:hover {
+  border-color: var(--brand-700);
+}
+.user-ui .discover-week-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.875rem 0.5rem;
+  margin-block: 1rem;
+}
+.user-ui .discover-week-stats > div {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: start;
+  gap: 0.25rem;
+}
+.user-ui .discover-week-stats dt {
+  font-size: 0.75rem;
+}
+.user-ui .discover-week-stats dd {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.user-ui .discover-week-stats > div:last-child {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.user-ui .discover-week-stats > div:last-child dd {
+  font-size: 0.875rem;
+}
+.user-ui .discover-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+.user-ui .discover-categories {
+  gap: 0.375rem;
+}
+.user-ui .discover-categories button {
+  border-color: transparent;
+  background: var(--surface-soft);
+  padding-inline: 0.875rem;
+  color: var(--muted-c);
+}
+.user-ui .discover-categories button:hover {
+  background: var(--surface-card);
+  color: var(--ink);
+}
+.user-ui .discover-categories button[aria-pressed="true"] {
+  background: var(--brand-50);
+  color: var(--brand-700);
+  border-color: color-mix(in srgb, var(--brand-700) 25%, transparent);
+}
+.user-ui .discover-filter-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.user-ui .discover-select {
+  position: relative;
+  display: inline-flex;
+}
+.user-ui .discover-select select {
+  border-color: var(--hairline-soft);
+  background: var(--surface-soft);
+}
+.user-ui .discover-select > svg {
+  position: absolute;
+  top: calc(50% - 7px);
+  right: 0.625rem;
+  pointer-events: none;
+  color: var(--muted-c);
+}
+.user-ui .video-poster-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.user-ui .video-poster-title {
+  order: -2;
+  margin-top: 0;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.user-ui .video-poster-title + p {
+  order: -1;
+}
+.user-ui .video-poster .video-metadata {
+  margin-top: 0.125rem;
+}
+.user-ui .video-metadata {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  column-gap: 0.875rem;
+}
+.user-ui .video-metadata svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+.user-ui .watch-picture-slot,
+.user-ui .watch-viewing-group {
+  display: contents;
+}
+.user-ui .watch-word-space {
+  display: none;
+}
+.user-ui .watch-key {
+  display: inline-grid;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 0.25rem;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  color: var(--muted-c);
+  font-family: inherit;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
+}
+.user-ui .watch-sentence-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+.user-ui .watch-sentence-group > button {
+  min-height: 2.75rem;
+  border: 1px solid var(--hairline-soft);
+  background: var(--canvas);
+}
+.user-ui .watch-sentence-group > .watch-replay-primary {
+  border-color: transparent;
+  background: var(--brand-50);
+  color: var(--brand-700);
+}
+.user-ui .watch-sentence-group > .watch-replay-primary:hover {
+  background: var(--brand-100);
+}
+.user-ui .watch-sentence-actions {
+  margin-top: 0.5rem;
+  border-top: 0;
+  border-bottom: 0;
+}
+.user-ui .watch-stage [data-testid="current-sentence-card"] {
+  border-color: transparent;
+  background: var(--surface-soft);
+}
+.user-ui .watch-transcript > div:first-child {
+  padding: 0.625rem 1rem;
+  border-color: var(--hairline-soft);
+}
+.user-ui .watch-transcript [aria-current="true"] {
+  border-radius: var(--radius-md);
+}
+.user-ui .watch-shell-controls [data-testid="watch-toggle-play"] {
+  margin: 0.125rem 0.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--brand-50);
+  color: var(--brand-700);
+}
+.user-ui .watch-learning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.user-ui.is-watch-immersive .user-sidebar,
+.user-ui.is-watch-immersive .user-topbar,
+.user-ui.is-watch-immersive .user-mobile-tabs {
+  display: none;
+}
+.user-ui.is-watch-immersive .user-watch-content > .container-page {
+  max-width: none;
+  padding: 0;
+}
+.user-ui.is-watch-immersive .user-watch-content {
+  overflow: hidden;
+  background: var(--canvas);
+}
+.user-ui .watch-page.is-immersive {
+  display: block;
+  height: 100%;
+  padding: 0;
+}
+.user-ui .watch-page.is-immersive > :not(.watch-workspace):not([data-coach="word-card"]) {
+  display: none;
+}
+.user-ui .is-immersive .watch-workspace,
+.user-ui .is-immersive .watch-video-column {
+  display: block;
+  height: 100%;
+}
+.user-ui .is-immersive .watch-stage {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(72px, 1fr);
+  grid-auto-rows: auto;
+  height: 100%;
+  padding: 3.75rem max(1.5rem, calc((100% - 1440px) / 2)) 1.25rem;
+  overflow: hidden;
+}
+.user-ui .watch-immersive-exit {
+  position: absolute;
+  top: 0.75rem;
+  right: 1.5rem;
+  z-index: 20;
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--body);
+  font-size: 0.8125rem;
+}
+.user-ui .watch-immersive-exit:hover {
+  border-color: var(--muted-c);
+  color: var(--ink);
+}
+.user-ui .is-immersive .watch-picture-slot {
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  container-type: size;
+  background: var(--canvas);
+}
+.user-ui .watch-page.is-immersive .watch-video-frame {
+  position: relative;
+  top: auto;
+  width: min(100cqw, calc(100cqh * var(--watch-media-aspect, 1.77778)));
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: var(--watch-media-aspect, 16 / 9);
+  border: 0;
+  border-radius: 0;
+}
+.user-ui .is-immersive [data-testid="current-sentence-card"] {
+  width: 100%;
+  max-height: 30dvh;
+  overflow-y: auto;
+  margin: 0;
+  border: 0;
+  padding: 1rem max(0.5rem, calc((100% - 80ch) / 2)) 0.5rem;
+  background: var(--canvas);
+  text-align: center;
+}
+.user-ui .is-immersive .now-sub-zh {
+  margin-top: 0.375rem;
+}
+.user-ui .is-immersive .watch-key {
+  border-color: var(--hairline-strong);
+}
+.user-ui .is-immersive.has-word-card .watch-word-space {
+  display: block;
+  height: min(256px, 38dvh);
+}
+.user-ui .is-immersive .watch-notes,
+.user-ui .is-immersive .watch-learning-actions {
+  display: none;
+}
+.user-ui .is-immersive .watch-sentence-actions,
+.user-ui .is-immersive .watch-mobile-tools {
+  justify-content: center;
+  border: 0;
+  margin: 0;
+}
+.user-ui .is-immersive .watch-transcript[hidden] {
+  display: none;
+}
+@media (min-width: 1025px) {
+  .user-ui .is-immersive [data-variant="sheet"] {
+    left: max(1rem, calc(50% - 20rem));
+    right: max(1rem, calc(50% - 20rem));
+  }
+}
+@media (max-width: 1024px) {
+  .user-ui .is-immersive .watch-stage {
+    padding: max(0.75rem, env(safe-area-inset-top, 0px)) 1rem 0.25rem;
+  }
+  .user-ui .is-immersive .watch-viewing-group {
+    display: flex;
+    min-height: 0;
+    height: 100%;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .user-ui .is-immersive .watch-picture-slot {
+    flex: 0 1 auto;
+    width: 100%;
+    aspect-ratio: var(--watch-media-aspect, 16 / 9);
+    min-height: 72px;
+  }
+  .user-ui .is-immersive .watch-mobile-tools {
+    gap: 0.375rem 0.75rem;
+    padding-block: 0.375rem;
+  }
+  .user-ui .is-immersive [data-testid="current-sentence-card"] {
+    padding-inline: 0;
+    flex-shrink: 0;
+  }
+  .user-ui .is-immersive .watch-mobile-tools > button:last-child {
+    border: 1px solid var(--hairline);
+    background: var(--surface-card);
+  }
+  .user-ui .is-immersive .watch-key {
+    display: none;
+  }
+}
 @container (max-width: 620px) {
   .watch-control-volume-slider,
   .watch-control-subtitle {
@@ -2809,8 +3233,34 @@
   .watch-control-row {
     gap: 0.375rem;
   }
+  .watch-control-immersive-label {
+    display: none;
+  }
 }
 @media (max-width: 1024px) {
+  .user-ui .watch-mobile-tools {
+    gap: 0.375rem;
+  }
+  .user-ui .watch-mobile-tools [aria-label="画面大小"] {
+    padding: 0;
+  }
+  .user-ui .watch-mobile-tools .watch-key {
+    display: none;
+  }
+  .user-ui .watch-mobile-immersive-entry {
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    margin-left: auto;
+    background: var(--surface-soft);
+  }
+  .user-ui .watch-mobile-immersive-entry > span {
+    display: none;
+  }
+  .user-ui .watch-mobile-immersive-entry > svg {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
   .user-ui .user-watch-content {
     scroll-padding-top: calc(var(--watch-sticky-height, 0px) + 8px);
   }

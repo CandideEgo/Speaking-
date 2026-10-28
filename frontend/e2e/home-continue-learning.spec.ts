@@ -246,18 +246,15 @@ test.describe("首页续看入口", () => {
     await expect(page.getByText("推荐视频 A", { exact: true })).toBeVisible();
   });
 
-  test("没有可继续记录时保留占位条", async ({ page }) => {
+  test("没有可继续记录时直接展示精选，不留空的续看条", async ({ page }) => {
     await mockHome(page, { authenticated: true, records: IN_PROGRESS.slice(2) });
     await page.goto("/");
     await expect(page.getByRole("link", { name: "观看完整视频", exact: true })).toBeVisible();
-    // 设计里续看条是常驻模块（V-24）：无记录时给占位，整块消失会让首屏落差一行。
     await expect(page.getByTestId("continue-learning-rail")).toHaveCount(0);
-    const placeholder = page.getByTestId("continue-learning-placeholder");
-    await expect(placeholder).toBeVisible();
-    await expect(placeholder).toContainText("看一段视频就会出现在这里");
+    await expect(page.getByTestId("continue-learning-placeholder")).toHaveCount(0);
   });
 
-  test("本周节奏用单条进度条并说明记录口径", async ({ page }) => {
+  test("本周节奏展示真实学习统计，进度条保留记录口径", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await mockHome(page, { authenticated: true, records: IN_PROGRESS });
     await page.route("**/api/v1/users/me/overview", (route) =>
@@ -280,7 +277,11 @@ test.describe("首页续看入口", () => {
     const bar = page.getByRole("progressbar", { name: "本周学习天数" });
     await expect(bar).toBeVisible();
     await expect(bar).toHaveAttribute("aria-valuenow", "4");
-    await expect(page.getByText("只记录发生过的学习；没有任务打卡，也不补记。")).toBeVisible();
+    await expect(bar).toHaveAttribute("title", "按实际发生的学习记录统计");
+    const learning = page.getByRole("complementary", { name: "今天的进度" });
+    await expect(learning).toContainText("4 / 7 天");
+    await expect(learning).toContainText("35 分钟");
+    await expect(learning).toContainText("2 天");
   });
 
   test("续看加载失败允许重试，不阻塞精选和推荐流", async ({ page }) => {

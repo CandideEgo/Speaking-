@@ -121,8 +121,8 @@ test.describe("Stage1 - watch page layout (A2/A4/A5)", () => {
     const before = await wrapper.boundingBox();
     expect(before).not.toBeNull();
 
-    // 新版布局把旧的「收起为字幕轨」换成可拖分栏 + 「放大画面」（隐藏文稿栏）。
-    await page.getByRole("button", { name: "放大画面", exact: true }).click();
+    // 沉浸观看隐藏文稿，播放器字幕仍由同一偏好控制。
+    await page.getByRole("button", { name: "沉浸观看", exact: true }).click();
     await expect(page.getByTestId("watch-transcript")).toBeHidden();
 
     // 词卡仍锚定被点词：切换布局后仍在视口内，且不被推出右边界。

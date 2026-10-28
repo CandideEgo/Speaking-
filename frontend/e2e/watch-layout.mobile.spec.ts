@@ -12,7 +12,7 @@ async function noOverflow(page: Page) {
     .toBeLessThanOrEqual(1);
 }
 
-test("桌面拖动、键盘边界、放大与重置保留媒体和偏好", async ({ page }) => {
+test("桌面拖动、键盘边界、沉浸与复位保留媒体和偏好", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await setupWatch(page);
   await openWatch(page, "?sub=second");
@@ -28,10 +28,10 @@ test("桌面拖动、键盘边界、放大与重置保留媒体和偏好", async
   await page.mouse.up();
   await expect.poll(async () => (await frame.boundingBox())!.width).toBeLessThan(before.width - 80);
   const stored = await page.evaluate(() => localStorage.getItem("seeword_watch_layout"));
-  await page.getByRole("button", { name: "放大画面", exact: true }).click();
+  await page.getByRole("button", { name: "沉浸观看", exact: true }).click();
   await expect(page.getByTestId("watch-transcript")).toBeHidden();
   await expect.poll(async () => (await frame.boundingBox())!.width).toBeGreaterThan(before.width);
-  await page.getByRole("button", { name: "恢复分栏", exact: true }).click();
+  await page.getByRole("button", { name: "退出沉浸", exact: true }).click();
   expect(await page.evaluate(() => localStorage.getItem("seeword_watch_layout"))).toBe(stored);
   await divider.focus();
   await divider.press("Home");
@@ -48,8 +48,9 @@ test("桌面拖动、键盘边界、放大与重置保留媒体和偏好", async
   ).toBeGreaterThanOrEqual(5);
   await page.reload();
   await expect(divider).toHaveAttribute("aria-valuenow", "65");
-  await page.getByRole("button", { name: "放大画面", exact: true }).click();
-  await page.getByRole("button", { name: "恢复默认布局", exact: true }).click();
+  await divider.press("ArrowLeft");
+  await divider.dblclick();
+  await expect(divider).toHaveAttribute("aria-valuenow", "65");
   await expect(page.getByTestId("watch-workspace")).toHaveAttribute("data-layout", "split");
   await noOverflow(page);
 });

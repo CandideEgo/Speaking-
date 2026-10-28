@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass } from "lucide-react";
+import { ChevronDown, Compass, SlidersHorizontal, X } from "lucide-react";
 import { useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -83,51 +83,65 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
 
   return (
     <>
-      {/* 筛选工具条：一行放完。分类横向滚动，难度 / 时长 / 排序固定在右侧；
-          窄屏（<lg）才允许换行，避免 1440 宽度下「排序」单独掉到第二行。 */}
-      <div className="flex flex-col gap-3 border-b border-hairline pb-4 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto scrollbar-none">
+      <div className="discover-filters">
+        <div className="min-w-0" aria-label="视频分类">
           <TabPills
             tabs={categories.map((category) => ({ key: category.id, label: category.label }))}
             activeKey={activeCategory}
             onChange={setActiveCategory}
             variant="chips"
-            className="flex-nowrap"
+            className="discover-categories"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 lg:flex-nowrap">
+        <div className="discover-filter-settings">
+          <SlidersHorizontal
+            size={15}
+            className="hidden text-muted min-[600px]:block"
+            aria-hidden
+          />
           <label htmlFor="feed-level" className="flex items-center gap-1.5 text-caption text-muted">
             难度
-            <Select
-              id="feed-level"
-              value={activeLevel}
-              onChange={(event) => setActiveLevel(event.target.value)}
-              className="h-8 w-[5.7rem] rounded-pill border-hairline-strong py-0 pl-2.5 pr-7 text-caption"
-            >
-              {DIFFICULTY_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+            <span className="discover-select">
+              <Select
+                id="feed-level"
+                value={activeLevel}
+                onChange={(event) => setActiveLevel(event.target.value)}
+                className="min-h-11 w-44 shrink-0 appearance-none rounded-md py-0 pl-3 pr-8 text-meta min-[1025px]:min-h-9"
+              >
+                {DIFFICULTY_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <ChevronDown size={14} aria-hidden />
+            </span>
           </label>
           <label htmlFor="feed-sort" className="flex items-center gap-1.5 text-caption text-muted">
             排序
-            <Select
-              id="feed-sort"
-              value={effectiveSort}
-              onChange={(event) => setSort(event.target.value as FeedSort)}
-              className="h-8 w-[4.8rem] rounded-pill border-hairline-strong py-0 pl-2.5 pr-7 text-caption"
-            >
-              {sortOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+            <span className="discover-select">
+              <Select
+                id="feed-sort"
+                value={effectiveSort}
+                onChange={(event) => setSort(event.target.value as FeedSort)}
+                className="min-h-11 w-28 shrink-0 appearance-none rounded-md py-0 pl-3 pr-8 text-meta min-[1025px]:min-h-9"
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <ChevronDown size={14} aria-hidden />
+            </span>
           </label>
+          {isFiltered && (
+            <Button variant="text" size="sm" icon={X} onClick={clearFilters}>
+              清除筛选
+            </Button>
+          )}
           {total > 0 && (
-            <span className="text-caption text-muted tabular-nums" aria-live="polite">
+            <span className="ml-auto text-caption text-muted tabular-nums" aria-live="polite">
               {total} 个视频
             </span>
           )}
@@ -142,7 +156,7 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
       {uniqueVideos.length > 0 && (
         <div
           data-testid="home-feed-grid"
-          className="mt-5 grid min-w-0 grid-cols-1 gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3 min-[1680px]:!grid-cols-4"
+          className="home-feed-grid mt-5"
           onClickCapture={() => {
             const container = document.getElementById(SCROLL_CONTAINER_ID);
             if (container)
@@ -169,7 +183,7 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
       )}
 
       {loading && uniqueVideos.length === 0 && (
-        <div className="mt-5 grid min-w-0 grid-cols-1 gap-x-5 gap-y-6 md:grid-cols-2 xl:grid-cols-3 min-[2100px]:grid-cols-4">
+        <div className="home-feed-grid mt-5">
           {Array.from({ length: 8 }).map((_, i) => (
             <VideoCardSkeleton key={i} />
           ))}

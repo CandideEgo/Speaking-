@@ -1,4 +1,4 @@
-import { Bookmark, Eye, ThumbsUp } from "lucide-react";
+import { Bookmark, Play, ThumbsUp } from "lucide-react";
 import { cn, formatCount } from "@/lib/utils";
 
 /**
@@ -23,7 +23,7 @@ export function VideoStats({
 }) {
   const items = [
     { key: "like", value: likeCount, label: "点赞数", Icon: ThumbsUp },
-    { key: "view", value: viewCount, label: "播放量", Icon: Eye },
+    { key: "view", value: viewCount, label: "本站播放量", Icon: Play },
     { key: "favorite", value: favoriteCount, label: "收藏数", Icon: Bookmark },
   ].filter((item): item is typeof item & { value: number } => item.value != null);
 

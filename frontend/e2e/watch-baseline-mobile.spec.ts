@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
   clickLearningAction,
   clickReplay,
@@ -7,6 +7,14 @@ import {
   setupWatch,
   VIDEO_ID,
 } from "./watch-baseline.fixture";
+
+async function reduceAidReplay(page: Page) {
+  await page.getByTestId("current-sentence-card").locator(".now-sub-word").first().click();
+  await page
+    .getByTestId("word-tooltip")
+    .getByRole("button", { name: "少一点辅助再听", exact: true })
+    .click();
+}
 
 test("当前句同词来源正确，关闭恢复播放，原本暂停则不播放", async ({ page }) => {
   const fixture = await setupWatch(page);
@@ -42,14 +50,14 @@ test("减少辅助只影响本次，重听到句末停，文稿行连续播放",
   await setupWatch(page);
   await openWatch(page, "?sub=second");
   const preference = await page.evaluate(() => localStorage.getItem("seeword_subtitle_mode"));
-  await clickLearningAction(page, "少一点辅助再听");
+  await reduceAidReplay(page);
   await expect(page.getByTestId("current-sentence-zh")).toHaveCount(0);
   await expect(page.locator("#subtitle-1")).not.toContainText("然后我走回家。");
   await expect.poll(async () => (await mediaState(page)).paused).toBe(false);
   await page.getByTestId("current-sentence-card").click({ position: { x: 32, y: 4 } });
   await expect.poll(async () => (await mediaState(page)).paused).toBe(true);
   await expect(page.getByTestId("current-sentence-zh")).toHaveCount(0);
-  await clickLearningAction(page, "少一点辅助再听");
+  await reduceAidReplay(page);
   await expect.poll(async () => (await mediaState(page)).paused, { timeout: 7000 }).toBe(true);
   const stopped = await mediaState(page);
   expect(stopped.time).toBeGreaterThanOrEqual(8);
@@ -240,7 +248,7 @@ test("极短字幕即使错过首个时钟区间也不会整片播放", async ({
 test("减少辅助后主动点词仍可求助，关闭后继续原句重听", async ({ page }) => {
   await setupWatch(page);
   await openWatch(page, "?sub=second");
-  await clickLearningAction(page, "少一点辅助再听");
+  await reduceAidReplay(page);
   await page
     .getByTestId("current-sentence-card")
     .getByRole("button", { name: "查看 walk 的词义" })

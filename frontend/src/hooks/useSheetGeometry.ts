@@ -43,7 +43,7 @@ export function useSheetGeometry(
     let raf = 0;
 
     const measure = () => {
-      const bar = [PLAYBACK_BAR_SELECTOR, TAB_BAR_SELECTOR]
+      const bar = ['[data-immersive-tools="true"]', PLAYBACK_BAR_SELECTOR, TAB_BAR_SELECTOR]
         .map((selector) => document.querySelector(selector))
         .find((candidate) => candidate?.getClientRects().length);
       const viewportBottom = window.visualViewport

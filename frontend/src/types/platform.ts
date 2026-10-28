@@ -27,4 +27,6 @@ export interface VideoItem {
   status?: string | null;
   storage_mode?: string | null;
   created_at?: string | null;
+  upload_date?: string | null;
+  published_at?: string | null;
 }

@@ -86,6 +86,11 @@ interface YTPlayerClass {
 }
 
 interface UseVideoPlayerOptions {
+  onPreviousSentence?: () => void;
+  onNextSentence?: () => void;
+  onReplaySentence?: () => void;
+  onToggleImmersive?: () => void;
+  onExitImmersive?: () => void;
   playbackRange?: { start: number; end: number; onEnd: () => void } | null;
   playbackBlocked?: boolean;
   videoId: string;
@@ -149,6 +154,11 @@ interface UseVideoPlayerReturn {
  *    subtitle in the right panel now jumps the YouTube video too.
  */
 export function useVideoPlayer({
+  onPreviousSentence,
+  onNextSentence,
+  onReplaySentence,
+  onToggleImmersive,
+  onExitImmersive,
   playbackRange = null,
   playbackBlocked = false,
   videoId,
@@ -866,15 +876,39 @@ export function useVideoPlayer({
   // （↑/↓ 原为字幕导航，按 §D1 改为音量；字幕导航仍可在列表中点击。）
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target instanceof HTMLElement ? e.target : null;
       if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLButtonElement ||
-        e.target instanceof HTMLSelectElement ||
-        e.target instanceof HTMLAnchorElement
+        target?.closest(
+          'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="slider"]'
+        )
       )
         return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "Escape") {
+        if (
+          !document.fullscreenElement &&
+          !document.querySelector('[role="dialog"], [aria-modal="true"]')
+        )
+          onExitImmersive?.();
+        return;
+      }
+      const action = {
+        a: onPreviousSentence,
+        d: onNextSentence,
+        r: onReplaySentence,
+        t: onToggleImmersive,
+      }[e.key.toLowerCase()];
+      if (action) {
+        e.preventDefault();
+        if (!e.repeat) action();
+        return;
+      }
+      // Buttons keep native Space/Enter and sliders keep their arrow keys.
+      if (
+        target?.closest("button, a") &&
+        [" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)
+      )
+        return;
       switch (e.key) {
         case " ":
           e.preventDefault();
@@ -919,6 +953,11 @@ export function useVideoPlayer({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [
+    onPreviousSentence,
+    onNextSentence,
+    onReplaySentence,
+    onToggleImmersive,
+    onExitImmersive,
     togglePlayPause,
     seekBy,
     setVolume,

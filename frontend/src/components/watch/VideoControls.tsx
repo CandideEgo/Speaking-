@@ -15,7 +15,16 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Maximize, MoreHorizontal, Pause, Play, Volume2, VolumeX } from "lucide-react";
+import {
+  Check,
+  Maximize,
+  MoreHorizontal,
+  PanelTop,
+  Pause,
+  Play,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/format";
 import { PLAYBACK_RATES } from "@/hooks/useVideoPlayer";
@@ -33,6 +42,8 @@ const FONT_SIZE_LABEL: Record<SubtitleFontSize, string> = {
 const HIDE_DELAY_MS = 3000;
 
 interface VideoControlsProps {
+  immersive: boolean;
+  onToggleImmersive: () => void;
   onTogglePlay?: () => void;
   onSeek?: (time: number) => void;
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -54,6 +65,8 @@ interface VideoControlsProps {
 }
 
 export function VideoControls({
+  immersive,
+  onToggleImmersive,
   videoRef,
   duration,
   isPlaying,
@@ -169,6 +182,12 @@ export function VideoControls({
       onPointerMove={handleActivity}
       onClick={handleSurfaceClick}
       onFocusCapture={() => setVisible(true)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && menu) {
+          e.stopPropagation();
+          setMenu(null);
+        }
+      }}
     >
       {/* 底部控制条 */}
       <div
@@ -176,7 +195,7 @@ export function VideoControls({
         className={cn(
           "absolute inset-x-0 bottom-0 px-3 pb-2 pt-8 bg-gradient-to-t from-black/75 via-black/35 to-transparent",
           "transition-opacity duration-200",
-          visible ? "opacity-100" : "opacity-0 pointer-events-none"
+          visible || immersive ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={(e) => e.stopPropagation()}
       >
@@ -325,6 +344,22 @@ export function VideoControls({
           </div>
 
           {/* 全屏内联 */}
+          <button
+            type="button"
+            onClick={onToggleImmersive}
+            aria-label={immersive ? "退出沉浸" : "沉浸观看"}
+            title={immersive ? "退出沉浸（T / Esc）" : "沉浸观看（T）"}
+            aria-pressed={immersive}
+            aria-keyshortcuts="t"
+            className={cn(
+              "watch-control-immersive inline-flex h-8 items-center justify-center gap-1 rounded-lg px-2 text-caption hover:bg-white/15",
+              immersive && "hidden"
+            )}
+          >
+            <PanelTop size={16} aria-hidden />
+            <span className="watch-control-immersive-label">{immersive ? "退出沉浸" : "沉浸"}</span>
+            <kbd aria-hidden>T</kbd>
+          </button>
           <button
             type="button"
             onClick={() => {

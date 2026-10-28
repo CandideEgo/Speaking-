@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, Heart, Play } from "lucide-react";
+import { ArrowUpRight, Bookmark, Heart, Play } from "lucide-react";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
@@ -35,14 +35,14 @@ export function FeaturedVideoCard({
 
   return (
     <article
-      className="home-editorial-lead overflow-hidden rounded-lg border border-hairline bg-canvas"
+      className="home-editorial-lead discover-feature overflow-hidden rounded-lg border border-hairline bg-canvas"
       aria-label="精选视频"
     >
-      <div className="grid md:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)]">
+      <div className="discover-feature-grid">
         <Link
           href={href}
           aria-label={`观看：${video.title_zh?.trim() || video.title}`}
-          className="relative aspect-video overflow-hidden bg-surface-card md:aspect-auto md:min-h-[290px]"
+          className="discover-feature-cover group relative aspect-video overflow-hidden bg-surface-card"
         >
           <Image
             src={video.thumbnail_url}
@@ -56,6 +56,9 @@ export function FeaturedVideoCard({
               </span>
             }
           />
+          <span className="discover-feature-play" aria-hidden>
+            <Play size={22} fill="currentColor" />
+          </span>
           {video.duration != null && video.duration > 0 && (
             <span className="absolute right-2 bottom-2 rounded-sm bg-ink/85 px-1.5 py-0.5 font-mono text-caption text-canvas">
               {formatDuration(video.duration)}
@@ -63,22 +66,18 @@ export function FeaturedVideoCard({
           )}
         </Link>
 
-        <div className="flex min-w-0 flex-col justify-center gap-2.5 p-5 sm:p-6">
+        <div className="discover-feature-copy flex min-w-0 flex-col justify-center gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex h-6 items-center rounded-sm bg-ink px-2 text-caption font-semibold text-canvas">
+            <span className="inline-flex h-6 items-center gap-1.5 text-caption font-semibold text-brand-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-action-primary" aria-hidden />
               今日精选
             </span>
             {video.difficulty_level && <DifficultyBadge level={video.difficulty_level} size="sm" />}
-            {video.duration != null && video.duration > 0 && (
-              <span className="text-caption tabular-nums text-muted">
-                {formatDuration(video.duration)}
-              </span>
-            )}
           </div>
 
           <h2
             lang="en"
-            className="text-balance text-title font-semibold leading-[1.12] tracking-tight text-ink sm:text-display"
+            className="discover-feature-title text-balance font-semibold tracking-tight text-ink"
           >
             {video.title}
           </h2>
@@ -128,17 +127,29 @@ export function FeaturedVideoCard({
               </span>
             )}
             {/* 设计 hero 元信息是「句数 · 主题 · 点赞 · 收藏」，不展示发布/播放量（V-12）。 */}
-            <span className="inline-flex items-center gap-1 whitespace-nowrap">
-              <span aria-hidden className="text-hairline-strong">
-                ·
+            {video.like_count != null && (
+              <span
+                className="inline-flex items-center gap-1 whitespace-nowrap"
+                title="本站点赞数"
+                aria-label={`点赞 ${formatCount(video.like_count)}`}
+              >
+                <span aria-hidden className="text-hairline-strong">
+                  ·
+                </span>
+                <Heart size={12} aria-hidden />
+                {formatCount(video.like_count)}
               </span>
-              <Heart size={12} aria-hidden />
-              {formatCount(video.like_count ?? 0)} 点赞
-            </span>
-            <span className="inline-flex items-center gap-1 whitespace-nowrap">
-              <Bookmark size={12} aria-hidden />
-              {formatCount(video.favorite_count ?? 0)} 收藏
-            </span>
+            )}
+            {video.favorite_count != null && (
+              <span
+                className="inline-flex items-center gap-1 whitespace-nowrap"
+                title="本站收藏数"
+                aria-label={`收藏 ${formatCount(video.favorite_count)}`}
+              >
+                <Bookmark size={12} aria-hidden />
+                {formatCount(video.favorite_count)}
+              </span>
+            )}
           </div>
 
           <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -146,7 +157,7 @@ export function FeaturedVideoCard({
               {quote ? "从这句话开始" : "观看完整视频"}
             </LinkButton>
             {channelHref && (
-              <LinkButton href={channelHref} variant="outline">
+              <LinkButton href={channelHref} variant="text" icon={ArrowUpRight} iconRight size="sm">
                 看频道
               </LinkButton>
             )}
