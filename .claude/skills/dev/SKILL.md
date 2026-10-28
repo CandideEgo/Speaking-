@@ -51,10 +51,15 @@ below as written. Docker containers stay up either way — only `/dev-stop --inf
    cd C:/Users/Administrator/Speaking/backend && PYTHONUTF8=1 .venv/Scripts/python.exe -m celery -A app.tasks.celery_app worker --pool=solo -Q celery --loglevel=info
    ```
 
-7. **Start the GPU worker** — background:
+7. **Start the GPU worker** — background, **only on the machine that has `gpu-worker/` + an NVIDIA GPU**
+   (the desktop GPU box; the laptop copy has no `gpu-worker/` and no CUDA, so skip this step there):
    ```bash
-   cd C:/Users/Administrator/Speaking/backend && PYTHONUTF8=1 .venv/Scripts/python.exe scripts/start_gpu_worker.py
+   cd C:/Users/Administrator/Speaking/gpu-worker && PYTHONUTF8=1 .venv/Scripts/python.exe scripts/start_gpu_worker.py
    ```
+   This reads `gpu-worker/.env.gpu-worker` (cloud Redis via the 16379 SSH tunnel + cloud callback URL).
+   For an all-local dev run (local Redis + local backend callback) override the two env vars before
+   starting: `REDIS_URL=redis://localhost:6379/0` and
+   `TRANSCRIPTION_CALLBACK_URL=http://localhost:8000/api/v1/internal/transcription/callback`.
 
 8. **Start the frontend** — background:
    ```bash
@@ -97,8 +102,9 @@ below as written. Docker containers stay up either way — only `/dev-stop --inf
 - **The GPU worker is what makes transcription happen.** It runs WhisperX on the local GPU (RTX
   3060 Ti) and writes a Redis heartbeat every 60s (key `worker:gpu:heartbeat`, TTL 90s) so the admin
   VideoManager page shows 在线. With it down, transcription tasks sit in `transcription_gpu` forever
-  and that page shows 离线. It shares the backend venv (`backend/.venv/Scripts/python.exe`, which
-  already has `whisperx` + `torch+CUDA`) — no separate Python install.
+  and that page shows 离线. Since the 2026-10 split it is a standalone component (`gpu-worker/`) with
+  its own venv (`gpu-worker/.venv/Scripts/python.exe`, already has `whisperx` + `torch+CUDA`) and its
+  own `app`-free package — do not start it from `backend/` anymore.
 - `--pool=solo` is required for Celery on Windows; prefork is unsupported.
 - Everything above runs natively on Windows. Only Postgres + Redis are in Docker.
 

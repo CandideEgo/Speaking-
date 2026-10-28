@@ -50,7 +50,7 @@ def _detect_device() -> tuple[str, str]:
     Returns:
         (device, compute_type) tuple, e.g. ("cuda", "float16") or ("cpu", "int8").
     """
-    from app.core.config import get_settings
+    from gpu_worker.config import get_settings
 
     settings = get_settings()
     device = settings.whisper_device
@@ -98,7 +98,7 @@ def get_whisperx_model():
         except ImportError as exc:
             raise RuntimeError("whisperx is not installed. Install it with: pip install whisperx") from exc
 
-        from app.core.config import get_settings
+        from gpu_worker.config import get_settings
 
         settings = get_settings()
         # whisperx_model (empty) reuses whisper_model_path — a CTranslate2 dir
@@ -181,7 +181,7 @@ def get_align_model(language_code: str = "en"):
 
         import whisperx
 
-        from app.core.config import get_settings
+        from gpu_worker.config import get_settings
 
         settings = get_settings()
         device, _ = _detect_device()
@@ -301,7 +301,7 @@ def transcribe_with_whisperx(audio_path: str, batch_size: int | None = None) -> 
     """
     import whisperx
 
-    from app.core.config import get_settings
+    from gpu_worker.config import get_settings
 
     settings = get_settings()
 
@@ -359,7 +359,7 @@ def transcribe_with_faster_whisper(audio_path: str) -> list[dict]:
     word-level timestamps are extracted so the formatter can tighten subtitle
     boundaries (it falls back to segment start/end when words are absent).
     """
-    from app.core.config import get_settings
+    from gpu_worker.config import get_settings
 
     from .formatters import faster_whisper_segments_to_dicts
 
@@ -442,7 +442,7 @@ def transcribe_audio(audio_path: str) -> list[dict]:
     known-broken path every chunk. An OOM is **not** sticky — it's transient, so
     each chunk independently retries WhisperX with the full ladder.
     """
-    from app.core.config import get_settings
+    from gpu_worker.config import get_settings
 
     settings = get_settings()
 
@@ -507,7 +507,7 @@ def get_whisper_model():
         except ImportError as exc:
             raise RuntimeError("faster-whisper is not installed. Install it with: pip install faster-whisper") from exc
 
-        from app.core.config import get_settings
+        from gpu_worker.config import get_settings
 
         settings = get_settings()
         model_path = settings.whisper_model_path
@@ -549,7 +549,7 @@ def _asr_model_path() -> str:
     the same model so the fallback doesn't silently transcribe with a
     different (e.g. ``base``) model than the primary engine.
     """
-    from app.core.config import get_settings
+    from gpu_worker.config import get_settings
 
     s = get_settings()
     return s.whisperx_model or s.whisper_model_path
@@ -564,7 +564,7 @@ def get_asr_whisper_model():
     ``whisperx_model`` points elsewhere do we load a separate instance.
     """
     global _asr_whisper_model
-    from app.core.config import get_settings
+    from gpu_worker.config import get_settings
 
     path = _asr_model_path()
     if path == get_settings().whisper_model_path:

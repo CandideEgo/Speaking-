@@ -12,7 +12,9 @@ services:
     image: redis:7-alpine
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.cloud
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
@@ -29,7 +31,9 @@ services:
       - redis
 
   celery:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.cloud
     command: celery -A app.tasks.celery_app worker --loglevel=info
     volumes:
       - ./backend:/app

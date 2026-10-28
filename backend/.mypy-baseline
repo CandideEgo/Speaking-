@@ -30,7 +30,6 @@ app/services/profile_service.py:operator
 app/services/recommendation_service.py:return-value
 app/services/sms_service.py:union-attr
 app/services/subtitle_metrics_service.py:arg-type
-app/services/transcription/whisper_model.py:no-any-return
 app/services/video_seed_service.py:misc
 app/services/video_service.py:attr-defined
 app/services/video_service.py:return-value

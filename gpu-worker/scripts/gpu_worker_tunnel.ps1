@@ -1,11 +1,17 @@
-# SSH tunnel keepalive: local 16379 -> cloud Redis 127.0.0.1:6379.
+# GPU worker SSH tunnel keepalive: local 16379 -> cloud Redis 127.0.0.1:6379.
+#
+# Part of the standalone gpu-worker/ component (see ../README.md). The worker's
+# REDIS_URL points at 127.0.0.1:16379 on this machine; this tunnel forwards that
+# port to the cloud Redis, so the worker can consume the transcription_gpu queue
+# and write the worker:gpu:heartbeat key without exposing Redis publicly.
 #
 # Reconnects automatically when ssh exits. Registered as a NSSM Windows
 # service ("SeeWord GPU Tunnel") so the tunnel stays up across reboots and
-# crashes (DEV-FLOW 2026-07 Phase B3).
+# crashes.
 #
-# Requires a passwordless SSH key for the `seeword` host alias
-# (ssh-keygen + ssh-copy-id / authorized_keys). See GPU-WORKER-SETUP.md.
+# Requires a passwordless SSH key for the cloud host (ssh-keygen +
+# ssh-copy-id / authorized_keys); the key path is fixed below because the NSSM
+# SYSTEM account has no user profile to resolve an SSH config/agent from.
 
 $ErrorActionPreference = "Continue"
 

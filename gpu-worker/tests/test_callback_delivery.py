@@ -22,8 +22,8 @@ from typing import Any, ClassVar
 
 import pytest
 
-from app.tasks import video_processing
-from app.tasks.video_processing import _post_transcription_callback, transcribe_video_gpu
+from gpu_worker import tasks as video_processing
+from gpu_worker.tasks import _post_transcription_callback, transcribe_video_gpu
 
 
 class _Resp:
@@ -122,9 +122,9 @@ class _FakeTranscriptionService:
 def fake_transcription(monkeypatch):
     service = _FakeTranscriptionService()
     # Function-local import: patch the class on its home module.
-    module = types.ModuleType("app.services.transcription")
+    module = types.ModuleType("gpu_worker.transcription")
     module.TranscriptionService = lambda: service  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "app.services.transcription", module)
+    monkeypatch.setitem(sys.modules, "gpu_worker.transcription", module)
     return service
 
 

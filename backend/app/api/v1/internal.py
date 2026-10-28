@@ -20,7 +20,7 @@ from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
 from app.schemas.common import AcknowledgedResponse
 from app.schemas.video import TranscriptionCallbackRequest
-from app.services.transcription.quality import check_transcription_quality, log_quality_report
+from app.services.transcription_quality import check_transcription_quality, log_quality_report
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -146,7 +146,7 @@ async def transcription_callback(
         # Persist the report (best-effort) so the admin panel can show the
         # failure reason - both on failure (why it was blocked) and on success
         # (per-check pass/detail for auditing).
-        from app.services.transcription.quality import persist_quality_report
+        from app.services.transcription_quality import persist_quality_report
 
         await persist_quality_report(db, payload.video_id, quality_report)
 

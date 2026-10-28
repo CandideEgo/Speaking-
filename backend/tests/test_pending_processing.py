@@ -10,10 +10,11 @@ Covers:
 - Auto-publish syncs review_status to published.
 - Worker status endpoint returns correct online/offline state.
 - UGC submissions always stay in draft (auto_publish=False).
+
+The GPU worker security-guard tests moved to ``gpu-worker/tests/`` together with
+``scripts/start_gpu_worker.py`` when the GPU worker was split out of this repo.
 """
 
-import os
-from pathlib import Path
 from unittest.mock import patch
 
 from httpx import AsyncClient
@@ -21,12 +22,6 @@ from sqlalchemy import select
 
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
-
-# The GPU worker subprocess needs the backend root on sys.path (it does
-# ``from scripts.start_gpu_worker import ...``). Derive it from this file so the
-# test runs anywhere — a hardcoded absolute path here made it fail on every
-# machine but the one it was written on.
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
 async def _owner_id(db) -> str:
@@ -181,85 +176,6 @@ class TestWorkerStatus:
             )
         assert resp.status_code == 200
         assert resp.json()["worker_online"] is False
-
-
-class TestGPUWorkerSecurity:
-    """Tests for GPU worker security guard (Phase 0.2)."""
-
-    async def test_gpu_worker_refuses_with_database_url(self):
-        """GPU worker should refuse to start if DATABASE_URL is set."""
-        import subprocess
-        import sys
-
-        env = os.environ.copy()
-        env["DATABASE_URL"] = "postgresql://fake:fake@localhost/db"
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "import os, sys; os.environ['DATABASE_URL']='postgresql://fake:fake@localhost/db'; "
-                "from scripts.start_gpu_worker import _security_guard; _security_guard()",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=BACKEND_ROOT,
-            env=env,
-        )
-        assert result.returncode == 1
-        assert "SECURITY" in result.stderr
-        assert "DATABASE_URL" in result.stderr
-
-    async def test_gpu_worker_refuses_with_oss_credentials(self):
-        """GPU worker should refuse to start if OSS credentials are set."""
-        import subprocess
-        import sys
-
-        env = os.environ.copy()
-        env["OSS_ACCESS_KEY"] = "fake-access-key"
-        env["OSS_SECRET_KEY"] = "fake-secret-key"
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "import os; os.environ['OSS_ACCESS_KEY']='fake'; os.environ['OSS_SECRET_KEY']='fake'; "
-                "from scripts.start_gpu_worker import _security_guard; _security_guard()",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=BACKEND_ROOT,
-            env=env,
-        )
-        assert result.returncode == 1
-        assert "SECURITY" in result.stderr
-        assert "OSS_ACCESS_KEY" in result.stderr
-
-    async def test_gpu_worker_starts_without_forbidden_vars(self):
-        """GPU worker should start normally when no forbidden vars are set."""
-        import subprocess
-        import sys
-
-        env = os.environ.copy()
-        # Remove any forbidden vars that might be set
-        for key in ["DATABASE_URL", "OSS_ACCESS_KEY", "OSS_SECRET_KEY"]:
-            env.pop(key, None)
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "import os; [os.environ.pop(k, None) for k in ['DATABASE_URL', 'OSS_ACCESS_KEY', 'OSS_SECRET_KEY']]; "
-                "from scripts.start_gpu_worker import _security_guard; _security_guard(); print('PASS')",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=BACKEND_ROOT,
-            env=env,
-        )
-        assert result.returncode == 0
-        assert "PASS" in result.stdout
-        assert "SECURITY" not in result.stderr
 
 
 class TestAutoPublishSyncsReviewStatus:

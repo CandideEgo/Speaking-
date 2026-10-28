@@ -12,7 +12,7 @@ from pathlib import Path
 
 import structlog
 
-from app.core.config import get_settings
+from gpu_worker.config import get_settings
 
 from .exceptions import AudioExtractionError
 from .formatters import whisperx_segments_to_subtitles

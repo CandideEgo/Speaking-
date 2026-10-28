@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.services.transcription.formatters import (
+from gpu_worker.transcription.formatters import (
     merge_short_segments,
     whisper_segments_to_subtitles,
     whisperx_segments_to_subtitles,
@@ -181,7 +181,7 @@ class TestRestorePunctuation:
         text unchanged. In that case we only verify the function doesn't crash
         and returns the expected structure.
         """
-        from app.services.transcription.punctuation import restore_punctuation
+        from gpu_worker.transcription.punctuation import restore_punctuation
 
         segments = [
             {
@@ -216,7 +216,7 @@ class TestRestorePunctuation:
 
     def test_restore_preserves_word_timestamps(self):
         """Punctuation restoration doesn't change word start/end times."""
-        from app.services.transcription.punctuation import restore_punctuation
+        from gpu_worker.transcription.punctuation import restore_punctuation
 
         segments = [
             {
@@ -240,7 +240,7 @@ class TestRestorePunctuation:
 
     def test_restore_empty_segments(self):
         """Empty segments list is returned as-is."""
-        from app.services.transcription.punctuation import restore_punctuation
+        from gpu_worker.transcription.punctuation import restore_punctuation
 
         result = restore_punctuation([])
         assert result == []

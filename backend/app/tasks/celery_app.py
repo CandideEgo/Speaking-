@@ -4,6 +4,14 @@ from kombu import Queue
 
 from app.core.config import get_settings
 
+# Celery task name for the transcription step. The *implementation* now lives in
+# the standalone ``gpu-worker/`` component (the GPU machine consumes the
+# ``transcription_gpu`` queue); the cloud enqueues it by name with
+# ``celery_app.send_task`` and has no import path to the worker. The literal is
+# kept for compatibility with already-queued messages and the documented
+# head/GPU/tail contract — do not rename without draining the queue.
+GPU_TRANSCRIBE_TASK = "app.tasks.video_processing.transcribe_video_gpu"
+
 settings = get_settings()
 
 celery_app = Celery(
@@ -21,14 +29,14 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     # Queue topology: the cloud worker consumes the default ``celery`` queue;
-    # the remote GPU worker consumes ``transcription_gpu`` exclusively. Only
-    # the transcription task is routed off the default queue — everything else
-    # (video pipeline head/tail, localize, order expiry) runs
-    # on the cloud.
+    # the remote GPU worker (the standalone ``gpu-worker/`` component) consumes
+    # ``transcription_gpu`` exclusively. Only the transcription task is routed
+    # off the default queue — everything else (video pipeline head/tail,
+    # localize, order expiry) runs on the cloud.
     task_default_queue="celery",
     task_queues=(Queue("celery"), Queue(settings.transcription_gpu_queue_name)),
     task_routes={
-        "app.tasks.video_processing.transcribe_video_gpu": {"queue": settings.transcription_gpu_queue_name},
+        GPU_TRANSCRIBE_TASK: {"queue": settings.transcription_gpu_queue_name},
     },
     beat_schedule={
         "expire-pending-orders": {

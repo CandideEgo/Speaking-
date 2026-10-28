@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 import structlog
 
-from app.core.config import get_settings
+from gpu_worker.config import get_settings
 
 from .exceptions import AudioExtractionError
 
@@ -138,7 +138,7 @@ def _build_ytdlp_extra_args() -> list[str]:
     if settings.youtube_cookies_path and Path(settings.youtube_cookies_path).exists():
         # 副本：yt-dlp 退出时把 cookie jar 写回 --cookies 指向的文件，YouTube anti-bot
         # 响应带清 auth 的 Set-Cookie，直传原文件会洗掉 LOGIN_INFO
-        from app.services.youtube_cookies_service import disposable_cookiefile
+        from gpu_worker.ytdlp_cookies import disposable_cookiefile
 
         ck = disposable_cookiefile(settings.youtube_cookies_path)
         if ck:

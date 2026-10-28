@@ -8,7 +8,7 @@ length the progress bar reads e.g. "已看 100%" while minutes remain, so the
 fix belongs on the data side rather than in the UI.
 
 This script lists media files on the local volume, maps each back to its video
-id, re-runs ffprobe (``audio_extractor.get_video_duration``), and reports the
+id, re-runs ffprobe (``app.core.media_probe.get_video_duration``), and reports the
 DB-vs-media difference. Values beyond ``--tolerance`` seconds are reported;
 with ``--apply`` they are written back.
 
@@ -35,8 +35,8 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.database import async_session
+from app.core.media_probe import get_video_duration
 from app.models.video import Video
-from app.services.transcription.audio_extractor import get_video_duration
 
 # 交付给前端的变体优先；``{id}_raw.*`` 是转码前的源文件，同一条视频只取一个。
 VARIANT_SUFFIXES = ("_720p", "_1080p", "_480p", "")

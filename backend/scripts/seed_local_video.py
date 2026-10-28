@@ -1,4 +1,14 @@
-"""Seed a local video file into the SeeWord app with full pipeline.
+"""Seed a local video file into the app and hand it to the processing pipeline.
+
+Split note (2026-10): the cloud backend no longer transcribes locally — WhisperX
+moved into the standalone ``gpu-worker/`` component. This script therefore seeds
+the media + DB row and enqueues the pipeline head (``process_video``), which
+stages the raw file (OSS when configured) and enqueues GPU transcription. The
+transcription callback persists subtitles and runs the tail (translation,
+annotation, transcoding).
+
+The multi-resolution transcode below still runs locally so the seeded row is
+playable immediately; the tail may overwrite the URLs it produces.
 
 Usage:
     cd backend && python scripts/seed_local_video.py media/videos/eHJnEHyyN1Y.mp4 \
@@ -13,12 +23,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.database import async_session
-from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoSource, VideoStatus
+
+TRANSCODE_PROFILES = {
+    "480p": {"height": 480, "bitrate": "800k"},
+    "720p": {"height": 720, "bitrate": "1500k"},
+    "1080p": {"height": 1080, "bitrate": "3000k"},
+}
 
 
 async def seed_local_video(
@@ -42,17 +57,14 @@ async def seed_local_video(
 
     print(f"Video file: {video_file} ({video_file.stat().st_size / 1024 / 1024:.1f} MB)")
 
-    # Check if video already exists in DB by source_url
+    # Find an existing row by the *original* source URL (it is overwritten with
+    # the local raw path below, which is what the pipeline head expects).
     async with async_session() as db:
         result = await db.execute(select(Video).where(Video.source_url == source_url))
         existing = result.scalars().first()
         if existing:
             print(f"[UPDATE] Video already exists: {existing.title} (id={existing.id})")
-            await db.execute(delete(Subtitle).where(Subtitle.video_id == existing.id))
-            await db.commit()
             video = existing
-            video.status = VideoStatus.processing
-            await db.commit()
             video_id = video.id
         else:
             video_id = str(uuid.uuid4())
@@ -66,11 +78,11 @@ async def seed_local_video(
                 is_official=is_official,
                 processing_mode="full",
                 topic_tags=category,
-                status=VideoStatus.processing,
+                status=VideoStatus.pending_processing,
             )
             db.add(video)
-            await db.commit()
             print(f"[DB] Created video record: id={video_id}")
+        await db.commit()
 
     # Step 1: Copy/rename video to media dir as {video_id}_raw.mp4
     raw_path = media_dir / f"{video_id}_raw.mp4"
@@ -84,12 +96,6 @@ async def seed_local_video(
 
     # Step 2: Transcode to multi-resolution (h264+aac)
     import subprocess
-
-    TRANSCODE_PROFILES = {
-        "480p": {"height": 480, "bitrate": "800k"},
-        "720p": {"height": 720, "bitrate": "1500k"},
-        "1080p": {"height": 1080, "bitrate": "3000k"},
-    }
 
     urls = {}
     for label, profile in TRANSCODE_PROFILES.items():
@@ -130,70 +136,34 @@ async def seed_local_video(
         else:
             print(f"  [WARN] {label} failed: {proc.stderr[:200]}")
 
-    # Step 3: Update video record with URLs
+    # Step 3: Point the row at the local raw file and record the variant URLs.
+    # ``source_url`` must be the local path for ``video_source=local``: the
+    # pipeline head uses it to stage the media for the GPU worker.
     async with async_session() as db:
         result = await db.execute(select(Video).where(Video.id == video_id))
         video = result.scalars().one()
+        video.source_url = str(raw_path)
+        video.video_source = VideoSource.local
         video.video_url_480p = urls.get("480p")
         video.video_url_720p = urls.get("720p", f"/media/{video_id}.mp4")
         video.video_url_1080p = urls.get("1080p")
+        video.status = VideoStatus.pending_processing
+        video.processing_step = None
+        video.error_message = None
         await db.commit()
-        print(f"[DB] Updated video URLs: {list(urls.keys())}")
+        print(f"[DB] Updated video: source_url -> {raw_path.name}; URLs: {list(urls.keys())}")
 
-    # Step 4: Transcribe with WhisperX
-    print("[TRANSCRIBE] Running WhisperX transcription...")
-    from app.services.transcription import TranscriptionService
+    # Step 4: Hand off to the pipeline (head -> GPU worker -> tail).
+    from app.tasks.video_processing import process_video
 
-    svc = TranscriptionService()
-    subs = await svc.transcribe(str(raw_path), VideoSource.local)
-    print(f"[TRANSCRIBE] Got {len(subs)} subtitle segments")
+    process_video.delay(video_id)
+    print(f"[QUEUE] Enqueued process_video for {video_id}")
 
-    # Step 5: Translate subtitles to Chinese
-    print("[TRANSLATE] Translating subtitles to Chinese...")
-    from app.services.translation import get_translation_service
-
-    translation_svc = get_translation_service()
-    batch_size = translation_svc.batch_size
-
-    for i in range(0, len(subs), batch_size):
-        batch = subs[i : i + batch_size]
-        texts = [s["text"] for s in batch]
-        translations = await translation_svc.translate_batch(texts)
-        for j, t in enumerate(translations):
-            if i + j < len(subs):
-                subs[i + j]["text_zh"] = t or ""
-
-    translated = sum(1 for s in subs if s.get("text_zh"))
-    print(f"[TRANSLATE] Translated {translated}/{len(subs)} subtitles")
-
-    # Step 6: Save subtitles to DB
-    async with async_session() as db:
-        await db.execute(delete(Subtitle).where(Subtitle.video_id == video_id))
-
-        for i, sub in enumerate(subs):
-            db.add(
-                Subtitle(
-                    video_id=video_id,
-                    start_time=sub["start"],
-                    end_time=sub["end"],
-                    text_en=sub["text"],
-                    text_zh=sub.get("text_zh", ""),
-                    sentence_index=i,
-                )
-            )
-
-        result = await db.execute(select(Video).where(Video.id == video_id))
-        video = result.scalars().one()
-        video.status = VideoStatus.ready
-        video.duration = subs[-1]["end"] if subs else None
-        await db.commit()
-        print(f"[DB] Saved {len(subs)} subtitles, video status -> ready")
-
-    print("\n[DONE] Video seeded successfully!")
+    print("\n[DONE] Video seeded and enqueued!")
     print(f"  ID: {video_id}")
     print(f"  Title: {title}")
-    print(f"  Subtitles: {len(subs)}")
     print(f"  URL: http://localhost:3000/watch/{video_id}")
+    print("  Subtitles are produced by the GPU worker; watch the video status in the admin panel.")
     return True
 
 

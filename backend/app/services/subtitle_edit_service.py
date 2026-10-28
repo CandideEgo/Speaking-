@@ -818,7 +818,7 @@ def _resegment_segments(subs: list) -> list[dict]:
     any run-on sentence still over ~12s (by clause/count) and
     ``merge_short_segments`` folds single-word fragments back in.
     """
-    from app.services.transcription.formatters import (
+    from app.services.subtitle_segmentation import (
         _SENTENCE_END,
         _build_subsegment,
         _split_words_by_boundary,

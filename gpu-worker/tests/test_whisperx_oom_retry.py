@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services.transcription import whisper_model as wm
-from app.services.transcription.formatters import split_long_segments
+from gpu_worker.transcription import whisper_model as wm
+from gpu_worker.transcription.formatters import split_long_segments
 
 
 @pytest.fixture(autouse=True)
@@ -95,7 +95,7 @@ class TestClearCudaCache:
 
 class TestTranscribeAudioRetry:
     def _settings(self, monkeypatch, engine="whisperx", batch=8):
-        from app.core.config import get_settings
+        from gpu_worker.config import get_settings
 
         # get_settings() returns a new Settings() each call.  Pydantic
         # BaseSettings reads env vars at __init__ and writes them into the
@@ -106,10 +106,10 @@ class TestTranscribeAudioRetry:
         s = get_settings()
         monkeypatch.setattr(s, "whisper_engine", engine, raising=False)
         monkeypatch.setattr(s, "whisperx_batch_size", batch, raising=False)
-        # Patch at the source module.  Function-local ``from app.core.config
+        # Patch at the source module.  Function-local ``from gpu_worker.config
         # import get_settings`` resolves via sys.modules each call, so patching
         # the module attribute is sufficient.
-        monkeypatch.setattr("app.core.config.get_settings", lambda: s)
+        monkeypatch.setattr("gpu_worker.config.get_settings", lambda: s)
 
     def test_oom_retries_then_succeeds_no_sticky(self, monkeypatch):
         """OOM on batch=8 and 4, success on 2 — no sticky disable, returns WhisperX result."""

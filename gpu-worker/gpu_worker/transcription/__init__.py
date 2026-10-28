@@ -19,8 +19,8 @@ from urllib.parse import urlparse
 
 import structlog
 
-from app.core.config import get_settings
-from app.models.video import VideoSource
+from gpu_worker.config import get_settings
+from gpu_worker.sources import VideoSource
 
 from .audio_extractor import (
     _is_streaming_url,

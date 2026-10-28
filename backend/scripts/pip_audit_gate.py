@@ -34,7 +34,12 @@ from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 IGNORE_FILE = BACKEND_ROOT / ".pip-audit-ignore"
-DEFAULT_REQUIREMENTS = ("requirements.txt", "requirements-cloud.txt")
+# Only the cloud runtime set is audited here. The GPU worker is a separate
+# component (``gpu-worker/requirements.txt``) with its own heavy GPU stack; it
+# is not installed in the backend CI job, so auditing it from this gate would
+# resolve torch/whisperx for nothing. See gpu-worker/README.md for its audit
+# policy.
+DEFAULT_REQUIREMENTS = ("requirements-cloud.txt",)
 ADVISORY_ID_RE = re.compile(r"^(?:PYSEC|CVE|GHSA|OSV)-\d{4}-[0-9A-Za-z]+$")
 MIN_REASON_CHARS = 20
 
