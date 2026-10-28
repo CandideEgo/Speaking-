@@ -74,5 +74,6 @@ const DARK: ChartTheme = {
 
 export function useChartTheme(): ChartTheme {
   const { theme } = useThemeContext();
-  return theme === "dark" ? DARK : LIGHT;
+  const palette = theme === "dark" ? DARK : LIGHT;
+  return { ...palette, series: { ...palette.series, brand: "var(--color-brand-500)" } };
 }

@@ -187,22 +187,27 @@ export default function ForgotPasswordPage() {
                 <label htmlFor="reset-phone" className="block text-copy font-medium text-ink">
                   手机号
                 </label>
-                <Input
-                  id="reset-phone"
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  disabled={!interactive}
-                  maxLength={11}
-                  value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value.replace(/\D/g, "").slice(0, 11));
-                    setError("");
-                  }}
-                  required
-                  className="mt-1.5"
-                  placeholder="请输入手机号"
-                />
+                <div className="mt-1.5 flex h-[46px] items-stretch">
+                  <span className="inline-flex select-none items-center rounded-l-md border border-r-0 border-hairline bg-surface-soft px-3.5 text-copy font-medium text-body">
+                    +86
+                  </span>
+                  <Input
+                    id="reset-phone"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    disabled={!interactive}
+                    maxLength={11}
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value.replace(/\D/g, "").slice(0, 11));
+                      setError("");
+                    }}
+                    required
+                    className="flex-1 rounded-l-none"
+                    placeholder="请输入手机号"
+                  />
+                </div>
               </div>
               {(error || smsError) && (
                 <p role="alert" className="text-copy text-error-text">

@@ -1,28 +1,21 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { HomeEditorialHeader, HomeEditorialHero } from "@/components/home/HomeEditorialHero";
-import { HomeEditorialScenarios } from "@/components/home/HomeEditorialScenarios";
-import { ContinueLearningCard } from "@/components/home/ContinueLearningCard";
-import { HomeSideActions } from "@/components/home/HomeSideActions";
+import { DiscoverContinue, DiscoverRail } from "@/components/home/DiscoverRail";
 import { FeaturedListening } from "@/components/home/FeaturedListening";
 import { HomeFeed } from "@/components/home/HomeFeed";
+import { HomeSubscribedChannels } from "@/components/home/HomeSubscribedChannels";
 import { VideoCardSkeleton } from "@/components/ui/VideoCard";
-import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/common/SkeletonCard";
 import { fetchHomeEditorial } from "@/lib/homeEditorial";
 import { useContinueLearning } from "@/hooks/useContinueLearning";
 import type { HomeEditorialPage } from "@/types/homeContent";
 
-/**
- * 首页：先回答「今天从哪里开始」。
- *
- * 有学习记录时首屏第一行动是继续学习（视频名 + 真实进度 + 继续按钮）；
- * 没有记录时把今日精选组织成「今天从这段开始」的学习任务。今日任务主按钮
- * 直接落到真实片段起点，完整视频只做次级入口。复习/找视频压到右侧小卡，
- * 与主行动拉开层级。下方发现流保留分类/难度/排序与无限加载。
- */
+/** 首页以完整视频为浏览单位；编排不可用时回退普通精选。 */
 
 const EDITORIAL_TIMEOUT_MS = 8000;
 
@@ -82,8 +75,12 @@ type EditorialState =
 
 export default function HomePage() {
   const [editorial, setEditorial] = useState<EditorialState>({ status: "loading" });
+  const [featuredSettled, setFeaturedSettled] = useState(false);
+  const markFeaturedSettled = useCallback(() => setFeaturedSettled(true), []);
   const continueLearning = useContinueLearning();
-  const hasContinue = Boolean(continueLearning.record);
+  const layoutReady =
+    !continueLearning.loading &&
+    (editorial.status === "editorial" || (editorial.status === "fallback" && featuredSettled));
 
   useEffect(() => {
     // cancelled 只表示「这次订阅作废」（StrictMode 清理 / 真正卸载）；超时由模块级
@@ -107,82 +104,42 @@ export default function HomePage() {
   return (
     <div className="home-compact pt-4 pb-18">
       <HomeEditorialHeader />
+      <DiscoverContinue />
 
-      {continueLearning.loading ? (
-        <ContinueSkeleton />
-      ) : continueLearning.record ? (
-        <ContinueLearningCard record={continueLearning.record} />
-      ) : continueLearning.failed ? (
-        <div
-          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-hairline bg-canvas px-4 py-3"
-          role="status"
-        >
-          <p className="text-meta text-muted">学习记录暂时未能加载，今天先从这里开始。</p>
-          <Button variant="ghost" size="compact" onClick={continueLearning.retry}>
-            重试
-          </Button>
-        </div>
-      ) : null}
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] xl:items-start">
-        <div className="min-w-0 order-2 xl:order-1" id="home-listening">
-          {editorial.status === "editorial" ? (
-            <HomeEditorialHero
-              page={editorial.page}
-              primary={!hasContinue}
-              continueVideoId={continueLearning.record?.video_id}
-            />
+      <div className="home-discover-columns">
+        <div className="min-w-0">
+          {editorial.status === "editorial" && editorial.page.lead ? (
+            <HomeEditorialHero page={editorial.page} />
           ) : editorial.status === "loading" ? (
             <EditorialSkeleton />
           ) : (
-            <FeaturedListening
-              primary={!hasContinue}
-              continueVideoId={continueLearning.record?.video_id}
-            />
+            <FeaturedListening onSettled={markFeaturedSettled} />
           )}
 
-          {editorial.status === "editorial" && editorial.page.lead && (
-            <HomeEditorialScenarios
-              key={editorial.page.lead.video.id}
-              videoId={editorial.page.lead.video.id}
-              scenarios={editorial.page.scenarios}
-              content={editorial.page.lead.content}
-            />
-          )}
+          {/* id 锚点：站内「去浏览」类入口统一落到 `/`，需要时可 #feed 定位 */}
+          <section id="feed" aria-label="视频列表" className="home-video-feed mt-9 scroll-mt-6">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+              <div className="min-w-0">
+                <h2 className="text-[1.125rem] font-semibold tracking-tight text-ink">继续发现</h2>
+              </div>
+              <Link
+                href="/channels"
+                className="inline-flex items-center gap-1 text-meta font-semibold text-body transition-colors hover:text-ink"
+              >
+                全部频道
+                <ArrowRight size={13} aria-hidden />
+              </Link>
+            </div>
+            <Suspense fallback={<FeedSkeleton />}>
+              <HomeFeed layoutReady={layoutReady} />
+            </Suspense>
+          </section>
         </div>
-        <HomeSideActions />
+        <DiscoverRail />
       </div>
 
-      {/* id 锚点：站内「去浏览」类入口统一落到 `/`，需要时可 #feed 定位 */}
-      <section
-        id="feed"
-        aria-label="视频列表"
-        className="home-video-feed mt-8 scroll-mt-6 border-t border-hairline pt-5"
-      >
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-title font-bold tracking-tight text-ink">发现更多视频</h2>
-          <p className="text-meta text-muted">按主题、难度筛一段，点词理解，再听原声。</p>
-        </div>
-        <Suspense fallback={<FeedSkeleton />}>
-          <HomeFeed />
-        </Suspense>
-      </section>
+      <HomeSubscribedChannels />
     </div>
-  );
-}
-
-function ContinueSkeleton() {
-  return (
-    <Card variant="soft" padding={5} aria-label="正在读取学习记录" role="status">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <Skeleton className="aspect-video w-full max-w-[13rem]" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-3 w-24 rounded-pill" />
-          <Skeleton className="h-5 w-4/5 rounded-pill" />
-          <Skeleton className="h-1.5 w-full rounded-pill" />
-        </div>
-      </div>
-    </Card>
   );
 }
 
@@ -204,7 +161,7 @@ function EditorialSkeleton() {
 
 function FeedSkeleton() {
   return (
-    <div className="user-content-list">
+    <div className="home-feed-grid mt-5">
       {Array.from({ length: 8 }).map((_, i) => (
         <VideoCardSkeleton key={i} />
       ))}

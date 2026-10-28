@@ -19,6 +19,10 @@ export interface DataTableColumn {
  * `<tr>`) and `renderDetail` (returns inner content; the wrapper is added
  * here). Expand state is caller-owned (`expandedId`) so async-on-expand (e.g.
  * fetching comments) and whole-row-click variants fit without contortion.
+ *
+ * `emptyContent` 让列表把「失败 / 真空 / 筛选后为空」三态交给页面自绘（默认仍是
+ * 一行 `emptyText`）。展开内容的 `<tr>` 会带 `id={`row-detail-${rowKey}`}`，
+ * 页面的展开按钮可用 `aria-controls` 指过去。
  */
 export function DataTable<T>({
   columns,
@@ -26,6 +30,7 @@ export function DataTable<T>({
   rowKey,
   loading,
   emptyText,
+  emptyContent,
   expandedId,
   renderRow,
   renderDetail,
@@ -36,6 +41,8 @@ export function DataTable<T>({
   rowKey: (item: T) => string;
   loading: boolean;
   emptyText: string;
+  /** 有数据为空时的自定义内容（错误/筛选空等）；优先于 `emptyText`。 */
+  emptyContent?: ReactNode;
   /** Caller-owned expand state; omit for non-expandable tables. */
   expandedId?: string | null;
   /** Returns the full `<tr>` for a row. `isExpanded` lets the caller render a
@@ -55,7 +62,11 @@ export function DataTable<T>({
         <thead>
           <tr className="border-b border-hairline text-left text-meta text-muted uppercase tracking-wider">
             {columns.map((c, i) => (
-              <th key={i} className={cn("pb-2 font-medium", c.align === "right" && "text-right")}>
+              <th
+                key={i}
+                scope="col"
+                className={cn("pb-2 font-medium", c.align === "right" && "text-right")}
+              >
                 {c.label}
               </th>
             ))}
@@ -64,8 +75,14 @@ export function DataTable<T>({
         <tbody className="divide-y divide-hairline">
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={colSpan} className="py-8 text-center text-muted">
-                {loading ? "加载中..." : emptyText}
+              <td colSpan={colSpan} className={cn(!loading && emptyContent && "p-0")}>
+                {loading ? (
+                  <div className="py-8 text-center text-muted">加载中...</div>
+                ) : emptyContent ? (
+                  emptyContent
+                ) : (
+                  <div className="py-8 text-center text-muted">{emptyText}</div>
+                )}
               </td>
             </tr>
           ) : expandable ? (
@@ -76,7 +93,7 @@ export function DataTable<T>({
                 <RowGroup key={id}>
                   {renderRow(item, isExpanded)}
                   {isExpanded && (
-                    <tr className="bg-surface-soft/40">
+                    <tr id={`row-detail-${id}`} className="bg-surface-soft/40">
                       <td colSpan={colSpan} className="p-4">
                         {renderDetail!(item)}
                       </td>

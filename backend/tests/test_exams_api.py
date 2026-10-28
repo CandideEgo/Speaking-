@@ -504,3 +504,38 @@ async def test_paper_with_no_answerable_questions_is_rejected(client, auth_heade
 
     resp = await client.post(f"/api/v1/exams/{paper.id}/attempts", headers=auth_headers)
     assert resp.status_code == 409
+
+
+async def test_list_exams_includes_real_section_breakdown(client, auth_headers, seeded_paper):
+    item = (await client.get("/api/v1/exams?level=cet4", headers=auth_headers)).json()["items"][0]
+    sections = {row["section"]: row["question_count"] for row in item["sections"]}
+    assert sections == {"reading_A": 1, "reading_B": 1, "reading_C": 1}
+
+
+async def test_attempt_history_correct_count_uses_answer_rows(client, auth_headers, seeded_paper, db_session):
+    """Regression: deriving correct_count from score truncates (1/3 → 0).
+
+    ``score`` is rounded to 4 decimals, so ``int(score * question_count)``
+    reported 0 correct for a 1-of-3 attempt and disagreed with the result page.
+    The attempt history must count the frozen answer rows instead.
+    """
+    created = await client.post(f"/api/v1/exams/{seeded_paper.id}/attempts", headers=auth_headers)
+    assert created.status_code == 200
+    session_id = created.json()["session_id"]
+
+    rows = (
+        (await db_session.execute(select(ExamQuestion).where(ExamQuestion.paper_id == seeded_paper.id))).scalars().all()
+    )
+    correct = rows[0]
+    resp = await client.post(
+        f"/api/v1/exams/attempts/{session_id}/submit",
+        json={"answers": [{"question_id": correct.id, "answer": correct.answer}]},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["correct_count"] == 1
+    assert resp.json()["score"] == round(1 / 3, 4)
+
+    history = (await client.get("/api/v1/exams/attempts", headers=auth_headers)).json()
+    item = next(i for i in history["items"] if i["id"] == session_id)
+    assert item["correct_count"] == 1

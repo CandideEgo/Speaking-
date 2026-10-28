@@ -21,7 +21,12 @@ from sqlalchemy import select, text
 
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
-from scripts import backfill_classification, backfill_difficulty, backfill_word_levels
+from scripts import (
+    backfill_classification,
+    backfill_difficulty,
+    backfill_video_titles_zh,
+    backfill_word_levels,
+)
 from tests.conftest import TestSessionLocal
 
 
@@ -53,13 +58,16 @@ def _word_levels(basic: int, beyond: int) -> dict:
 async def _make_video(
     db_session,
     *,
+    title: str = "Backfill Test Video",
+    title_zh: str | None = None,
     status: VideoStatus = VideoStatus.ready,
     difficulty: str | None = None,
     topic_tags: str | None = None,
     word_levels: dict | None = None,
 ) -> str:
     v = Video(
-        title="Backfill Test Video",
+        title=title,
+        title_zh=title_zh,
         source_url="https://www.youtube.com/watch?v=backfill_test",
         video_source="imported",
         status=status,
@@ -86,6 +94,12 @@ async def _make_video(
 async def _difficulty_of(db_session, video_id: str) -> str | None:
     video = await db_session.scalar(select(Video).where(Video.id == video_id))
     return video.difficulty_level
+
+
+async def _title_zh_of(video_id: str) -> str | None:
+    """Read through a fresh session — the writing session is a different one."""
+    async with TestSessionLocal() as db:
+        return await db.scalar(select(Video.title_zh).where(Video.id == video_id))
 
 
 class TestClassificationCacheInvalidation:
@@ -160,6 +174,93 @@ class TestDifficultyCacheInvalidation:
 
         assert await backfill_difficulty.main() == 0
         assert await _difficulty_of(db_session, vid) == "C1"
+        assert calls == []
+
+
+class TestVideoTitleBackfill:
+    """scripts/backfill_video_titles_zh.py must write once and invalidate."""
+
+    @staticmethod
+    def _fake_translation(monkeypatch, *, failing: set[str] | None = None) -> list[list[str]]:
+        calls: list[list[str]] = []
+
+        async def _fake(titles: list[str], engine: str | None = None) -> list[str | None]:
+            calls.append(list(titles))
+            return [None if failing and t in failing else f"译:{t}" for t in titles]
+
+        monkeypatch.setattr(backfill_video_titles_zh, "_translate_titles", _fake)
+        return calls
+
+    @pytest.mark.asyncio
+    async def test_video_id_run_writes_and_invalidates(self, db_session, monkeypatch):
+        _point_at_test_db(monkeypatch, backfill_video_titles_zh)
+        calls = _count_invalidations(monkeypatch)
+        self._fake_translation(monkeypatch)
+        vid = await _make_video(db_session)
+
+        monkeypatch.setattr(sys, "argv", ["backfill_video_titles_zh.py", "--video-id", vid])
+
+        assert await backfill_video_titles_zh.main() == 0
+        assert await _title_zh_of(vid) == "译:Backfill Test Video"
+        assert calls == [1]
+
+    @pytest.mark.asyncio
+    async def test_video_id_dry_run_writes_nothing_and_does_not_invalidate(self, db_session, monkeypatch):
+        _point_at_test_db(monkeypatch, backfill_video_titles_zh)
+        calls = _count_invalidations(monkeypatch)
+        self._fake_translation(monkeypatch)
+        vid = await _make_video(db_session)
+
+        monkeypatch.setattr(sys, "argv", ["backfill_video_titles_zh.py", "--video-id", vid, "--dry-run"])
+
+        assert await backfill_video_titles_zh.main() == 0
+        assert await _title_zh_of(vid) is None
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_video_id_already_translated_does_not_invalidate(self, db_session, monkeypatch):
+        """Nothing written, so the browse cache is still valid."""
+        _point_at_test_db(monkeypatch, backfill_video_titles_zh)
+        calls = _count_invalidations(monkeypatch)
+        translate_calls = self._fake_translation(monkeypatch)
+        vid = await _make_video(db_session, title_zh="已有的中文标题")
+
+        monkeypatch.setattr(sys, "argv", ["backfill_video_titles_zh.py", "--video-id", vid])
+
+        assert await backfill_video_titles_zh.main() == 0
+        assert translate_calls == []
+        assert await _title_zh_of(vid) == "已有的中文标题"
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_batch_writes_every_missing_title_and_invalidates_once(self, db_session, monkeypatch):
+        _point_at_test_db(monkeypatch, backfill_video_titles_zh)
+        calls = _count_invalidations(monkeypatch)
+        translate_calls = self._fake_translation(monkeypatch)
+        first = await _make_video(db_session, title="First Talk")
+        second = await _make_video(db_session, title="Second Talk", title_zh="已有")
+        third = await _make_video(db_session, title="Third Talk")
+
+        monkeypatch.setattr(sys, "argv", ["backfill_video_titles_zh.py"])
+
+        assert await backfill_video_titles_zh.main() == 0
+        assert translate_calls == [["First Talk", "Third Talk"]]
+        assert await _title_zh_of(first) == "译:First Talk"
+        assert await _title_zh_of(second) == "已有"
+        assert await _title_zh_of(third) == "译:Third Talk"
+        assert calls == [1]
+
+    @pytest.mark.asyncio
+    async def test_batch_failure_leaves_row_untouched_and_skips_cache(self, db_session, monkeypatch):
+        _point_at_test_db(monkeypatch, backfill_video_titles_zh)
+        calls = _count_invalidations(monkeypatch)
+        self._fake_translation(monkeypatch, failing={"Backfill Test Video"})
+        vid = await _make_video(db_session)
+
+        monkeypatch.setattr(sys, "argv", ["backfill_video_titles_zh.py"])
+
+        assert await backfill_video_titles_zh.main() == 0
+        assert await _title_zh_of(vid) is None
         assert calls == []
 
 

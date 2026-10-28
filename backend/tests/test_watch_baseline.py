@@ -1,23 +1,17 @@
 """Watch progress, source integrity and retired feature contracts."""
 
-from datetime import date
 from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import func, select
 
-from app.core.errors import AppError
 from app.models.learning import LearningRecord, Vocabulary
 from app.models.notification import Notification
-from app.models.shadowing import ShadowingAttempt
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoSource, VideoStatus
-from app.models.weekly_report import WeeklyReport
 from app.services.milestone_service import check_and_award
 from app.services.retired_features import RETIRED_NOTIFICATION_TYPES
-from app.services.weekly_report_service import generate_report_for_week
 from app.tasks.celery_app import celery_app
-from app.tasks.report_tasks import generate_weekly_reports
 from tests.conftest import TestSessionLocal
 
 
@@ -131,13 +125,11 @@ async def test_gloss_labels_hint_scope_without_new_ai(client, auth_headers, monk
         ("GET", "/api/v1/videos/old/shadowing-sentences"),
     ],
 )
-async def test_retired_routes_auth_and_gone_without_writes(client, auth_headers, method, path):
+async def test_retired_routes_auth_and_gone(client, auth_headers, method, path):
     assert (await client.request(method, path)).status_code == 401
     resp = await client.request(method, path, headers=auth_headers)
     assert resp.status_code == 410, resp.text
     assert resp.json()["code"] == "FEATURE_RETIRED"
-    async with TestSessionLocal() as db:
-        assert await db.scalar(select(func.count()).select_from(ShadowingAttempt)) == 0
 
 
 async def test_hidden_notifications_and_unread_count_use_same_filter(client, auth_headers):
@@ -176,15 +168,12 @@ async def test_retired_preferences_cannot_be_reenabled(client, auth_headers):
     ] is False
 
 
-async def test_producers_stopped_without_destroying_history():
+async def test_retired_producers_stay_retired():
+    """The weekly-report/redeem producers are gone; only compatibility shells remain."""
     assert "generate-weekly-reports" not in celery_app.conf.beat_schedule
-    assert generate_weekly_reports() == 0
+    assert "expire-unused-redeem-codes" not in celery_app.conf.beat_schedule
     async with TestSessionLocal() as db:
         assert await check_and_award(db, "unused-user") == []
-        with pytest.raises(AppError) as error:
-            await generate_report_for_week(db, "unused-user", date(2026, 10, 12))
-        assert error.value.status_code == 410
-        assert await db.scalar(select(func.count()).select_from(WeeklyReport)) == 0
 
 
 async def test_old_worker_push_cannot_reintroduce_retired_badge():

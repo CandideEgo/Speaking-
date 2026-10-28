@@ -18,12 +18,15 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import BadRequestError
 from app.models.channel import Channel
+from app.models.user_content import ChannelSubscription
 from app.models.video import Video, VideoStatus
 from app.schemas.pagination import paginated
 from app.services import channel_learning
@@ -82,10 +85,15 @@ def latest_video_payload(video: Video | None) -> dict | None:
     return {
         "id": video.id,
         "title": video.title,
+        "title_zh": video.title_zh,
         "thumbnail_url": video.thumbnail_url,
         "duration": video.duration,
         "published_at": video.published_at.isoformat() if video.published_at else None,
         "difficulty_level": video.difficulty_level,
+        "view_count": video.view_count,
+        "favorite_count": video.favorite_count,
+        "upload_date": video.upload_date.isoformat() if video.upload_date else None,
+        "created_at": video.created_at.isoformat() if video.created_at else None,
     }
 
 
@@ -100,6 +108,44 @@ async def public_video_counts(db: AsyncSession, channel_ids: list[str]) -> dict[
         )
     ).all()
     return {cid: n for cid, n in rows}
+
+
+async def subscriber_stats(
+    db: AsyncSession,
+    channel_ids: list[str],
+    viewer_id: str | None = None,
+) -> tuple[dict[str, int], set[str]]:
+    """Local subscriber counts + which of these channels the viewer follows.
+
+    ``subscriber_count`` is SeeWord's own number (ChannelSubscription rows),
+    deliberately separate from ``follower_count`` (an upstream YouTube
+    snapshot). One grouped query plus one viewer query; no N+1.
+    """
+    if not channel_ids:
+        return {}, set()
+    rows = (
+        await db.execute(
+            select(ChannelSubscription.channel_id, func.count(ChannelSubscription.id))
+            .where(ChannelSubscription.channel_id.in_(channel_ids))
+            .group_by(ChannelSubscription.channel_id)
+        )
+    ).all()
+    counts = {channel_id: count for channel_id, count in rows}
+    subscribed: set[str] = set()
+    if viewer_id:
+        subscribed = set(
+            (
+                await db.execute(
+                    select(ChannelSubscription.channel_id).where(
+                        ChannelSubscription.user_id == viewer_id,
+                        ChannelSubscription.channel_id.in_(channel_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return counts, subscribed
 
 
 async def latest_public_videos(db: AsyncSession, channel_ids: list[str]) -> dict[str, Video]:
@@ -133,7 +179,7 @@ async def _latest_covers(db: AsyncSession, channel_ids: list[str]) -> dict[str, 
     stmt = (
         select(Video.channel_ref, Video.thumbnail_url)
         .where(Video.channel_ref.in_(channel_ids), *_PUBLIC_VIDEO_FILTER)
-        .order_by(Video.channel_ref, Video.created_at.desc())
+        .order_by(Video.channel_ref, Video.created_at.desc(), Video.id.desc())
     )
     covers: dict[str, str | None] = {}
     for ref, thumb in (await db.execute(stmt)).all():
@@ -166,7 +212,12 @@ async def _public_videos_by_channel(db: AsyncSession, channel_ids: list[str]) ->
     return grouped
 
 
-async def list_public_channels(db: AsyncSession, page: int = 1, page_size: int = 50) -> dict:
+async def list_public_channels(
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 50,
+    viewer_id: str | None = None,
+) -> dict:
     """Visible non-empty channels as a standard paginated envelope.
 
     Curated channels (``is_auto=False``) lead by sort_order/name; auto-created
@@ -177,7 +228,9 @@ async def list_public_channels(db: AsyncSession, page: int = 1, page_size: int =
     channels = list(
         (
             await db.execute(
-                select(Channel).where(Channel.is_visible.is_(True)).order_by(Channel.sort_order, Channel.name)
+                select(Channel)
+                .where(Channel.is_visible.is_(True))
+                .order_by(Channel.sort_order, Channel.name, Channel.id)
             )
         ).scalars()
     )
@@ -188,7 +241,9 @@ async def list_public_channels(db: AsyncSession, page: int = 1, page_size: int =
         if n == 0:
             continue
         # Curated rows first (sort_order, name); auto rows after, biggest first.
-        key = (0, c.sort_order, c.name) if not c.is_auto else (1, -n, c.name)
+        # ``c.id`` is the tiebreaker so equal order/name/count rows keep a stable
+        # page order (ADM-15).
+        key = (0, c.sort_order, c.name, c.id) if not c.is_auto else (1, -n, c.name, c.id)
         entries.append((key, c, n))
     entries.sort(key=lambda e: e[0])
 
@@ -197,6 +252,7 @@ async def list_public_channels(db: AsyncSession, page: int = 1, page_size: int =
     page_entries = entries[start : start + page_size]
     page_channels = [channel for _, channel, _ in page_entries]
     videos_by_channel = await _public_videos_by_channel(db, [channel.id for channel in page_channels])
+    subscriber_counts, subscribed = await subscriber_stats(db, [channel.id for channel in page_channels], viewer_id)
     items = []
     for _, channel, video_count in page_entries:
         videos = videos_by_channel.get(channel.id, [])
@@ -208,12 +264,46 @@ async def list_public_channels(db: AsyncSession, page: int = 1, page_size: int =
             latest_video.thumbnail_url if latest_video else None,
             facts,
         )
+        item["total_view_count"] = sum(v.view_count or 0 for v in videos)
         item["latest_video"] = latest_video_payload(latest_video)
+        item["subscriber_count"] = subscriber_counts.get(channel.id, 0)
+        item["is_subscribed"] = channel.id in subscribed
         items.append(item)
     return paginated(items, page=page, page_size=page_size, total=total)
 
 
-async def get_channel_detail(db: AsyncSession, slug: str, page: int, page_size: int) -> dict | None:
+async def search_channel_cards(db: AsyncSession, channels: list[Channel], viewer_id: str) -> list[dict]:
+    """Search uses the same channel card facts, resolved in page batches."""
+    ids = [channel.id for channel in channels]
+    videos_by_channel = await _public_videos_by_channel(db, ids)
+    counts, subscribed = await subscriber_stats(db, ids, viewer_id)
+    items = []
+    for channel in channels:
+        videos = videos_by_channel.get(channel.id, [])
+        latest = videos[0] if videos else None
+        item = _channel_public(
+            channel,
+            len(videos),
+            latest.thumbnail_url if latest else None,
+            channel_learning.channel_facts(channel.slug, videos),
+        )
+        item.update(
+            latest_video=latest_video_payload(latest),
+            subscriber_count=counts.get(channel.id, 0),
+            is_subscribed=channel.id in subscribed,
+            total_view_count=sum(v.view_count or 0 for v in videos),
+        )
+        items.append(item)
+    return items
+
+
+async def get_channel_detail(
+    db: AsyncSession,
+    slug: str,
+    page: int,
+    page_size: int,
+    viewer_id: str | None = None,
+) -> dict | None:
     channel = (await db.execute(select(Channel).where(Channel.slug == slug))).scalar_one_or_none()
     if channel is None or not channel.is_visible:
         return None
@@ -223,7 +313,9 @@ async def get_channel_detail(db: AsyncSession, slug: str, page: int, page_size: 
     videos = list(
         (
             await db.execute(
-                public_stmt.order_by(Video.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+                public_stmt.order_by(Video.created_at.desc(), Video.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
             )
         ).scalars()
     )
@@ -241,8 +333,31 @@ async def get_channel_detail(db: AsyncSession, slug: str, page: int, page_size: 
         upstream_stats = (newest.external_meta or {}).get("channel") or {}
 
     channel_dict = _channel_public(channel, total, cover_fallback, facts)
+    channel_dict["total_view_count"] = sum(v.view_count or 0 for v in fact_videos)
     channel_dict["follower_count"] = upstream_stats.get("follower_count")
     channel_dict["is_verified"] = upstream_stats.get("is_verified")
+    subscriber_counts, subscribed = await subscriber_stats(db, [channel.id], viewer_id)
+    channel_dict["subscriber_count"] = subscriber_counts.get(channel.id, 0)
+    channel_dict["is_subscribed"] = channel.id in subscribed
+    # Real recency facts replace the prototype's invented cadence label.
+    if newest is not None:
+        channel_dict["latest_published_at"] = (
+            (newest.published_at or newest.created_at).isoformat()
+            if (newest.published_at or newest.created_at)
+            else None
+        )
+    else:
+        channel_dict["latest_published_at"] = None
+    recent_cutoff = datetime.now(UTC) - timedelta(days=30)
+
+    def _aware(value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+    channel_dict["recent_video_count"] = sum(
+        1 for v in fact_videos if (stamp := _aware(v.published_at or v.created_at)) and stamp >= recent_cutoff
+    )
 
     recommended_start = None
     start_video, basis = await _recommended_start_video(db, channel.id)
@@ -368,7 +483,11 @@ async def channel_slugs_for(db: AsyncSession, videos: Iterable[Video]) -> dict[s
 
 
 async def list_admin_channels(db: AsyncSession) -> list[dict]:
-    channels = list((await db.execute(select(Channel).order_by(Channel.sort_order, Channel.name))).scalars())
+    # id tiebreaker: sort_order/name collide freely on seeded rows and OFFSET-free
+    # consumers (frontend table) still expect a deterministic order (ADM-15).
+    channels = list(
+        (await db.execute(select(Channel).order_by(Channel.sort_order, Channel.name, Channel.id))).scalars()
+    )
     counts = await public_video_counts(db, [c.id for c in channels])
     covers = await _latest_covers(db, [c.id for c in channels])
     out = []
@@ -387,6 +506,35 @@ async def list_admin_channels(db: AsyncSession) -> list[dict]:
     return out
 
 
+async def _slug_exists(db: AsyncSession, slug: str, *, exclude_id: str | None = None) -> bool:
+    """Fast-path duplicate check for a friendly error before touching the DB.
+
+    This is deliberately **only** the fast path: the check-then-act window
+    between this SELECT and the INSERT/UPDATE is real (two admins saving the
+    same slug at once), so callers must still treat the unique index as the
+    authority by catching ``IntegrityError`` (ADM-19).
+    """
+    stmt = select(Channel.id).where(Channel.slug == slug)
+    if exclude_id is not None:
+        stmt = stmt.where(Channel.id != exclude_id)
+    return (await db.execute(stmt)).scalar_one_or_none() is not None
+
+
+def _integrity_conflict_message(exc: IntegrityError, *, slug: str | None, upstream: str | None) -> str:
+    """Turn a unique-constraint violation into the admin-facing 400 message.
+
+    ``channels`` has two unique columns (slug and upstream_channel_id); the
+    original error text names the column/constraint on both Postgres and
+    SQLite, so use it to say which one actually collided.
+    """
+    detail = str(getattr(exc, "orig", exc))
+    if upstream and "upstream" in detail:
+        return f"上游频道 ID 已被占用: {upstream}"
+    if slug:
+        return f"slug 已存在: {slug}"
+    return "slug 已存在"
+
+
 async def create_channel(db: AsyncSession, payload: dict) -> Channel:
     name = (payload.get("name") or "").strip()
     if not name:
@@ -394,7 +542,7 @@ async def create_channel(db: AsyncSession, payload: dict) -> Channel:
     slug = (payload.get("slug") or "").strip().lower() or slugify(name)
     if not SLUG_RE.match(slug):
         raise BadRequestError("slug 只能包含小写字母、数字和连字符（首尾须为字母/数字）")
-    exists = (await db.execute(select(Channel.id).where(Channel.slug == slug))).scalar_one_or_none()
+    exists = await _slug_exists(db, slug)
     if exists:
         raise BadRequestError(f"slug 已存在: {slug}")
 
@@ -409,7 +557,13 @@ async def create_channel(db: AsyncSession, payload: dict) -> Channel:
         is_visible=bool(payload.get("is_visible", True)),
     )
     db.add(channel)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        # Lost the check-then-act race (or an unindexed duplicate upstream id):
+        # report a business error instead of letting the 500 envelope escape.
+        await db.rollback()
+        raise BadRequestError(_integrity_conflict_message(exc, slug=slug, upstream=upstream)) from exc
     if upstream:
         # Attach existing videos already scraped from this upstream channel.
         from sqlalchemy import update
@@ -433,17 +587,21 @@ async def update_channel(db: AsyncSession, channel_id: str, payload: dict) -> Ch
         if field in payload and payload[field] is not None:
             setattr(channel, field, payload[field])
     slug_in = payload.get("slug")
+    slug: str | None = None
     if slug_in:
         slug = str(slug_in).strip().lower()
         if not SLUG_RE.match(slug):
             raise BadRequestError("slug 只能包含小写字母、数字和连字符（首尾须为字母/数字）")
-        clash = (
-            await db.execute(select(Channel.id).where(Channel.slug == slug, Channel.id != channel_id))
-        ).scalar_one_or_none()
-        if clash:
+        if await _slug_exists(db, slug, exclude_id=channel_id):
             raise BadRequestError(f"slug 已存在: {slug}")
         channel.slug = slug
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        # Same race as create_channel: the unique index is the real guard.
+        await db.rollback()
+        upstream = payload.get("upstream_channel_id") or None
+        raise BadRequestError(_integrity_conflict_message(exc, slug=slug, upstream=upstream)) from exc
     return channel
 
 

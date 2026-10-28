@@ -27,7 +27,6 @@ from app.core.config import get_settings
 from app.core.database import get_async_session_maker
 from app.core.limiter import rate_limit
 from app.core.media_hosts import host_allowed, referer_for
-from app.core.security import decode_token
 from app.models.user import User
 
 router = APIRouter(prefix="/media", tags=["media"])
@@ -179,20 +178,18 @@ async def upload_shadowing_audio(
     feature_gone()
 
 
-def _shadowing_token_ok(owner_user_id: str, request: Request) -> bool:
+async def _shadowing_token_ok(owner_user_id: str, request: Request) -> bool:
     """Validate the ``?token=`` JWT for a shadowing recording.
 
-    The token must be an access (or legacy untyped) token whose ``sub``
-    matches the owner id embedded in the media path. Returns False on any
-    mismatch / malformed token (caller maps to 404).
+    The token must resolve to a live, non-banned user through the shared auth
+    chain and its ``sub`` must match the owner id embedded in the media path.
+    Returns False on any mismatch / malformed / revoked token (caller maps to
+    404).
     """
     token = request.query_params.get("token", "")
     if not token:
         return False
-    payload = decode_token(token)
-    if payload is None or payload.get("type") not in ("access", None):
-        return False
-    return payload.get("sub") == owner_user_id
+    return (await _viewer_id_from_request(request)) == owner_user_id
 
 
 # ---------------------------------------------------------------------------
@@ -238,9 +235,10 @@ def _cache_access_decision(video_id: str, public: bool) -> None:
     _VIDEO_ACCESS_CACHE[video_id] = (now + _VIDEO_ACCESS_CACHE_TTL, public)
 
 
-def _viewer_id_from_request(request: Request) -> str | None:
+async def _viewer_id_from_request(request: Request) -> str | None:
     """Resolve the viewer's user id from ``?token=`` or the Authorization
-    header. Returns None when absent/invalid (anonymous viewer)."""
+    header through the same auth chain as the API (blacklist / password change /
+    banned). Returns None when absent or no longer valid (anonymous viewer)."""
     token = request.query_params.get("token", "")
     if not token:
         auth = request.headers.get("Authorization", "")
@@ -248,10 +246,11 @@ def _viewer_id_from_request(request: Request) -> str | None:
             token = auth[7:]
     if not token:
         return None
-    payload = decode_token(token)
-    if payload is None or payload.get("type") not in ("access", None):
-        return None
-    return payload.get("sub")
+    from app.api.dependencies import resolve_token_user
+
+    async with get_async_session_maker()() as db:
+        user = await resolve_token_user(token, db)
+    return user.id if user is not None else None
 
 
 async def _video_media_allowed(video_id: str, viewer_id: str | None) -> bool:
@@ -358,7 +357,7 @@ async def serve_media(file_path: str, request: Request):
     # publish-state gate below. The gate must follow the bytes that ship.
     rel = full.relative_to(base).parts
     if rel[0] == "shadowing":
-        if len(rel) < 2 or not _shadowing_token_ok(rel[1], request):
+        if len(rel) < 2 or not await _shadowing_token_ok(rel[1], request):
             raise HTTPException(status_code=404)
     else:
         # Publish-state gate for pipeline-produced video files
@@ -373,7 +372,7 @@ async def serve_media(file_path: str, request: Request):
         m = _VIDEO_FILE_RE.match(full.stem)
         if m is not None and len(rel) == 1:
             vid = m.group("vid")
-            viewer_id = _viewer_id_from_request(request)
+            viewer_id = await _viewer_id_from_request(request)
             if not await _video_media_allowed(vid, viewer_id):
                 raise HTTPException(status_code=404)
             if not await _video_unlock_allowed(vid, viewer_id):

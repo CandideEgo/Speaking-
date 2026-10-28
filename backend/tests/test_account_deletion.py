@@ -16,7 +16,6 @@ from app.core.config import get_settings
 from app.models.behavior import BehaviorEvent
 from app.models.data_export import DataExportTask
 from app.models.learning import Vocabulary
-from app.models.shadowing import ShadowingAttempt
 from app.models.user import User
 from app.tasks.account_tasks import _purge_due, build_user_export
 from tests.conftest import TestSessionLocal
@@ -92,13 +91,6 @@ async def test_purge_releases_phone_and_anonymizes_behavior(client: AsyncClient,
         user.deletion_scheduled_at = datetime.now(UTC) - timedelta(days=1)
         db.add(BehaviorEvent(user_id=user_id, event_type="watch_time", event_payload={"s": 3}))
         db.add(Vocabulary(user_id=user_id, word="apple"))
-        db.add(
-            ShadowingAttempt(
-                user_id=user_id,
-                video_id="00000000-0000-0000-0000-000000000000",
-                audio_url=f"/media/shadowing/{user_id}/rec.webm",
-            )
-        )
         await db.commit()
 
     purged = await _purge_due(now=datetime.now(UTC))
@@ -138,24 +130,14 @@ async def test_export_builds_zip_with_media_and_serves_once(client: AsyncClient,
     me = await _me(client, auth_headers)
     user_id = me["id"]
 
-    # Seed data + on-disk media (avatar + one shadowing recording).
+    # Seed data + on-disk media (avatar).
     (media_tmp / "avatars").mkdir(parents=True, exist_ok=True)
     (media_tmp / "avatars" / "face.png").write_bytes(b"avatar-bytes")
-    shadow_dir = media_tmp / "shadowing" / user_id
-    shadow_dir.mkdir(parents=True, exist_ok=True)
-    (shadow_dir / "rec.webm").write_bytes(b"audio-bytes")
 
     async with TestSessionLocal() as db:
         user = (await db.execute(select(User).where(User.id == user_id))).scalar_one()
         user.avatar_url = "/media/avatars/face.png"
         db.add(Vocabulary(user_id=user_id, word="apple", translation="n. 苹果"))
-        db.add(
-            ShadowingAttempt(
-                user_id=user_id,
-                video_id="00000000-0000-0000-0000-000000000000",
-                audio_url=f"/media/shadowing/{user_id}/rec.webm",
-            )
-        )
         await db.commit()
 
     created = await client.get("/api/v1/users/me/export", headers=auth_headers)
@@ -178,12 +160,13 @@ async def test_export_builds_zip_with_media_and_serves_once(client: AsyncClient,
         names = set(zf.namelist())
         assert "vocabulary.csv" in names
         assert "vocabulary.json" in names
-        assert "shadowing.csv" in names
         assert "learning_records.json" in names
         assert "notification_preferences.json" in names
         assert "behavior_events.csv" in names
         assert any(n.startswith("media/avatar/") for n in names)
-        assert any(n.startswith("media/shadowing/") for n in names)
+        # Retired features must stay out of the archive.
+        assert "shadowing.csv" not in names
+        assert not any(n.startswith("media/shadowing/") for n in names)
 
     status = (await client.get(f"/api/v1/users/me/export/{task_id}", headers=auth_headers)).json()
     assert status["status"] == "ready"

@@ -49,7 +49,9 @@ def _settings(**overrides) -> Settings:
     base = dict(
         _env_file=None,
         env="testing",
-        jwt_secret="test-secret",
+        # Non-development builds reject the dev default and require ≥32 chars
+        # (config guard added in the 2026-10-24 audit); keep the fixture valid.
+        jwt_secret="test-secret-for-pytest-at-least-32-chars",
         database_url="postgresql+asyncpg://u:p@localhost/db",
         openai_api_key="",
         commandcode_api_key="",

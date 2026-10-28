@@ -11,15 +11,8 @@ import type {
 } from "../src/types/homeContent";
 
 /**
- * 公共首页：已发布编排被组织成一个明确的学习任务。
- *
- * 断言的是本轮改版的产品契约：中文学习收益、真实难度/片段时长、一个主按钮
- * （听懂这段 · 真实秒数）、完整视频只做次级入口、场景表达与原片定位、无媒体时
- * 退回完整视频、手机/桌面版式。后端接口用 route mock 固定形状；最后用普通精选
- * 验证「未发布/失败时仍有一张真实的任务卡」。
- *
- * 首页是受保护路由（`proxy.ts` 只查 cookie 存在性），mock 用例注入假 token +
- * cookie 进站，避免每个用例都去注册真账号。
+ * 公共首页以完整视频为单位：展示原名与现有导语，保留发布/兜底边界。
+ * 固定接口数据验证字段缺失、完整视频落点、双语推荐流与明暗主题多尺寸布局。
  */
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
@@ -54,6 +47,7 @@ function videoCard(id: string, overrides: Partial<VideoCard> = {}): VideoCard {
   return {
     id,
     title: `视频 ${id}`,
+    title_zh: null,
     source_url: `https://example.com/${id}`,
     video_source: "youtube",
     thumbnail_url: "/media/home-editorial-cover.svg",
@@ -190,6 +184,7 @@ const LEAD_SLOT: HomeEditorialVideoSlot = {
   content: LEAD_CONTENT,
   video: videoCard("video-lead", {
     title: "真实图片辨伪演讲",
+    title_zh: "一张图，能藏住多少真相？",
     duration: 754,
     difficulty_level: "B1",
     channel_name: "TED",
@@ -406,222 +401,146 @@ async function openEditorial(page: Page, editorial: HomeEditorialPage = EDITORIA
   await expect(page.locator(".home-editorial-lead")).toBeVisible();
 }
 
-test.describe("已发布编排：一个明确的学习任务", () => {
-  test("任务卡展示中文收益、难度与真实片段时长，主次入口落点正确", async ({ page }) => {
+test.describe("已发布编排：完整视频发现", () => {
+  test("双语标题保留，辅助导语移除，完整视频入口保留", async ({ page }) => {
     await openEditorial(page);
-    await expect(page.getByRole("heading", { name: "今天从哪里开始？" })).toBeVisible();
-
-    const lead = page.locator(".home-editorial-lead");
-    await expect(lead).toBeVisible();
-    await expect(lead.getByRole("heading", { name: "一张图，能藏住多少真相？" })).toBeVisible();
-    await expect(lead.getByText("AI 图片越来越真。", { exact: false })).toBeVisible();
-    await expect(lead.getByText("图片辨真", { exact: true })).toBeVisible();
-    await expect(lead.getByText("片段 42 秒")).toBeVisible();
-    await expect(lead.getByText("B1", { exact: true })).toBeVisible();
-
-    // 主按钮文案里的秒数来自 clip.duration，落点来自真实字幕与时间。
-    await expect(lead.getByRole("link", { name: "听懂这段 · 42 秒" })).toHaveAttribute(
+    await expect(page.getByRole("heading", { name: /^发现 · / })).toBeVisible();
+    const card = page.getByRole("article", { name: "精选视频", exact: true });
+    await expect(card).toContainText(LEAD_SLOT.video.title);
+    await expect(card).toContainText(LEAD_SLOT.video.title_zh!);
+    await expect(card).not.toContainText(LEAD_CONTENT.dek);
+    await expect(card).toContainText("12:34");
+    await expect(card.getByRole("link", { name: "从这句话开始", exact: true })).toHaveAttribute(
       "href",
-      "/watch/video-lead?from=home&clip=rev-lead&sub=sub-lead-1&t=12&autoplay=1"
+      /^\/watch\/video-lead\?from=home&t=12$/
     );
-    // 完整视频只做次级入口，App 内不再出现第二个「开始观看」或封面播放键。
-    await expect(lead.getByRole("link", { name: /看完整视频/ })).toHaveAttribute(
-      "href",
-      "/watch/video-lead?from=home"
-    );
-    await expect(lead.getByRole("button", { name: "学前预览" })).toHaveCount(0);
-    await expect(lead.getByRole("link", { name: "开始观看" })).toHaveCount(0);
-    await expect(lead.getByText(/90 秒/)).toHaveCount(0);
-    // 零互动数字没有决策价值，不渲染。
-    await expect(lead.locator(".home-feature-stats")).toHaveCount(0);
-  });
-
-  test("今天就能用展示场景、参考表达、中文解释并定位原片", async ({ page }) => {
-    await openEditorial(page);
-    const scenarios = page.locator("#home-scenarios");
-    await expect(scenarios).toBeVisible();
-    await expect(scenarios.getByRole("article")).toHaveCount(3);
-
-    const first = scenarios.getByRole("article", { name: "图片辨真 · 观察细节" });
-    await expect(first.getByText("Can you spot anything unusual?")).toBeVisible();
-    await expect(first.getByText("你能发现什么异常吗？")).toBeVisible();
-    // 参考表达不是原片原句：原句在任务卡的语境里，场景卡不能拿它冒充。
-    await expect(first.getByText("Can you spot the difference?")).toHaveCount(0);
-    await expect(first.getByRole("link", { name: /跳转到原视频 0:12 并播放/ })).toHaveAttribute(
-      "href",
-      "/watch/video-lead?from=home&sub=sub-lead-1&t=12&autoplay=1"
-    );
-  });
-
-  test("没有编辑场景时不拿原句硬凑今天就能用", async ({ page }) => {
-    const sparse = cloneEditorial();
-    sparse.secondary = [];
-    sparse.expression = null;
-    sparse.scenarios = [];
-    if (!sparse.lead) throw new Error("fixture missing lead");
-    sparse.lead.content.scenarios = [];
-    await openEditorial(page, sparse);
-
-    await expect(page.locator(".home-editorial-lead")).toBeVisible();
+    // hero 元信息按设计改为「句数 · 主题 · 点赞 · 收藏」，不展示发布/播放量（V-12）。
+    await expect(card).not.toContainText("原片发布");
+    await expect(card).not.toContainText("次播放");
+    await expect(card).toContainText("点赞");
+    await expect(card).toContainText("收藏");
     await expect(page.locator("#home-scenarios")).toHaveCount(0);
-    await expect(page.locator("#feed")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "我的学习入口" })).toHaveCount(0);
+    await expect(page.getByText(LEAD_SENTENCE.text_en, { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "脸和手的细节" })).toHaveCount(0);
   });
 
-  test("更换主推后只用新视频的场景，旧布局引用不能串入", async ({ page }) => {
-    const replacement = cloneEditorial();
-    if (!replacement.lead) throw new Error("fixture missing lead");
-    replacement.lead.video.id = "new-featured-video";
-    replacement.lead.content.video_id = "new-featured-video";
-    replacement.lead.content.content_revision_id = "rev-new";
-    replacement.lead.content.scenarios = [
-      {
-        id: "new-scene",
-        situation_zh: "做饭 · 询问口味",
-        prompt_zh: "你做了晚餐，问朋友想不想再加点盐。",
-        reply_en: "Would you like a little more salt?",
-        reply_zh: "你想再加一点盐吗？",
-        sentence: {
-          ...LEAD_SENTENCE,
-          subtitle_id: "new-subtitle",
-          text_en: "Would you like more salt?",
-          text_zh: "你要再加点盐吗？",
-          start_time: 32,
-          end_time: 35,
-        },
-      },
-    ];
-    await openEditorial(page, replacement);
-    const scenarios = page.locator("#home-scenarios");
-    await expect(scenarios.getByRole("article")).toHaveCount(1);
-    await expect(scenarios).toContainText("Would you like a little more salt?");
-    await expect(scenarios).not.toContainText("Can you spot anything unusual?");
-    await expect(scenarios.getByRole("link", { name: /做饭 · 询问口味/ })).toHaveAttribute(
+  test("编辑标题不替换视频原名，不展示辅助导语", async ({ page }) => {
+    const editorial = cloneEditorial();
+    editorial.lead!.content.headline = "不应替换视频名的编辑标题";
+    editorial.lead!.video.description = "原平台内容介绍";
+    await openEditorial(page, editorial);
+    const card = page.getByRole("article", { name: "精选视频", exact: true });
+    await expect(card).toContainText(LEAD_SLOT.video.title_zh!);
+    await expect(card).not.toContainText("不应替换视频名的编辑标题");
+    await expect(card).not.toContainText(LEAD_CONTENT.dek);
+    await expect(card).not.toContainText("原平台内容介绍");
+  });
+
+  test("不显示简介小字，缺中文标题与其他元信息时保持可用", async ({ page }) => {
+    const editorial = cloneEditorial();
+    editorial.lead!.content.dek = " ";
+    editorial.lead!.video = videoCard("video-lead", {
+      title: "Original English video",
+      title_zh: null,
+      description: "What happens when we compare real and generated images.",
+      duration: null,
+      difficulty_level: null,
+      channel_name: null,
+    });
+    await openEditorial(page, editorial);
+    const card = page.getByRole("article", { name: "精选视频", exact: true });
+    await expect(card).not.toContainText("What happens when we compare real and generated images.");
+    await expect(card.getByRole("heading")).toHaveText("Original English video");
+    await expect(card.getByRole("link", { name: "从这句话开始", exact: true })).toHaveAttribute(
       "href",
-      "/watch/new-featured-video?from=home&sub=new-subtitle&t=32&autoplay=1"
+      /^\/watch\/video-lead\?from=home&t=12$/
     );
+    await expect(card).not.toContainText("待评估");
   });
-});
 
-test.describe("兜底与失败状态", () => {
-  test("editorial:null 时用普通精选组织同一张任务卡", async ({ page }) => {
-    await mockHome(page, null);
+  test("没有有效编排或接口失败时回退普通精选", async ({ page }) => {
+    await mockHome(page, null, { editorialStatus: 404 });
     await page.goto("/");
-    await expect(page.locator(".home-editorial-heading")).toBeVisible();
-    const task = page.locator(".home-editorial-lead");
-    await expect(task).toBeVisible();
-    await expect(task.getByRole("heading", { name: "本周精选视频" })).toBeVisible();
-    await expect(task.getByRole("link", { name: /从这段开始/ })).toHaveAttribute(
+    const card = page.getByRole("article", { name: "精选视频", exact: true });
+    await expect(card).toContainText("本周精选视频");
+    await expect(card.getByRole("link", { name: "观看完整视频", exact: true })).toHaveAttribute(
       "href",
       "/watch/featured-1?from=home"
     );
-    await expect(page.locator(".home-personal")).toHaveCount(0);
     await expect(page.locator("#feed")).toBeVisible();
   });
 
-  test("接口失败时保留页头与任务卡", async ({ page }) => {
-    await mockHome(page, null, { editorialStatus: 404 });
-    await page.goto("/");
-    await expect(page.locator(".home-editorial-heading")).toBeVisible();
-    await expect(page.locator(".home-editorial-lead")).toContainText("本周精选视频");
-    await expect(page.locator("#feed")).toBeVisible();
-  });
-
-  test("没有可播放媒体时不显示片段入口，主按钮退回完整视频", async ({ page }) => {
-    const noMedia = cloneEditorial();
-    if (!noMedia.lead) throw new Error("fixture missing lead");
-    noMedia.lead.video = {
-      ...noMedia.lead.video,
-      video_url_480p: null,
-      video_url_720p: null,
-      video_url_1080p: null,
-    };
-    await openEditorial(page, noMedia);
-    const lead = page.locator(".home-editorial-lead");
-    await expect(lead.getByRole("link", { name: /听懂这段/ })).toHaveCount(0);
-    await expect(lead.getByRole("link", { name: /从这段开始/ })).toHaveAttribute(
-      "href",
-      "/watch/video-lead?from=home"
-    );
-    await expect(lead.getByText("片段 42 秒")).toHaveCount(0);
-  });
-
-  test("长标题、缺难度与缺时长都安全降级", async ({ page }) => {
+  test("没有精选时省略推荐区，视频流仍然可用", async ({ page }) => {
     await mockHome(page, null);
-    for (const [id, title] of [
-      ["news", "A closer look at the latest science story"],
-      ["vlog", "My everyday routine：在城市里度过普通的一天，和朋友一起发现生活里值得记录的小事"],
-      ["lesson", "Listen and learn"],
-    ] as const) {
-      await page.route("**/api/v1/browse/featured**", (route) =>
-        route.fulfill({
-          json: {
-            items: [
-              videoCard(id, {
-                title,
-                channel_name: null,
-                difficulty_level: null,
-                duration: null,
-                thumbnail_url: null,
-                video_url_480p: null,
-              }),
-            ],
-          },
-        })
-      );
-      await page.goto("/");
-      const card = page.locator(".home-editorial-lead");
-      await expect(card).toHaveCount(1);
-      await expect(card.getByRole("heading", { name: title })).toBeVisible();
-      await expect(card.getByRole("link", { name: "从这段开始" })).toHaveAttribute(
-        "href",
-        `/watch/${id}?from=home`
-      );
-      await expect(card.getByRole("button", { name: "学前预览" })).toHaveCount(0);
-      await expect(page.locator("#home-scenarios")).toHaveCount(0);
-    }
-  });
-});
-
-test.describe("版式", () => {
-  test("1440：续学/任务为第一列，复习/找视频退到右侧，feed 仍在首屏附近", async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await openEditorial(page);
-    // 续学请求返回前会先渲染骨架；骨架本身也占位，等它落定再量版式，
-    // 否则量到的是「骨架 + 任务」的临时高度，跨浏览器会假失败。
-    await expect(page.getByLabel("正在读取学习记录")).toHaveCount(0);
-
-    const task = (await page.locator(".home-editorial-lead").boundingBox())!;
-    const aside = (await page.getByRole("complementary", { name: "其他学习入口" }).boundingBox())!;
-    const feed = (await page.locator("#feed").boundingBox())!;
-    expect(aside.x).toBeGreaterThanOrEqual(task.x + task.width - 1);
-    expect(task.y).toBeLessThan(aside.y + aside.height);
-    expect(feed.y).toBeLessThanOrEqual(830);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-      1440
+    await page.route("**/api/v1/browse/featured**", (route) =>
+      route.fulfill({ json: { items: [] } })
     );
-    await expect(page.locator(".home-personal")).toHaveCount(0);
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "继续发现" })).toBeVisible();
+    await expect(page.getByRole("article", { name: "精选视频", exact: true })).toHaveCount(0);
+    await expect(page.getByText("精选内容准备中，先去频道找找。")).toHaveCount(0);
   });
 
-  test("390 / 320 无横向溢出，任务主按钮可点，场景链接可读", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 812 });
-    await openEditorial(page);
-    const assertNoOverflow = async (label: string) => {
-      const metrics = await page.evaluate(() => ({
-        docWidth: document.documentElement.scrollWidth,
-        viewport: window.innerWidth,
-      }));
-      expect(metrics.docWidth, label).toBeLessThanOrEqual(metrics.viewport);
-    };
-    await assertNoOverflow("390");
-    const lead = page.locator(".home-editorial-lead");
-    await expect(lead.getByRole("link", { name: "听懂这段 · 42 秒" })).toBeVisible();
-    const first = page.locator("#home-scenarios article a").first();
-    await expect(first).toContainText("Can you spot anything unusual?");
-    await expect(first).toContainText("你能发现什么异常吗？");
-    await expect(first).toHaveAttribute("href", /autoplay=1/);
-
-    await page.setViewportSize({ width: 320, height: 800 });
-    await expect(lead).toBeVisible();
-    await assertNoOverflow("320");
+  test("推荐流保留双语标题并移除说明小字，不请求学习指标", async ({ page }) => {
+    await mockHome(page, null);
+    const metadataRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("learning-metadata")) metadataRequests.push(request.url());
+    });
+    await page.route("**/api/v1/recommendations/home**", (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            videoCard("feed-video", {
+              title: "English title",
+              title_zh: "中文内容标题",
+              description: "这条视频介绍动物如何辨认同伴。",
+            }),
+          ],
+          page: 1,
+          page_size: 20,
+          total: 1,
+          has_more: false,
+        },
+      })
+    );
+    await page.goto("/");
+    const feed = page.locator("#feed");
+    await expect(feed).toContainText("中文内容标题");
+    await expect(feed).toContainText("English title");
+    await expect(feed).not.toContainText("这条视频介绍动物如何辨认同伴。");
+    expect(metadataRequests).toEqual([]);
+    await expect(
+      feed.locator('[aria-label^="点赞数"], [aria-label^="播放量"], [aria-label^="收藏数"]')
+    ).toHaveCount(0);
   });
+
+  for (const theme of ["light", "dark"]) {
+    test(`${theme}主题：桌面与手机内容可读且无横向溢出`, async ({ page }) => {
+      await mockHome(page, EDITORIAL);
+      await page.addInitScript((value) => localStorage.setItem("theme", value), theme);
+      for (const [width, height] of [
+        [1440, 900],
+        [1280, 720],
+        [390, 844],
+        [375, 667],
+        [320, 800],
+      ]) {
+        await page.setViewportSize({ width, height });
+        await page.goto("/");
+        const card = page.getByRole("article", { name: "精选视频", exact: true });
+        await expect(card).toContainText(LEAD_SLOT.video.title);
+        await expect(card).not.toContainText(LEAD_CONTENT.dek);
+        const action = card.getByRole("link", { name: "从这句话开始", exact: true });
+        await action.scrollIntoViewIfNeeded();
+        await expect(action).toBeInViewport();
+        const geometry = await page
+          .locator("#main-scroll")
+          .evaluate((el) => ({ scroll: el.scrollWidth, width: el.clientWidth }));
+        expect(geometry.scroll).toBeLessThanOrEqual(geometry.width);
+        await page.screenshot({ path: test.info().outputPath(`discovery-${theme}-${width}.png`) });
+      }
+    });
+  }
 });

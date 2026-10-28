@@ -13,6 +13,8 @@ export interface User {
   role?: "user" | "admin";
   last_active_at: string | null;
   onboarding_completed: boolean;
+  /** False for phone-only accounts; /set-password uses it to pick first-setup UX. */
+  has_password?: boolean;
   created_at: string;
 }
 
@@ -29,6 +31,8 @@ export interface User {
 export interface VideoCard {
   id: string;
   title: string;
+  /** 中文展示标题（管线翻译 / 管理员维护）；为空时前端回退 title。 */
+  title_zh: string | null;
   source_url: string;
   video_source: string;
   thumbnail_url: string | null;
@@ -202,11 +206,18 @@ export interface LearningRecord {
   last_accessed_at: string | null;
   video: {
     title: string;
+    /** 中文展示标题（VideoBrief 下发，可空）。 */
+    title_zh?: string | null;
     thumbnail_url: string | null;
     /** BUG-20：后端 VideoBrief 一直下发这两个字段，此前前端类型漏声明。
      *  duration 是「继续观看」进度分母的权威值（DB `videos.duration`）。 */
     duration: number | null;
     channel_name: string | null;
+    view_count?: number | null;
+    favorite_count?: number | null;
+    upload_date?: string | null;
+    published_at?: string | null;
+    created_at?: string | null;
     /** 续播卡也展示真实难度；后端 VideoBrief 已下发。 */
     difficulty_level?: string | null;
   } | null;
@@ -254,6 +265,9 @@ export interface VocabularyWord {
   difficulty_level: string | null;
   context_sentence: string | null;
   video_id: string | null;
+  /** Display-only enrichment from the backend list/daily-session endpoints. */
+  video_title?: string | null;
+  subtitle_start_time?: number | null;
   /** 来源字幕（D3b）：存在时闪卡/词卡可「回看原句」深链回播放页。 */
   subtitle_id: string | null;
   next_review_at: string | null;
@@ -349,6 +363,10 @@ export interface VocabSetWord {
   definition: string | null;
   mastery_level: MasteryLevel | null;
   context_sentence: string | null;
+  /** 来源句的中文翻译；来自视频时随字幕一起返回，考试/自建词单为 null。 */
+  context_sentence_zh?: string | null;
+  /** 词的考试级别（取自 ECDICT 标记里的最高级），未知时为 null。 */
+  exam_level?: string | null;
   /** Source sentence for 「回到对应句子」 (S7). Null → deep link hidden. */
   subtitle_id?: string | null;
   start_time?: number | null;
@@ -395,20 +413,6 @@ export interface VocabSieveJudgeResponse {
 }
 
 /* ── Admin ── */
-export interface RedeemCode {
-  id: string;
-  code: string;
-  plan: "free" | "pro";
-  duration_days: number;
-  status: "unused" | "redeemed" | "revoked" | "expired";
-  revoked_reason: "leak" | "error" | "refund" | null;
-  expires_at: string | null;
-  used_by: string | null;
-  used_at: string | null;
-  batch_label: string | null;
-  created_at: string;
-}
-
 // 与后端 AdminUserResponse 对齐（不 extends User：admin 响应不含
 // streak_count/longest_streak/onboarding_completed）。
 export interface AdminUser {
@@ -461,7 +465,6 @@ export interface AdminStats {
   gpu_queue_depth: number;
   videos_error_count: number;
   signups_today: number;
-  redeems_today: number;
   trend: AdminStatsTrend;
   videos_by_status: { status: string; count: number }[];
   users_by_plan: { plan: string; count: number }[];
@@ -475,37 +478,6 @@ export interface AdminStats {
     pro: number;
   };
   videos_by_topic: { topic: string; count: number }[];
-}
-
-/** Admin order row — mirrors AdminOrderResponse (backend/app/schemas/admin.py). */
-export interface AdminOrder {
-  id: string;
-  order_number: string;
-  user_id: string;
-  user_phone: string | null;
-  plan: string;
-  /** Amount in fen (cents). Display as ¥{amount/100}. */
-  amount: number;
-  status: string;
-  paid_at: string | null;
-  created_at: string;
-}
-
-/**
- * Redeem-code activation record — powers the 订单管理 page (prototype 29).
- * 非经营性平台无站内支付，订单即兑换码激活记录。
- */
-export interface RedemptionRecord {
-  id: string;
-  code: string;
-  user_id: string | null;
-  user_phone: string | null;
-  plan: string;
-  duration_days: number;
-  status: "redeemed" | "revoked";
-  revoked_reason: "leak" | "error" | "refund" | null;
-  used_at: string | null;
-  created_at: string;
 }
 
 /** Singleton admin settings (prototype 32 系统设置). */
@@ -531,6 +503,49 @@ export interface AdminAccount {
   name: string | null;
   phone: string | null;
   last_active_at: string | null;
+}
+
+/** 金数据付款记录状态（后端 JinshujuPaymentStatus）。 */
+export type AdminPaymentStatus = "applied" | "pending" | "ignored" | "refunded" | "error";
+
+/**
+ * One 金数据 (Jinshuju) payment row — mirrors backend `AdminPaymentRow`.
+ * `raw_json` 是外部表单原始载荷（含买家信息），后端不返回，前端也不该有。
+ * `phone` 是展示用手机号：已绑定账号优先，其次金数据表单填写值；
+ * `user_phone` / `user_name` 是绑定账号自身的字段（未绑定时为 null）。
+ */
+export interface AdminPayment {
+  id: string;
+  entry_token: string | null;
+  serial_number: number;
+  phone: string | null;
+  user_id: string | null;
+  user_phone: string | null;
+  user_name: string | null;
+  tier_name: string | null;
+  amount_fen: number | null;
+  duration_days: number | null;
+  trade_status: string | null;
+  trade_no: string | null;
+  payment_method: string | null;
+  status: AdminPaymentStatus;
+  error_message: string | null;
+  entry_created_at: string | null;
+  created_at: string | null;
+  applied_at: string | null;
+}
+
+/** Mirrors backend `AdminPaymentSummaryResponse` (金额单位：分). */
+export interface AdminPaymentSummary {
+  applied: number;
+  pending: number;
+  ignored: number;
+  refunded: number;
+  error: number;
+  paid_total_fen: number;
+  paid_30d_fen: number;
+  paid_today_fen: number;
+  applied_today: number;
 }
 
 /* ── Profile ── */

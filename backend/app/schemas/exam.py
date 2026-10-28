@@ -1,6 +1,10 @@
 """Pydantic schemas for the 真题测试 (past-paper exam) feature."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
+
+from app.schemas.pagination import PaginatedResponse
 
 # ---------------------------------------------------------------------------
 # Papers
@@ -94,3 +98,102 @@ class WrongRedoRequest(BaseModel):
     """
 
     question_ids: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Response schemas (BE-07: exam lists/stats used to be untyped dicts)
+# ---------------------------------------------------------------------------
+
+
+class ExamPaperSection(BaseModel):
+    section: str
+    question_count: int
+
+
+class ExamPaperRow(BaseModel):
+    id: str
+    level: str
+    year: int
+    month: int
+    set_no: int
+    title: str
+    source: str | None = None
+    total_questions: int
+    last_score: float | None = None
+    last_submitted_at: datetime | None = None
+    last_session_id: str | None = None
+    last_correct_count: int | None = None
+    last_question_count: int | None = None
+    attempt_count: int
+    best_score: float | None = None
+    sections: list[ExamPaperSection]
+
+
+class ExamPaperListResponse(PaginatedResponse[ExamPaperRow]):
+    available_years: list[int]
+
+
+class ExamWrongItem(BaseModel):
+    question_id: str
+    number: int | None = None
+    section: str | None = None
+    question_type: str | None = None
+    passage: str | None = None
+    question: str | None = None
+    options: dict[str, str] | None = None
+    wrong_count: int
+    last_wrong_at: datetime | None = None
+    paper_id: str | None = None
+    paper_title: str | None = None
+    level: str | None = None
+    year: int | None = None
+    month: int | None = None
+
+
+class ExamStatsResponse(BaseModel):
+    month_completed: int
+    avg_score: float | None = None
+    last_daily_score: float | None = None
+    week_daily_count: int
+
+
+class ExamAttemptItem(BaseModel):
+    id: str
+    mode: str
+    exam_level: str | None = None
+    paper_id: str | None = None
+    paper_title: str | None = None
+    question_count: int
+    score: float | None = None
+    correct_count: int | None = None
+    duration_sec: int
+    started_at: datetime | None = None
+    submitted_at: datetime | None = None
+
+
+class ExamAttemptDetailResult(BaseModel):
+    question_id: str
+    number: int | None = None
+    section: str | None = None
+    question_type: str | None = None
+    question: str | None = None
+    options: dict[str, str] | None = None
+    passage: str | None = None
+    user_answer: str | None = None
+    correct: bool | None = None
+    correct_answer: str | None = None
+    explanation: str | None = None
+
+
+class ExamAttemptDetailResponse(BaseModel):
+    id: str
+    mode: str
+    exam_level: str | None = None
+    paper_id: str | None = None
+    question_count: int
+    score: float | None = None
+    submitted: bool
+    part_scores: dict | None = None
+    started_at: datetime | None = None
+    submitted_at: datetime | None = None
+    results: list[ExamAttemptDetailResult]

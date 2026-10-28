@@ -18,6 +18,7 @@ from app.schemas.behavior import (
     BehaviorIngestResponse,
 )
 from app.services.behavior_service import drop_unknown_video_ids, ingest_batch, ingest_event
+from app.services.video_cache import invalidate_view_caches
 
 router = APIRouter(prefix="/behavior", tags=["behavior"])
 
@@ -32,8 +33,12 @@ async def post_event(
 ):
     """Ingest a single behavior event."""
     events = await drop_unknown_video_ids(db, [body.model_dump()])
-    await ingest_event(db, events[0], current_user.id if current_user else None)
+    applied = await ingest_event(db, events[0], current_user.id if current_user else None)
     await db.commit()
+    # Only a *new* completion changes the hot/weekly counters; a replayed
+    # complete must not delete every browse/rankings cache key again.
+    if current_user and applied and body.event_type == "complete" and body.video_id:
+        await invalidate_view_caches(body.video_id)
     return BehaviorIngestResponse(ingested=1)
 
 
@@ -47,9 +52,17 @@ async def post_batch(
 ):
     """Ingest a batch of behavior events (frontend analytics flush)."""
     events = await drop_unknown_video_ids(db, [e.model_dump() for e in body.events])
-    count = await ingest_batch(
+    count, complete_applied = await ingest_batch(
         db,
         events,
         current_user.id if current_user else None,
     )
+    if current_user and complete_applied:
+        completed_video_ids = {
+            str(event["video_id"])
+            for event in events
+            if event.get("event_type") == "complete" and event.get("video_id")
+        }
+        for video_id in completed_video_ids:
+            await invalidate_view_caches(video_id)
     return BehaviorIngestResponse(ingested=count)

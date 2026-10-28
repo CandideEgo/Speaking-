@@ -233,8 +233,14 @@ export default function VideoEditPage() {
 
   return (
     <div className="space-y-6">
+      {/* 超长视频标题在 390 下必须能换行/截断：span 默认 inline，`truncate`
+          不生效会导致 h1 被视口硬裁（A-23）。块级 + line-clamp-2 + break。 */}
       <AdminPageHeader
-        title={<span className="truncate">{video.title}</span>}
+        title={
+          <span className="block min-w-0 line-clamp-2 break-words" title={video.title}>
+            {video.title}
+          </span>
+        }
         actions={
           <>
             <VideoStatusBadge status={video.status} />

@@ -31,7 +31,12 @@ export function MasteryTrendChart({ data }: { data: TrendDataPoint[] }) {
 
   return (
     <div className="h-64 w-full">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minWidth={0}
+        initialDimension={{ width: 320, height: 256 }}
+      >
         <LineChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
           <XAxis

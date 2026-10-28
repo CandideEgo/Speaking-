@@ -114,7 +114,3 @@ export function videoLearningTheme(video: LearningThemeInput): VideoLearningThem
   }
   return FALLBACK_THEME;
 }
-
-export function learningBenefit(video: LearningThemeInput): string {
-  return videoLearningTheme(video).benefit;
-}

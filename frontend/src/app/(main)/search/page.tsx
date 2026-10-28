@@ -9,11 +9,12 @@ import { watchHref } from "@/lib/watchEntry";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
-import { VideoCard } from "@/components/ui/VideoCard";
+import { ChannelCard } from "@/components/channels/ChannelCard";
+import type { ChannelSummary } from "@/types/channels";
+import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageTransition } from "@/components/common/PageTransition";
-import { useVideoMetadata } from "@/hooks/useVideoMetadata";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { scrollKey } from "@/lib/scrollMemory";
 import { toastApiError } from "@/lib/errors";
@@ -35,12 +36,6 @@ interface SubtitleResult {
   start_time: number;
   video: Video;
 }
-interface Channel {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-}
 interface Group<T> {
   items: T[];
   has_more: boolean;
@@ -49,9 +44,9 @@ interface Results {
   videos?: Group<Video>;
   subtitles?: Group<SubtitleResult>;
   words?: Group<Word>;
-  channels?: Group<Channel>;
+  channels?: Group<ChannelSummary>;
 }
-const GROUPS = { all: "全部", videos: "视频", subtitles: "字幕", words: "词汇", channels: "频道" };
+const GROUPS = { all: "全部", videos: "视频", channels: "频道", subtitles: "字幕", words: "词汇" };
 const GROUP_UNITS: Record<string, string> = {
   videos: "条",
   subtitles: "句",
@@ -158,7 +153,6 @@ export default function SearchPage() {
     return () => controller.abort();
   }, [query, group, page, retry]);
 
-  const metadata = useVideoMetadata(results?.videos?.items ?? []);
   useScrollRestore(scrollKey(pathname, params.toString()), results !== null);
 
   const counts = {
@@ -188,21 +182,7 @@ export default function SearchPage() {
     router.push(url("all", 1, term));
   }
 
-  function hitChip(label: string, count: number, hasMore = false) {
-    return (
-      <span className="inline-flex h-6 items-center gap-1 rounded-pill bg-surface-card px-2 text-caption font-bold tabular-nums text-body">
-        {label} {count}
-        {hasMore ? "+" : ""}
-      </span>
-    );
-  }
-
-  function groupSection(
-    key: Exclude<keyof Results, never>,
-    title: string,
-    why: ReactNode,
-    children: ReactNode
-  ) {
+  function groupSection(key: Exclude<keyof Results, never>, title: string, children: ReactNode) {
     const data = results?.[key];
     if (!data) return null;
     const unit = GROUP_UNITS[key] ?? "个";
@@ -223,10 +203,7 @@ export default function SearchPage() {
           )}
         </div>
         {data.items.length ? (
-          <>
-            <p className="max-w-[62ch] text-meta leading-relaxed text-body">{why}</p>
-            {children}
-          </>
+          children
         ) : (
           <p className="text-copy text-muted">没有匹配的{title}，试试缩短关键词。</p>
         )}
@@ -239,8 +216,9 @@ export default function SearchPage() {
       <div className="user-page">
         <PageHeader
           crumb="搜索"
-          title="搜索视频、字幕和词汇"
-          description="一个词可以搜三件事：哪些视频的标题里有它、它出现在哪句字幕里、词库里有没有收过。回车会把关键词写进地址栏，链接可以直接分享。"
+          title="搜索视频与频道"
+
+          variant="eyebrow"
           actions={
             <LinkButton variant="outline" icon={Compass} href="/">
               不想搜，按分类挑
@@ -365,44 +343,55 @@ export default function SearchPage() {
             ) : (
               <>
                 <nav className="flex flex-wrap gap-2" aria-label="搜索类型">
-                  {Object.entries(GROUPS).map(([key, label]) => (
-                    <Link
-                      key={key}
-                      href={url(key)}
-                      aria-current={group === key ? "page" : undefined}
-                      className={`inline-flex h-8 items-center rounded-pill px-3 text-meta font-medium ${
-                        group === key
-                          ? "bg-ink text-canvas"
-                          : "border border-hairline-strong bg-canvas text-body hover:border-muted-soft hover:text-ink"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  ))}
+                  {Object.entries(GROUPS).map(([key, label]) => {
+                    // 分组页只返回当前组，其它组的计数会变成 0；只在「全部」时显示计数。
+                    const count =
+                      group === "all" && results
+                        ? key === "all"
+                          ? totalHits
+                          : counts[key as keyof typeof counts]
+                        : null;
+                    return (
+                      <Link
+                        key={key}
+                        href={url(key)}
+                        aria-current={group === key ? "page" : undefined}
+                        className={`inline-flex h-8 items-center gap-1.5 rounded-pill px-3 text-meta font-medium ${
+                          group === key
+                            ? "bg-ink text-canvas"
+                            : "border border-hairline-strong bg-canvas text-body hover:border-muted-soft hover:text-ink"
+                        }`}
+                      >
+                        {label}
+                        {count !== null && (
+                          <span
+                            className={`text-caption font-bold tabular-nums ${
+                              group === key ? "text-canvas/70" : "text-muted"
+                            }`}
+                          >
+                            {count}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
                 </nav>
 
                 {error ? (
                   <ErrorState title={error} onRetry={() => setRetry((v) => v + 1)} />
                 ) : !results ? (
-                  <p role="status" className="py-10 text-copy text-muted">
-                    正在搜索…
-                  </p>
+                  <div
+                    className="grid gap-4 py-5 sm:grid-cols-2"
+                    aria-busy="true"
+                    aria-label="正在搜索"
+                  >
+                    {Array.from({ length: 4 }, (_, i) => (
+                      <VideoCardSkeleton key={i} />
+                    ))}
+                  </div>
                 ) : (
                   <>
-                    {/* 命中总览：四组计数（0 也显示），设计 .d-res-sum */}
-                    <div className="flex flex-col gap-3">
-                      <div className="user-sec-head">
-                        <h2 className="user-sec-title">命中总览</h2>
-                        <span className="user-sec-sub">「{query}」的搜索结果</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2" aria-live="polite">
-                        {hitChip("视频", counts.videos, results.videos?.has_more)}
-                        {hitChip("字幕", counts.subtitles, results.subtitles?.has_more)}
-                        {hitChip("词汇", counts.words, results.words?.has_more)}
-                        {hitChip("频道", counts.channels, results.channels?.has_more)}
-                      </div>
-                    </div>
-
+                    {/* 分组计数已经进了上面的类型标签，不再单开一块「命中总览」重复一遍。 */}
                     {/* 全空：设计只给空态（4 组 0 计数已在上面），不再堆 4 组空说明 */}
                     {allEmpty && (
                       <EmptyState
@@ -427,16 +416,11 @@ export default function SearchPage() {
                         {groupSection(
                           "videos",
                           "视频",
-                          <>
-                            为什么命中：关键词出现在视频标题或中文名里（
-                            {counts.videos}
-                            条），点封面直接进观看页。
-                          </>,
                           <div className="user-content-list">
                             {results.videos?.items.map((v) => (
                               <VideoCard
                                 key={v.id}
-                                video={{ ...v, ...metadata[v.id] }}
+                                video={v}
                                 entry={{ from: "search", extra: { q: query, group, page } }}
                               />
                             ))}
@@ -444,16 +428,22 @@ export default function SearchPage() {
                         )}
 
                         {groupSection(
+                          "channels",
+                          "频道",
+                          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {results.channels?.items.map((c) => (
+                              <li key={c.id}>
+                                <ChannelCard channel={c} subscribed={c.is_subscribed ?? false} />
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        {groupSection(
                           "subtitles",
                           "字幕",
-                          <>
-                            为什么命中：下面每一句的英文或中文译文里有「
-                            {query}
-                            」，命中位置已标出；点时间回观看页从那一句开始。
-                          </>,
                           <ul className="flex flex-col">
                             {results.subtitles?.items.map((s) => {
-                              const hitInEn = s.text_en.toLowerCase().includes(query.toLowerCase());
                               return (
                                 <li
                                   key={s.id}
@@ -482,15 +472,8 @@ export default function SearchPage() {
                                           <Highlight text={s.text_zh} query={query} />
                                         </span>
                                       )}
-                                      <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted">
-                                        <span>
-                                          命中在哪：
-                                          {hitInEn ? "英文原句" : "中文译文"} · 来自《
-                                          {s.video.title}》
-                                        </span>
-                                        <span className="font-semibold text-body">
-                                          {stamp(s.start_time)} 从这里看 →
-                                        </span>
+                                      <span className="mt-2 text-caption text-muted">
+                                        来自《{s.video.title}》
                                       </span>
                                     </span>
                                   </Link>
@@ -503,40 +486,9 @@ export default function SearchPage() {
                         {groupSection(
                           "words",
                           "词汇",
-                          <>
-                            为什么命中：单词本身或中文释义里有「
-                            {query}
-                            」，可以直接收进词库。
-                          </>,
                           <ul className="flex flex-col">
                             {results.words?.items.map((w) => (
                               <WordResult key={w.lemma} word={w} />
-                            ))}
-                          </ul>
-                        )}
-
-                        {groupSection(
-                          "channels",
-                          "频道",
-                          <>为什么命中：频道名或说明里有「{query}」，点名字进频道页。</>,
-                          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {results.channels?.items.map((c) => (
-                              <li key={c.id}>
-                                <Link
-                                  href={`/channels/${c.slug}`}
-                                  className="flex h-full flex-col gap-1 rounded-lg border border-hairline bg-canvas p-4 hover:border-hairline-strong"
-                                >
-                                  <span className="inline-flex items-center gap-1 text-copy font-semibold text-ink">
-                                    <Layers size={14} className="text-muted" aria-hidden />
-                                    {c.name}
-                                  </span>
-                                  {c.description && (
-                                    <span className="text-meta leading-relaxed text-muted">
-                                      {c.description}
-                                    </span>
-                                  )}
-                                </Link>
-                              </li>
                             ))}
                           </ul>
                         )}
@@ -566,30 +518,12 @@ export default function SearchPage() {
           <aside className="user-page-aside" aria-label="搜索说明">
             <section className="user-aside-sec">
               <h2 className="user-aside-title">搜索范围</h2>
-              {results ? (
-                <div className="user-kv">
-                  <div className="user-kv-row">
-                    <span className="user-kv-key">视频标题 / 中文名</span>
-                    <span className="user-kv-val tabular-nums">{counts.videos} 条</span>
-                  </div>
-                  <div className="user-kv-row">
-                    <span className="user-kv-key">字幕（英 + 中）</span>
-                    <span className="user-kv-val tabular-nums">{counts.subtitles} 句</span>
-                  </div>
-                  <div className="user-kv-row">
-                    <span className="user-kv-key">词库释义</span>
-                    <span className="user-kv-val tabular-nums">{counts.words} 词</span>
-                  </div>
-                  <div className="user-kv-row">
-                    <span className="user-kv-key">频道名</span>
-                    <span className="user-kv-val tabular-nums">{counts.channels} 个</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-meta leading-relaxed text-body">
-                  三个检索范围同时生效：视频标题与中文名、字幕整句、词库释义。
-                </p>
-              )}
+              <ul className="flex flex-col gap-2 text-meta text-body">
+                <li>视频标题与中文名</li>
+                <li>频道名与频道说明</li>
+                <li>字幕整句（英文 + 中文译文）</li>
+                <li>词库释义</li>
+              </ul>
               <p className="mt-3 text-meta leading-relaxed text-body">
                 标题与词汇按整词匹配；字幕按句匹配，命中位置会标出来。中文关键词只匹配中文译文。
               </p>
@@ -692,7 +626,6 @@ function WordResult({ word }: { word: Word }) {
         <p className="mt-1 text-copy leading-relaxed text-body">
           {word.translation || word.definition || "释义待补充"}
         </p>
-        <p className="mt-2 text-caption text-muted">命中在哪：词库释义</p>
       </div>
       <Button variant="outline" size="sm" onClick={add} disabled={busy || added}>
         {added ? "已加入" : "加入生词本"}

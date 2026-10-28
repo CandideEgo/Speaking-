@@ -18,7 +18,9 @@ from fastapi.responses import FileResponse
 
 from app.api.dependencies import get_current_user
 from app.api.v1.media import _viewer_id_from_request
+from app.core.limiter import rate_limit
 from app.models.user import User
+from app.schemas.exam_pdf import ExamPdfListResponse
 from app.services import exam_pdf_service
 
 router = APIRouter(prefix="/exam-pdfs", tags=["exam-pdfs"])
@@ -28,8 +30,10 @@ router = APIRouter(prefix="/exam-pdfs", tags=["exam-pdfs"])
 _FILENAME_BAD = str.maketrans({c: "_" for c in '\\/:*?"<>|'})
 
 
-@router.get("")
+@router.get("", response_model=ExamPdfListResponse)
+@rate_limit("60/minute")
 async def list_exam_pdfs(
+    request: Request,
     subject: str | None = Query(None, description="科目：cet4/cet6/kaoyan/tem4/tem8"),
     current_user: User = Depends(get_current_user),
 ):
@@ -39,6 +43,7 @@ async def list_exam_pdfs(
 
 
 @router.get("/{slug}/file")
+@rate_limit("60/minute")
 async def download_exam_pdf(slug: str, request: Request):
     """下载一份原卷 PDF。
 
@@ -46,7 +51,7 @@ async def download_exam_pdf(slug: str, request: Request):
     是 ``<a download>``，发不出请求头，所以必须支持 query token。匿名一律 **401**
     （不是 404）：这里不是存在性保密，是「要登录」，前端才好据此提示去登录。
     """
-    if _viewer_id_from_request(request) is None:
+    if await _viewer_id_from_request(request) is None:
         raise HTTPException(status_code=401, detail="请先登录后再下载")
 
     found = exam_pdf_service.resolve(slug)

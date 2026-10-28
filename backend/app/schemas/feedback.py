@@ -73,6 +73,15 @@ class AdminFeedbackUpdate(BaseModel):
         return v.strip() if v is not None else None
 
 
+class AdminFeedbackRow(AdminFeedbackResponse):
+    """One row of ``GET /admin/feedback`` (same shape as the PATCH response).
+
+    A named subtype is what makes the list endpoint a real OpenAPI contract:
+    before ADM-10 the endpoint declared ``response_model=dict`` and the
+    paginated envelope carried no ``total``.
+    """
+
+
 class AnnouncementCreate(BaseModel):
     """Admin broadcast announcement payload."""
 
@@ -82,8 +91,14 @@ class AnnouncementCreate(BaseModel):
 
 
 class AnnouncementResponse(BaseModel):
-    """Result of a broadcast - the count of users notified."""
+    """Result of a broadcast: recipients queued + the announcement body.
 
+    ``notified_count`` is the number of users the fan-out was queued for — the
+    actual per-user rows are written by the Celery task (ADM-07). ``queued`` is
+    the explicit signal that delivery is asynchronous.
+    """
+
+    queued: bool = False
     notified_count: int
     title: str
     message: str

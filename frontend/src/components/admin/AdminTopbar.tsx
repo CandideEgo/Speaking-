@@ -20,8 +20,7 @@ const BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   "/admin/home-editorial": [{ label: "首页编排" }],
   "/admin/channels": [{ label: "频道管理" }],
   "/admin/users": [{ label: "用户管理" }],
-  "/admin/orders": [{ label: "订单管理" }],
-  "/admin/invites": [{ label: "兑换码" }],
+  "/admin/payments": [{ label: "付费记录" }],
   "/admin/feedback": [{ label: "反馈与公告" }],
   "/admin/stats": [{ label: "数据统计" }],
   "/admin/settings": [{ label: "系统设置" }],
@@ -147,13 +146,17 @@ export function AdminTopbar() {
 
   return (
     <header className="flex h-16 flex-shrink-0 items-center justify-between border-b border-hairline bg-canvas px-4 pl-16 md:px-6">
-      {/* Left: Breadcrumb */}
-      <div className="flex items-center gap-4">
-        <AdminBreadcrumb items={breadcrumbs} />
+      {/* Left: Breadcrumb — 窄屏（390）必须能让位并截断，否则会挤压右侧操作区
+          （frontend-fixes-pages A-23 转交的纯样式修复）。 */}
+      <div className="flex min-w-0 items-center gap-4">
+        <AdminBreadcrumb
+          items={breadcrumbs}
+          className="min-w-0 [&_span]:min-w-0 [&_span]:truncate"
+        />
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         {/* Pending badge */}
         {pendingCount > 0 && (
           <Link

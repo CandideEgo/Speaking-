@@ -62,11 +62,11 @@ test.describe("Viewport height - app shell", () => {
   // 现在它是壳的常规流收尾行，必须永远贴住壳的底边，且不盖住滚动区。
   test("bottom tab bar is the shell's last in-flow row, not a fixed overlay", async ({ page }) => {
     await loginViaToken(page, token);
-    const bar = page.locator("nav.md\\:hidden").first();
+    const bar = page.getByTestId("mobile-tab-bar");
     await expect(bar).toBeVisible();
 
     const m = await page.evaluate(() => {
-      const el = document.querySelector("nav.md\\:hidden") as HTMLElement | null;
+      const el = document.querySelector('[data-testid="mobile-tab-bar"]') as HTMLElement | null;
       const main = document.querySelector("main") as HTMLElement | null;
       if (!el || !main) return null;
       const barRect = el.getBoundingClientRect();

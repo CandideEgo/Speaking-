@@ -21,18 +21,18 @@ export interface NavItem {
   showBadge?: boolean;
 }
 
-/** 一级：桌面侧栏 + 手机底栏共用，顺序即底栏顺序。 */
+/** 一级：桌面侧栏与手机底栏共用。 */
 export const MAIN_NAV: NavItem[] = [
-  { label: "首页", href: "/", icon: Home, shortcut: "1" },
+  { label: "发现", href: "/", icon: Home, shortcut: "1" },
   { label: "频道", href: "/channels", icon: Layers, shortcut: "2" },
   { label: "练习", href: "/practice", icon: GraduationCap, shortcut: "3" },
   { label: "词汇", href: "/vocabulary", icon: BookOpen, shortcut: "4", showBadge: true },
   { label: "我的", href: "/profile", icon: User, shortcut: "5" },
 ];
 
-/** 次级：只出现在桌面侧栏，排在 AccountMenu 之前；不进底栏。 */
+/** 资料库：只出现在桌面侧栏；不进底栏。 */
 export const SECONDARY_NAV: NavItem[] = [
-  { label: "我的收藏", href: "/favorites", icon: Bookmark },
+  { label: "收藏", href: "/favorites", icon: Bookmark },
   { label: "学习记录", href: "/history", icon: History },
   { label: "通知", href: "/notifications", icon: Bell },
   { label: "会员", href: "/upgrade", icon: Crown },
@@ -44,7 +44,7 @@ export const SECONDARY_NAV: NavItem[] = [
  * - 键必须是导航项的真实 href；表里没有的 href 回退到「自己认领自己」。
  * - `/` 组写成显式清单，**不能**用 `startsWith("/")`：那会吞掉全站、造成双高亮。
  * - 各组的 scope 前缀两两不相交，任意 pathname 最多命中一项。
- * - `/search`（顶栏能力的落地页）、`/pricing`、`/checkout`、`/redeem`（服务端重定向、
+ * - `/search`（顶栏能力的落地页）、`/pricing`、`/checkout`（服务端重定向、
  *   pathname 停留不了）刻意不进表 —— 停在它们上面不高亮。
  */
 export const ACTIVE_SCOPE: Record<string, string[]> = {

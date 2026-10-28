@@ -222,7 +222,9 @@ class TestMarkAsRead:
             nid = n.id
 
         resp = await client.patch(f"/api/v1/notifications/{nid}/read", headers=auth_headers)
-        assert resp.status_code == 403
+        # "not visible" == "not found": a probe cannot tell someone else's id
+        # apart from a missing one.
+        assert resp.status_code == 404
 
     async def test_mark_nonexistent_returns_404(self, client: AsyncClient, auth_headers: dict):
         resp = await client.patch("/api/v1/notifications/nonexistent/read", headers=auth_headers)
@@ -680,6 +682,29 @@ class TestWebSocketHandshakeAuth:
     async def test_query_string_token_is_rejected(self, client: AsyncClient, auth_headers: dict, monkeypatch):
         token = auth_headers["Authorization"].removeprefix("Bearer ")
         ws = _FakeWebSocket(query_token=token)
+
+        await _handshake(ws, monkeypatch)
+
+        assert ws.accepted is False
+        assert ws.close_code == status.WS_1008_POLICY_VIOLATION
+
+    async def test_stale_password_token_closes_socket(
+        self, client: AsyncClient, auth_headers: dict, db_session, monkeypatch
+    ):
+        """A token issued before a password change must fail the WS handshake
+        just like an HTTP request (same auth chain)."""
+        from datetime import UTC, datetime, timedelta
+
+        from app.models.user import User
+
+        me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+        user = await db_session.get(User, me["id"])
+        assert user is not None
+        user.password_changed_at = datetime.now(UTC) + timedelta(hours=1)
+        await db_session.commit()
+
+        token = auth_headers["Authorization"].removeprefix("Bearer ")
+        ws = _FakeWebSocket(protocols=f"bearer, {token}")
 
         await _handshake(ws, monkeypatch)
 

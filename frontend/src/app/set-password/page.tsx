@@ -1,14 +1,16 @@
 "use client";
 
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, Lock, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { safeNext } from "@/lib/authHelpers";
 import { PASSWORD_RE, PASSWORD_RULE_MESSAGE } from "@/lib/password";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { PasswordField } from "@/components/auth/PasswordField";
@@ -46,10 +48,31 @@ function SetPasswordForm() {
   const { isAuthenticated, isLoading } = useRequireAuth({
     redirectTo: `/login?next=${encodeURIComponent(`/set-password${current ? `?${current}` : ""}`)}`,
   });
+  // The JWT payload carries no password flag, so ask /users/me once. If the
+  // request fails we fail open to the form (the submit handler still maps a
+  // 400 to the guidance state).
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api<{ has_password?: boolean }>("/api/v1/users/me", { cacheTtlMs: 30_000 })
+      .then((me) => {
+        if (!cancelled) setHasPassword(Boolean(me.has_password));
+      })
+      .catch(() => {
+        if (!cancelled) setHasPassword(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
+  // The API answers 400 when an account already has a password but the page
+  // only collected a new one (no current_password field here). Treat that as a
+  // "change password elsewhere" state instead of a generic retry message.
+  const [needsCurrentPassword, setNeedsCurrentPassword] = useState(false);
   // 错误归属于哪个字段：只有它该红的那个框才红（空串 = 表单级错误，不染红任何输入框）。
   const [errorField, setErrorField] = useState<"" | "password" | "confirm">("");
   const [fieldError, setFieldError] = useState("");
@@ -57,6 +80,37 @@ function SetPasswordForm() {
 
   if (isLoading || !isAuthenticated) {
     return <FullPageSpinner />;
+  }
+
+  // Set-password is a first-setup page. An account that already has a password
+  // must not be pushed into a 400 dead end: point it at the settings page that
+  // asks for the current password.
+  if (needsCurrentPassword || hasPassword === true) {
+    return (
+      <AuthCard
+        title="设置登录密码"
+        subtitle="这个账号已经设置过密码，可以直接用手机号 + 密码登录。"
+      >
+        <div className="mt-4 flex items-start gap-2 rounded-md border border-hairline bg-surface-soft px-3 py-2.5 text-meta leading-relaxed text-body">
+          <Lock size={15} className="mt-0.5 flex-none text-muted" aria-hidden="true" />
+          <span>
+            修改密码需要先验证当前密码，请在「我的 → 学习设置 →
+            账号与安全」里完成；忘记密码也可以用手机验证码重置。
+          </span>
+        </div>
+        <div className="mt-5 flex flex-col gap-2">
+          <LinkButton href="/profile?tab=settings" fullWidth>
+            去账号设置修改密码
+          </LinkButton>
+          <Link
+            href="/"
+            className="text-center text-copy font-medium text-muted transition-colors hover:text-ink"
+          >
+            先回首页挑一段
+          </Link>
+        </div>
+      </AuthCard>
+    );
   }
 
   function finish() {
@@ -91,6 +145,10 @@ function SetPasswordForm() {
       });
       finish();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 400) {
+        setNeedsCurrentPassword(true);
+        return;
+      }
       // 服务端错误不指向某个输入框（表单级）。
       setError(apiErrorMessage(err, "保存失败，请重试"));
     } finally {

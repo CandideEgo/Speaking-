@@ -189,7 +189,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex min-h-[36px] items-center gap-1 rounded-lg px-3 text-copy font-medium transition-colors cursor-pointer",
+        "inline-flex min-h-11 items-center gap-1 rounded-lg px-3 text-copy font-medium transition-colors cursor-pointer",
         mono && "font-mono",
         active
           ? "bg-action-primary text-on-primary"

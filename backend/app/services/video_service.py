@@ -8,7 +8,7 @@ domain logic (queries, state transitions, side effects).
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -38,6 +38,7 @@ from app.services.video_access import (
     should_use_snapshot,
 )
 from app.services.video_card import serialize_video_card
+from app.services.video_title import normalize_title_zh
 
 
 async def count_subtitles(db: AsyncSession, video_id: str) -> int:
@@ -218,12 +219,24 @@ async def get_video_detail(
     # access 不再含 per-user 额度，故登录用户的响应可共用 key；但**匿名**响应
     # 是 locked 形状（空字幕/空 URL），绝不能缓存后回给登录用户，因此只有
     # can_watch 的响应才读写缓存。
+    #
+    # 安全前提显式化：缓存 payload 不含任何 viewer 相关字段。免费额度恢复后
+    # `remaining_this_month` 会变成 per-user；那时不能再走共享 key（否则跨用户
+    # 泄漏），下面的谓词会让这条详情直接不缓存，而不是悄悄复用旧缓存。
+    viewer_independent = access.get("remaining_this_month") is None
     cache_key = f"video:detail:{video_id}"
-    cacheable = can_watch
+    cacheable = can_watch and viewer_independent
     if cacheable:
         cached = await cache_get(cache_key)
         if cached:
-            return VideoDetailResponse.model_validate_json(cached)
+            detail = VideoDetailResponse.model_validate_json(cached)
+            # Subtitle caching must never freeze changing engagement counters.
+            detail.like_count = video.like_count
+            detail.favorite_count = video.favorite_count
+            detail.view_count = video.view_count
+            detail.upload_date = video.upload_date.isoformat() if video.upload_date else None
+            detail.published_at = video.published_at.isoformat() if video.published_at else None
+            return detail
 
     # Decide which subtitles the viewer sees. The owner always sees their live
     # (draft) subtitles. A non-owner viewing a UGC video under re-review
@@ -291,6 +304,8 @@ async def get_video_detail(
         like_count=video.like_count,
         favorite_count=video.favorite_count,
         view_count=video.view_count,
+        upload_date=video.upload_date.isoformat() if video.upload_date else None,
+        published_at=video.published_at.isoformat() if video.published_at else None,
         # 详情页保留完整简介（列表卡片才截断到 CARD_DESCRIPTION_LIMIT）。
         description=video.description,
         processing_mode=video.processing_mode,
@@ -405,16 +420,19 @@ async def list_all_videos(
         )
         stmt = stmt.where(Video.id.in_(sub))
 
-    # total count for has_more
+    # total count for the paginated envelope's `total` (the admin table's
+    # "共 N 条" and the has_more flag both come from it; ADM-10).
     count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
     total = (await db.execute(count_stmt)).scalar_one()
 
-    stmt = stmt.order_by(Video.created_at.desc()).limit(page_size + 1).offset((page - 1) * page_size)
+    # id tiebreaker: OFFSET paging over created_at alone can repeat/skip rows
+    # when bulk-imported videos share a timestamp (ADM-10/15).
+    stmt = stmt.order_by(Video.created_at.desc(), Video.id.desc()).limit(page_size).offset((page - 1) * page_size)
     rows = (await db.execute(stmt)).scalars().all()
 
     has_more = total > page * page_size
-    items = [VideoAdminResponse.model_validate(v) for v in rows[:page_size]]
-    return PaginatedResponse(items=items, page=page, page_size=page_size, has_more=has_more)
+    items = [VideoAdminResponse.model_validate(v) for v in rows]
+    return PaginatedResponse(items=items, page=page, page_size=page_size, has_more=has_more, total=total)
 
 
 async def get_ugc_pending_counts(db: AsyncSession) -> dict:
@@ -456,6 +474,28 @@ async def _get_video_or_404(db: AsyncSession, video_id: str) -> Video:
     return video
 
 
+# Arbitrary stable int used as the Postgres transaction-scoped advisory lock key
+# for the "exactly one is_demo video" grant. Must never change while rows exist.
+_DEMO_ADVISORY_LOCK_KEY = 0x5EE0D3E3
+
+
+async def _serialize_demo_grant(db: AsyncSession) -> None:
+    """Serialize ``is_demo=True`` grants across concurrent admins (ADM-14).
+
+    The single-demo invariant is enforced in application code, not by a DB
+    constraint: two admins flipping different videos at the same time can both
+    run "clear the previous holder" and both commit, leaving two demo rows.
+    A row lock cannot guard "at most one row carries this flag", so on Postgres
+    we take a transaction-scoped advisory lock — released by the same commit
+    that writes the flag, so the second grant then sees the first one's row and
+    clears it. SQLite (tests/local) serializes writers itself; no-op there.
+    """
+    bind = db.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+    await db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": _DEMO_ADVISORY_LOCK_KEY})
+
+
 async def update_video(
     db: AsyncSession,
     video_id: str,
@@ -465,9 +505,12 @@ async def update_video(
     video = await _get_video_or_404(db, video_id)
 
     # Exactly one demo/first-lesson video is allowed globally. Flipping a
-    # video on clears the previous holder in the same transaction.
+    # video on clears the previous holder in the same transaction; the advisory
+    # lock serializes two concurrent grants so they cannot both leave a demo
+    # row behind (ADM-14).
     demo_cleared = False
     if payload.is_demo is True and not video.is_demo:
+        await _serialize_demo_grant(db)
         result = await db.execute(
             update(Video).where(Video.is_demo.is_(True), Video.id != video_id).values(is_demo=False)
         )
@@ -480,6 +523,9 @@ async def update_video(
     publish_changed = payload.is_published is not None and payload.is_published != video.is_published
     # "" clears the assignment, so both sides normalize through `or None`.
     channel_changed = payload.channel_ref is not None and (payload.channel_ref or None) != video.channel_ref
+    title_changed = payload.title is not None and payload.title != video.title
+    next_title_zh = normalize_title_zh(payload.title_zh) if payload.title_zh is not None else None
+    title_zh_changed = payload.title_zh is not None and next_title_zh != video.title_zh
 
     for field in (
         "title",
@@ -495,6 +541,10 @@ async def update_video(
         value = getattr(payload, field)
         if value is not None:
             setattr(video, field, value)
+
+    # Empty string clears a bad translation; the next pipeline run can refill it.
+    if payload.title_zh is not None:
+        video.title_zh = next_title_zh
 
     # ADR-0014 channel assignment — "" explicitly clears (the generic loop
     # skips None, so clearing needs its own branch).
@@ -527,11 +577,12 @@ async def update_video(
         await invalidate_browse_cache()
 
     # Publish/unpublish changes which videos surface on the homepage/browse feed,
-    # and a channel_ref change rewrites the author link (`channel_slug`) embedded
-    # in every cached browse card — invalidate those caches too. (Subtitle edits
-    # don't need this; browse only caches video metadata.) The detail cache above
-    # is dropped separately because it is keyed per video.
-    if publish_changed or channel_changed:
+    # a channel_ref change rewrites the author link (`channel_slug`) embedded in
+    # every cached browse card, and title/title_zh changes rewrite the cached
+    # card text itself. (Subtitle edits don't need this; browse only caches video
+    # metadata.) The detail cache above is dropped separately because it is
+    # keyed per video.
+    if publish_changed or channel_changed or title_changed or title_zh_changed:
         from app.services.video_cache import invalidate_browse_cache
 
         await invalidate_browse_cache()
@@ -565,14 +616,9 @@ async def delete_video(db: AsyncSession, video_id: str) -> bool:
     video = await _get_video_or_404(db, video_id)
 
     # Explicit child-row cleanup for tables lacking ondelete CASCADE.
-    # SpeakingAttempt -> subtitle (no ondelete), must go before subtitles.
-    from app.models.learning import SpeakingAttempt, Vocabulary
+    from app.models.learning import Vocabulary
     from app.models.subtitle import Subtitle
 
-    # SpeakingAttempts reference subtitles by FK without ondelete, so remove
-    # them before we delete the subtitle rows they point at.
-    sub_ids_stmt = select(Subtitle.id).where(Subtitle.video_id == video_id)
-    await db.execute(delete(SpeakingAttempt).where(SpeakingAttempt.subtitle_id.in_(sub_ids_stmt)))
     await db.execute(delete(Subtitle).where(Subtitle.video_id == video_id))
     await db.execute(delete(LearningRecord).where(LearningRecord.video_id == video_id))
     await db.execute(delete(Vocabulary).where(Vocabulary.video_id == video_id))
@@ -716,20 +762,38 @@ async def localize_video_admin(db: AsyncSession, video_id: str) -> VideoAdminRes
     Clears any existing local URLs and flips the video to ``processing`` so
     the admin panel can poll progress. Raises ``Conflict`` (409) if the video
     is already being processed.
-    """
-    video = await _get_video_or_404(db, video_id)
 
-    if video.status == VideoStatus.processing:
+    The ``processing`` gate is a conditional UPDATE checked by ``rowcount``, not
+    a ``read status -> if`` in Python: two concurrent clicks both pass the
+    Python check, and both would dispatch ``localize_video`` (double transcode
+    onto the same output files). Only the request whose UPDATE actually flipped
+    the row dispatches (ADM-14).
+    """
+    result = await db.execute(
+        update(Video)
+        .where(Video.id == video_id, Video.status != VideoStatus.processing)
+        .values(
+            video_url_480p=None,
+            video_url_720p=None,
+            video_url_1080p=None,
+            error_message=None,
+            processing_step="downloading",
+            processing_progress=STEP_PROGRESS_DOWNLOADING,
+            status=VideoStatus.processing,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if not result.rowcount:
+        # No row matched: either the video doesn't exist, or another request
+        # already moved it to ``processing``. Roll back before probing so the
+        # caller's session stays usable.
+        await db.rollback()
+        if await db.get(Video, video_id) is None:
+            raise NotFoundError("Video not found")
         raise ConflictError("Video is already processing")
 
-    video.video_url_480p = None
-    video.video_url_720p = None
-    video.video_url_1080p = None
-    video.error_message = None
-    video.processing_step = "downloading"
-    video.processing_progress = STEP_PROGRESS_DOWNLOADING
-    video.status = VideoStatus.processing
-    await commit_refresh(db, video)
+    await db.commit()
+    video = await _get_video_or_404(db, video_id)
 
     from app.tasks.video_processing import localize_video
 

@@ -11,14 +11,13 @@ from app.models.favorite import UserFavorite, UserNote
 from app.models.feedback import Feedback
 from app.models.home_content import HomeContentDraft, HomeContentRevision, HomePageConfig
 from app.models.jinshuju_payment import JinshujuPayment
-from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
+from app.models.learning import LearningRecord, Vocabulary
 from app.models.learning_plan import LearningEvent, UserLearningProfile
+from app.models.listening import ListeningSession
 from app.models.milestone import MasterySnapshot, UserMilestone
 from app.models.notification import Notification
 from app.models.order import Order
 from app.models.preferences import UserPreferences
-from app.models.redeem import RedeemCode
-from app.models.shadowing import ShadowingAttempt
 from app.models.study_session import StudySession, StudySessionItem
 from app.models.subtitle import Subtitle
 from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
@@ -31,5 +30,4 @@ from app.models.video_quality_report import VideoQualityReport
 from app.models.video_score import VideoScore
 from app.models.video_standard import VideoStandard
 from app.models.vocab_set import VocabSet, VocabSetWord
-from app.models.weekly_report import WeeklyReport
 from app.models.word_note import WordAINote

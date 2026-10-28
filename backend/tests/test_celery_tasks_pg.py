@@ -3,8 +3,7 @@
 The in-memory SQLite suite cannot express row-locking semantics:
 ``with_for_update(skip_locked=True)`` is silently ignored by SQLite, so the
 monetization tasks' lock-ordering behaviour — ``expire_pending_orders`` /
-``reconcile_pending_orders`` / ``downgrade_expired_pro`` /
-``expire_unused_redeem_codes`` racing between beats or workers — was never
+``reconcile_pending_orders`` racing between beats or workers — was never
 actually exercised. These tests run the task bodies against a real Postgres
 and assert the SKIP LOCKED behaviour that prevents double-processing in
 production, plus the reconcile paid path (user actually upgraded to Pro).
@@ -33,11 +32,9 @@ from sqlalchemy import select
 
 from app.core.database import get_async_session_maker
 from app.models.order import Order, OrderStatus
-from app.models.redeem import RedeemCode, RedeemStatus
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoSource, VideoStatus
 from app.tasks.order_tasks import expire_pending_orders, reconcile_pending_orders
-from app.tasks.redeem_tasks import downgrade_expired_pro, expire_unused_redeem_codes
 from app.tasks.scoring_tasks import compute_top_scores
 
 pytestmark = pytest.mark.integration
@@ -205,64 +202,6 @@ async def test_reconcile_pending_orders_upgrades_user_when_provider_says_paid(mo
         assert upgraded.plan_expires_at is not None
         assert paid_order.status == OrderStatus.paid
         assert paid_order.paid_at is not None
-
-
-async def test_downgrade_expired_pro_skips_locked_user():
-    """Same SKIP LOCKED guarantee for the Pro-downgrade sweep."""
-    now = datetime.now(UTC)
-    async with _session_maker()() as db:
-        locked = await _make_user(db, "13800006004", plan=PlanType.pro, expires_at=now - timedelta(days=1))
-        other = await _make_user(db, "13800006005", plan=PlanType.pro, expires_at=now - timedelta(days=1))
-        locked_id, other_id = locked.id, other.id
-
-    async with _session_maker()() as locker:
-        await locker.execute(select(User).where(User.id == locked_id).with_for_update())
-        count = downgrade_expired_pro()
-        assert count == 1  # locked user skipped; only `other` downgraded
-
-    assert downgrade_expired_pro() == 1  # lock released → now downgraded
-
-    async with _session_maker()() as db:
-        assert (await db.get(User, locked_id)).plan == PlanType.free
-        assert (await db.get(User, other_id)).plan == PlanType.free
-
-
-async def test_expire_unused_redeem_codes_and_downgrade_on_pg():
-    """Parity of the redeem-code expiry + downgrade sweeps on real Postgres.
-
-    Exercises enum columns (SAEnum), timezone-aware DateTime comparisons and
-    the count contract against PG instead of SQLite.
-    """
-    now = datetime.now(UTC)
-    async with _session_maker()() as db:
-        expired = await _make_user(db, "13800006006", plan=PlanType.pro, expires_at=now - timedelta(days=1))
-        active = await _make_user(db, "13800006007", plan=PlanType.pro, expires_at=now + timedelta(days=1))
-        stale_code = RedeemCode(
-            code="PG-STALE-01",
-            plan="pro",
-            duration_days=30,
-            status=RedeemStatus.unused,
-            expires_at=now - timedelta(days=1),
-        )
-        fresh_code = RedeemCode(
-            code="PG-FRESH-01",
-            plan="pro",
-            duration_days=30,
-            status=RedeemStatus.unused,
-            expires_at=now + timedelta(days=1),
-        )
-        db.add_all([stale_code, fresh_code])
-        await db.commit()
-        expired_id, active_id = expired.id, active.id
-        stale_code_id = stale_code.id
-
-    assert downgrade_expired_pro() == 1
-    assert expire_unused_redeem_codes() == 1
-
-    async with _session_maker()() as db:
-        assert (await db.get(User, expired_id)).plan == PlanType.free
-        assert (await db.get(User, active_id)).plan == PlanType.pro
-        assert (await db.get(RedeemCode, stale_code_id)).status == RedeemStatus.expired
 
 
 async def test_compute_top_scores_scores_ready_videos_on_pg():

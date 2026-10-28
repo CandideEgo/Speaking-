@@ -245,8 +245,10 @@ async def channel_subscriptions(db: AsyncSession, user: User) -> list[dict]:
                 "latest_video": channel_service.latest_video_payload(latest_video),
                 "continue_video": (
                     {
+                        **(channel_service.latest_video_payload(continuation[1]) or {}),
                         "id": continuation[1].id,
                         "title": continuation[1].title,
+                        "title_zh": continuation[1].title_zh,
                         "thumbnail_url": continuation[1].thumbnail_url,
                         "duration": continuation[1].duration,
                         "progress_percentage": round(continuation[0].progress_percentage or 0, 1),
@@ -405,11 +407,10 @@ async def search(db: AsyncSession, query: str, group: str, page: int, page_size:
             .scalars()
             .all()
         )
+        from app.services.channel_service import search_channel_cards
+
         result["channels"] = {
-            "items": [
-                {"id": c.id, "name": c.name, "slug": c.slug, "description": c.description, "cover_url": c.cover_url}
-                for c in channel_rows[:page_size]
-            ],
+            "items": await search_channel_cards(db, list(channel_rows[:page_size]), user.id),
             "has_more": len(channel_rows) > page_size,
         }
     return result

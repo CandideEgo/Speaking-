@@ -6,35 +6,17 @@ import { cn } from "@/lib/utils";
 import { RotateCcw, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { WatchChromeState } from "@/components/watch/WatchChromeProvider";
 
-/** 页面内播放操作。高频进度仍由 rAF 直读媒体，避免整页随播放重渲染。 */
-export function WatchBottomBar({
-  chrome = {},
-  inline = false,
-}: {
-  chrome?: WatchChromeState;
-  inline?: boolean;
-}) {
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
-  // 判据用「≤1023px」那一档（计划 §5 说的 pathname + isMobile）。
-  // 已知一处**有意保留**的边角：768–1023px（竖屏平板 / 窄桌面窗）`isMobile` 为真，底栏照常
-  // 占位；这一段此前就没有实测读数，计划 §12 也明说「不动桌面版式」，所以不在这里加断点 ——
-  // 要动先开票，别顺手加 `md:hidden`（那会让「哪个断点说了算」出现两个来源）。
-  //
-  // ⋯ 面板打开时让位：它是铺到屏底的抽屉，底栏是壳里铺满屏高的 flex 行 —— 两者同屏时
-  // 后者会压住抽屉的动作行（实测「加入学习」只剩一个像素在缝里）。与 `MobileTabBar` 在
-  // 考试流程里 `return null` 同一个先例。
-  if (chrome.moreOpen) return null;
-  return isDesktop ? null : <WatchBottomBarMobile chrome={chrome} inline={inline} />;
+/** 壳层常驻播放操作。高频进度由 rAF 直读媒体，避免整页随播放重渲染。 */
+export function WatchBottomBar({ chrome = {} }: { chrome?: WatchChromeState }) {
+  const isDesktop = useMediaQuery("(min-width: 1025px)");
+  if (chrome.moreOpen || isDesktop) return null;
+  return <WatchBottomBarMobile chrome={chrome} />;
 }
 
-/**
- * 底栏高度（px）—— 实测 101：44px 进度热区 + 56px 按键行 + 1px 上边框。
- * e2e 与 `useSheetGeometry` 的上沿都按实测矩形算，这个常量只给需要在 React 里做布局的
- * 调用方（别把它当 58 —— 计划里首屏预算表写的就是 58，那是漏了进度热区那一档）。
- */
-export const WATCH_BOTTOM_BAR_HEIGHT = 101;
+/** 44px progress target + 48px action row + border; floating cards measure the live box. */
+export const WATCH_BOTTOM_BAR_HEIGHT = 93;
 
-function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; inline: boolean }) {
+function WatchBottomBarMobile({ chrome }: { chrome: WatchChromeState }) {
   const {
     videoRef,
     attachVideo: _attachVideo,
@@ -147,6 +129,7 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
       }
       const wholeSeconds = Math.floor(time);
       if (textRef.current && wholeSeconds !== shownTime) {
+        railRef.current?.parentElement?.setAttribute("aria-valuenow", String(wholeSeconds));
         textRef.current.textContent = `${formatClock(time)} / ${formatClock(total ?? 0)}`;
         shownTime = wholeSeconds;
       }
@@ -217,9 +200,9 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
   return (
     <nav
       data-testid="watch-bottom-bar"
-      data-shell-bottom-bar={inline ? undefined : "watch"}
+      data-shell-bottom-bar="watch"
       aria-label="播放控制"
-      className="shrink-0 border-y border-hairline bg-canvas lg:hidden"
+      className="watch-shell-controls z-40 shrink-0 border-t border-hairline bg-canvas min-[1025px]:hidden"
     >
       {/* 进度：2px 细线 + 44px 透明热区（点/拖都在这一条上） */}
       <div
@@ -246,7 +229,7 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
         }}
         className="relative h-11 cursor-pointer touch-none select-none"
       >
-        <div ref={railRef} className="absolute inset-x-0 top-0 h-[2px] bg-hairline">
+        <div ref={railRef} className="absolute inset-x-4 top-2 h-[2px] bg-hairline">
           <div
             ref={bufferedRef}
             className="h-full bg-surface-cream-strong"
@@ -259,17 +242,26 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
             style={{ width: "0%" }}
           />
         </div>
+        {/* 时间读数由 rAF 直写 textContent（不在 React 里）。放在 44px 热区底部：
+            这条进度只有 2px 细线，其余 42px 原本看起来就是一块空白，读数让它读得懂。 */}
+        <span
+          ref={textRef}
+          data-testid="watch-progress-time"
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-1 right-4 text-caption tabular-nums text-muted"
+        />
       </div>
 
       {/* 四个键：各占 1/4，各 ≥44×44（触控基线） */}
-      <div className="flex h-14 items-stretch">
+      <div className="flex h-12 items-stretch">
         <button
           type="button"
           data-testid="watch-prev"
           onClick={onPrev}
           disabled={sentenceNavDisabled}
           aria-label="上一句"
-          title="上一句"
+          title="上一句（A）"
+          aria-keyshortcuts="a"
           className="flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           <SkipBack size={19} />
@@ -297,7 +289,8 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
           onClick={onNext}
           disabled={sentenceNavDisabled}
           aria-label="下一句"
-          title="下一句"
+          title="下一句（D）"
+          aria-keyshortcuts="d"
           className="flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           下一句
@@ -309,7 +302,8 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
           data-testid="watch-replay"
           onClick={onReplay}
           aria-label="重听本句"
-          title="重听本句，到句末暂停"
+          title="重听本句（R），到句末暂停"
+          aria-keyshortcuts="r"
           className={cn(
             "flex flex-1 items-center justify-center gap-1.5 text-meta font-semibold transition-colors cursor-pointer",
             "text-muted hover:text-ink"
@@ -319,14 +313,6 @@ function WatchBottomBarMobile({ chrome, inline }: { chrome: WatchChromeState; in
           重听
         </button>
       </div>
-
-      {/* 时间读数由 rAF 直写 textContent（不在 React 里） */}
-      <span
-        ref={textRef}
-        data-testid="watch-progress-time"
-        className="sr-only"
-        aria-hidden="true"
-      />
     </nav>
   );
 }

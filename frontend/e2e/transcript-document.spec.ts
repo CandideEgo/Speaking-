@@ -106,6 +106,9 @@ async function mockTranscript(page: Page) {
 
 test.describe("全文文稿页", () => {
   test("整段字幕按段落排成文档，考试词点回播放器", async ({ page }) => {
+    // 右栏目录是桌面布局；手机宽度由下一条「390 手机」用例覆盖，这里跳过
+    // 以免同一断言在 mobile-chrome project 里按设计必然失败。
+    test.skip((page.viewportSize()?.width ?? 1440) < 768, "桌面右栏布局由 390 手机用例覆盖");
     await mockTranscript(page);
     await page.goto("/watch/v1/transcript");
 

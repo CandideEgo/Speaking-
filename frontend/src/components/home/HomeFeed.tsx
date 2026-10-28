@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass } from "lucide-react";
+import { ChevronDown, Compass, SlidersHorizontal, X } from "lucide-react";
 import { useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -13,7 +13,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FEED_SORT_OPTIONS, usePlatformFeed, type FeedSort } from "@/hooks/usePlatformFeed";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
-import { scrollKey } from "@/lib/scrollMemory";
+import { SCROLL_CONTAINER_ID, saveScroll, scrollKey } from "@/lib/scrollMemory";
 import { CEFR_LEVELS, cefrWithExamHint } from "@/lib/cefrLevels";
 
 /**
@@ -29,7 +29,7 @@ const DIFFICULTY_OPTIONS = [
   ...CEFR_LEVELS.map((level) => ({ id: level, label: cefrWithExamHint(level) })),
 ];
 
-export function HomeFeed() {
+export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const {
@@ -52,7 +52,8 @@ export function HomeFeed() {
     loaderRef,
   } = usePlatformFeed();
 
-  useScrollRestore(scrollKey(pathname, searchParams.toString()), videos.length > 0, {
+  // 精选与续看也会改变列表上方的高度，等它们就绪再恢复列表位置。
+  useScrollRestore(scrollKey(pathname, searchParams.toString()), layoutReady && videos.length > 0, {
     restoreOnKeyChange: false,
   });
 
@@ -82,50 +83,65 @@ export function HomeFeed() {
 
   return (
     <>
-      {/* 筛选工具条：分类横滚；难度 / 排序 / 计数在右，窄屏换行 */}
-      <div className="flex flex-col gap-3 border-b border-hairline pb-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto scrollbar-none">
+      <div className="discover-filters">
+        <div className="min-w-0" aria-label="视频分类">
           <TabPills
             tabs={categories.map((category) => ({ key: category.id, label: category.label }))}
             activeKey={activeCategory}
             onChange={setActiveCategory}
             variant="chips"
-            className="flex-nowrap"
+            className="discover-categories"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <label htmlFor="feed-level" className="flex items-center gap-1.5 text-meta text-muted">
+        <div className="discover-filter-settings">
+          <SlidersHorizontal
+            size={15}
+            className="hidden text-muted min-[600px]:block"
+            aria-hidden
+          />
+          <label htmlFor="feed-level" className="flex items-center gap-1.5 text-caption text-muted">
             难度
-            <Select
-              id="feed-level"
-              value={activeLevel}
-              onChange={(event) => setActiveLevel(event.target.value)}
-              className="h-8 w-auto rounded-pill border-hairline-strong py-0 pl-3 pr-8 text-meta"
-            >
-              {DIFFICULTY_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+            <span className="discover-select">
+              <Select
+                id="feed-level"
+                value={activeLevel}
+                onChange={(event) => setActiveLevel(event.target.value)}
+                className="min-h-11 w-44 shrink-0 appearance-none rounded-md py-0 pl-3 pr-8 text-meta min-[1025px]:min-h-9"
+              >
+                {DIFFICULTY_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <ChevronDown size={14} aria-hidden />
+            </span>
           </label>
-          <label htmlFor="feed-sort" className="flex items-center gap-1.5 text-meta text-muted">
+          <label htmlFor="feed-sort" className="flex items-center gap-1.5 text-caption text-muted">
             排序
-            <Select
-              id="feed-sort"
-              value={effectiveSort}
-              onChange={(event) => setSort(event.target.value as FeedSort)}
-              className="h-8 w-auto rounded-pill border-hairline-strong py-0 pl-3 pr-8 text-meta"
-            >
-              {sortOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+            <span className="discover-select">
+              <Select
+                id="feed-sort"
+                value={effectiveSort}
+                onChange={(event) => setSort(event.target.value as FeedSort)}
+                className="min-h-11 w-28 shrink-0 appearance-none rounded-md py-0 pl-3 pr-8 text-meta min-[1025px]:min-h-9"
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <ChevronDown size={14} aria-hidden />
+            </span>
           </label>
+          {isFiltered && (
+            <Button variant="text" size="sm" icon={X} onClick={clearFilters}>
+              清除筛选
+            </Button>
+          )}
           {total > 0 && (
-            <span className="hidden text-meta text-muted tabular-nums sm:inline" aria-live="polite">
+            <span className="ml-auto text-caption text-muted tabular-nums" aria-live="polite">
               {total} 个视频
             </span>
           )}
@@ -138,11 +154,20 @@ export function HomeFeed() {
       )}
 
       {uniqueVideos.length > 0 && (
-        <div className="user-content-list">
+        <div
+          data-testid="home-feed-grid"
+          className="home-feed-grid mt-5"
+          onClickCapture={() => {
+            const container = document.getElementById(SCROLL_CONTAINER_ID);
+            if (container)
+              saveScroll(scrollKey(pathname, searchParams.toString()), container.scrollTop);
+          }}
+        >
           {uniqueVideos.map((video) => (
             <HomeFeedCard
               key={video.id || video.video_id}
               video={video}
+              showTopic={activeCategory === "all"}
               // 原始 URL 值（含 null）原样带走，返回 URL 与离开时一致。
               entry={{
                 from: "home",
@@ -158,7 +183,7 @@ export function HomeFeed() {
       )}
 
       {loading && uniqueVideos.length === 0 && (
-        <div className="user-content-list">
+        <div className="home-feed-grid mt-5">
           {Array.from({ length: 8 }).map((_, i) => (
             <VideoCardSkeleton key={i} />
           ))}

@@ -131,10 +131,6 @@ const WHITELISTS = {
   3: new Map(),
   4: new Map([
     [
-      "frontend/src/app/(main)/watch/[id]/page.tsx",
-      "播放页标题参与桌面两栏版式（§6 硬边界：桌面版式不动），不是页头语义。",
-    ],
-    [
       "frontend/src/app/(admin)/admin/login/page.tsx",
       "登录页是独立入口（无壳层、无 ui/PageHeader 可挂），自带两段标题。",
     ],

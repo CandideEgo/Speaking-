@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_serializer
 
 from app.schemas.common import VideoBrief
+from app.schemas.video import VideoResponse
 
 
 class LearningRecordResponse(BaseModel):
@@ -44,3 +45,46 @@ class SaveProgressResponse(BaseModel):
 
     position_seconds: float
     progress_percentage: float
+
+
+# ---------------------------------------------------------------------------
+# Response schemas (BE-07: continue / progress / weekly stats used dicts)
+# ---------------------------------------------------------------------------
+
+
+class ContinueLearningItem(BaseModel):
+    video: VideoResponse
+    position_seconds: float
+    progress_percentage: float
+    remaining_seconds: float | None = None
+    last_accessed_at: datetime | None = None
+
+
+class ContinueLearningResponse(BaseModel):
+    items: list[ContinueLearningItem]
+    total: int
+
+
+class WatchProgressResponse(BaseModel):
+    video_id: str
+    position_seconds: float | None = None
+    progress_percentage: float
+
+
+class DailyMinutes(BaseModel):
+    date: str
+    minutes: int
+
+
+class WeeklyStatsResponse(BaseModel):
+    this_week_minutes: int
+    last_week_minutes: int
+    week_delta_pct: float | None = None
+    this_week_words: int
+    this_week_videos: int
+    daily_minutes: list[DailyMinutes]
+
+
+class EventDistributionItem(BaseModel):
+    event_type: str
+    count: int

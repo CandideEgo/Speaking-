@@ -13,7 +13,9 @@ export function InterestPicker({
 }) {
   return (
     <fieldset disabled={disabled}>
-      <legend className="text-copy font-semibold mb-2">兴趣分类</legend>
+      {/* 与 SettingsTab 的 .user-sec-title（1.25rem/650）同档；这里不能直接用
+          该 class，因为引导页不在 .user-ui 作用域内。 */}
+      <legend className="mb-2 text-[1.25rem] font-[650] leading-7 text-ink">兴趣分类</legend>
       <p className="text-meta text-muted mb-3">
         选择喜欢的内容，首页会优先推荐。可以多选，也可以不选。
       </p>

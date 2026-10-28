@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Copy, Crown, RefreshCw } from "lucide-react";
+import { BookOpen, Copy, Crown, GraduationCap, Layers, Play, RefreshCw } from "lucide-react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
 import { api, ApiError, isProUser } from "@/lib/api";
@@ -9,6 +9,7 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { LinkButton } from "@/components/ui/LinkButton";
 import { PageTransition } from "@/components/common/PageTransition";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -32,10 +33,26 @@ interface BrowserKind {
 }
 
 const BENEFITS = [
-  "逐词点读：字幕里点词即查，释义、音标、真题例句当场看到",
-  "智能复习：生词按遗忘曲线自动排期，到点回炉",
-  "词单与真题：四六级真题、视频词单随学随练",
-  "多端同步：手机、电脑接着学，同步进度与收藏",
+  {
+    icon: Play,
+    title: "逐词点读",
+    desc: "字幕里点词即查，释义、音标、真题例句当场看到。",
+  },
+  {
+    icon: BookOpen,
+    title: "智能复习",
+    desc: "生词按遗忘曲线自动排期，到点回炉。",
+  },
+  {
+    icon: GraduationCap,
+    title: "词单与真题",
+    desc: "四六级真题、视频词单随学随练。",
+  },
+  {
+    icon: Layers,
+    title: "多端同步",
+    desc: "手机、电脑接着学，同步进度与收藏。",
+  },
 ];
 
 const QR_SIZE = 240;
@@ -209,37 +226,76 @@ export default function UpgradePage() {
   return (
     <PageTransition>
       <div className="py-6 sm:py-12">
-        <PageHeader
-          crumb="会员"
-          title="升级 SeeWord 会员"
-          description="查看会员权益与价格，选择适合自己的学习方式。"
-        />
+        <PageHeader crumb="会员" title="升级 SeeWord 会员" variant="eyebrow" />
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card padding={5}>
-            <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-brand-50 text-brand-600">
-                <Crown size={18} />
-              </span>
-              <div>
-                <p className="text-copy font-semibold text-ink">
-                  {pro ? "SeeWord 会员" : "当前为免费账号"}
-                </p>
-                <p className="mt-0.5 text-meta text-muted">
-                  {pro ? `有效期至 ${expiryText(me)}` : "支付确认后更新会员状态"}
-                </p>
+        {/* items-start：右侧收款卡比权益卡高一大截，默认 stretch 会把左侧卡片
+            撑成同高，下半张全是空白。设计稿左侧是深色 member-card + 权益卡。 */}
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          <div className="space-y-6">
+            <section
+              className="rounded-lg bg-ink p-6 text-canvas"
+              aria-labelledby="member-status-title"
+            >
+              <p className="text-caption font-semibold tracking-[0.12em] uppercase text-on-dark/60">
+                当前状态
+              </p>
+              <h2
+                id="member-status-title"
+                className="mt-2 text-title font-semibold tracking-tight text-canvas"
+              >
+                {pro ? "SeeWord 会员" : "免费账号"}
+              </h2>
+              <p className="mt-3 flex items-center gap-1.5 text-copy text-on-dark/75">
+                <span
+                  className={`h-2 w-2 rounded-full ${pro ? "bg-brand-500" : "bg-on-dark/40"}`}
+                  aria-hidden
+                />
+                {pro
+                  ? `体验中 · 有效期至 ${expiryText(me)}`
+                  : "未开通 · 支付确认后自动更新会员状态"}
+              </p>
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <LinkButton href="/vocabulary" variant="secondary" size="sm">
+                  先去复习
+                </LinkButton>
+                <LinkButton href="/practice" variant="ghostDark" size="sm" className="text-on-dark">
+                  做一套真题
+                </LinkButton>
               </div>
-            </div>
+            </section>
 
-            <ul className="mt-5 space-y-2.5">
-              {BENEFITS.map((benefit) => (
-                <li key={benefit} className="flex gap-2 text-copy text-body">
-                  <Check size={16} className="mt-0.5 shrink-0 text-brand-500" />
-                  <span>{benefit}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
+            <Card padding={5}>
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-brand-50 text-brand-600">
+                  <Crown size={18} />
+                </span>
+                <div>
+                  <h2 className="text-copy font-semibold text-ink">会员能做什么</h2>
+                  <p className="mt-0.5 text-meta text-muted">
+                    所有已接入视频与逐句字幕，配合词汇和真题练习。
+                  </p>
+                </div>
+              </div>
+
+              <ul className="mt-5 space-y-3">
+                {BENEFITS.map((benefit) => (
+                  <li key={benefit.title} className="flex gap-3">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-sm bg-surface-soft text-muted">
+                      <benefit.icon size={16} aria-hidden />
+                    </span>
+                    <span className="min-w-0">
+                      <strong className="block text-copy font-semibold text-ink">
+                        {benefit.title}
+                      </strong>
+                      <span className="mt-0.5 block text-meta leading-relaxed text-body">
+                        {benefit.desc}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </div>
 
           <Card padding={5}>
             <p className="text-copy font-semibold text-ink">选择档位</p>
@@ -352,6 +408,40 @@ export default function UpgradePage() {
             )}
           </Card>
         </div>
+
+        {/* 设计在会员两栏之下还有一整段「常见问题」（V-21）；购买说明即 FAQ。 */}
+        <section className="mt-6" aria-labelledby="faq-title">
+          <Card padding={5}>
+            <h2 id="faq-title" className="text-copy font-semibold text-ink">
+              常见问题
+            </h2>
+            <dl className="mt-4 space-y-3">
+              {[
+                {
+                  term: "怎么付款",
+                  detail: "微信内扫码或打开支付链接完成付款；本站不收集银行卡信息。",
+                },
+                {
+                  term: "何时开通",
+                  detail: "付款成功后按支付记录自动同步到当前账号，通常几分钟内生效。",
+                },
+                {
+                  term: "会自动续费吗",
+                  detail: "不会。每次购买只延长所选天数，到期后自动回到免费版。",
+                },
+                {
+                  term: "到期之后",
+                  detail: "已保存的收藏、词库与学习记录都会保留，只是不再解锁会员内容。",
+                },
+              ].map((item) => (
+                <div key={item.term}>
+                  <dt className="text-meta font-semibold text-body">{item.term}</dt>
+                  <dd className="mt-0.5 text-copy leading-relaxed text-muted">{item.detail}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+        </section>
       </div>
     </PageTransition>
   );

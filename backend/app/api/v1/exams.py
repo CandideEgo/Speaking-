@@ -19,6 +19,8 @@ Static paths (/daily/start, /attempts*) must be registered BEFORE the dynamic
 /{paper_id} route or FastAPI would match "attempts" as a paper id.
 """
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,13 +30,18 @@ from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.exam import (
     ExamAttemptCreateResponse,
+    ExamAttemptDetailResponse,
+    ExamAttemptItem,
     ExamPaperDetail,
+    ExamPaperListResponse,
     ExamQuestionPublic,
+    ExamStatsResponse,
     ExamSubmitRequest,
     ExamSubmitResponse,
+    ExamWrongItem,
     WrongRedoRequest,
 )
-from app.schemas.pagination import paginated
+from app.schemas.pagination import PaginatedResponse, paginated
 from app.services import exam_service
 
 router = APIRouter(prefix="/exams", tags=["exams"])
@@ -50,17 +57,25 @@ def _create_payload(session, questions: list) -> dict:
     }
 
 
-@router.get("")
+@router.get("", response_model=ExamPaperListResponse)
+@rate_limit("60/minute")
 async def list_exams(
+    request: Request,
     level: str | None = Query(default=None),
+    year: int | None = Query(default=None, ge=1900, le=2200),
+    status: Literal["all", "unsubmitted", "submitted"] = Query(default="all"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=12, ge=1, le=50),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List past papers, newest first, with the caller's attempt stats."""
-    items, total = await exam_service.list_papers(db, current_user.id, level=level, page=page, page_size=page_size)
-    return paginated(items=items, total=total, page=page, page_size=page_size)
+    items, total = await exam_service.list_papers(
+        db, current_user.id, level=level, year=year, status=status, page=page, page_size=page_size
+    )
+    result = paginated(items=items, total=total, page=page, page_size=page_size)
+    result["available_years"] = await exam_service.paper_years(db, level)
+    return result
 
 
 @router.get("/daily/start", response_model=ExamAttemptCreateResponse)
@@ -83,8 +98,10 @@ async def start_daily_check(
     return ExamAttemptCreateResponse(**_create_payload(session, questions))
 
 
-@router.get("/wrong")
+@router.get("/wrong", response_model=PaginatedResponse[ExamWrongItem])
+@rate_limit("60/minute")
 async def list_wrong_questions(
+    request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=50),
     current_user: User = Depends(get_current_user),
@@ -111,8 +128,10 @@ async def redo_wrong_questions(
     return ExamAttemptCreateResponse(**_create_payload(session, questions))
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=ExamStatsResponse)
+@rate_limit("60/minute")
 async def get_exam_stats(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -120,8 +139,10 @@ async def get_exam_stats(
     return await exam_service.exam_stats(db, current_user.id)
 
 
-@router.get("/attempts")
+@router.get("/attempts", response_model=PaginatedResponse[ExamAttemptItem])
+@rate_limit("60/minute")
 async def list_attempts(
+    request: Request,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=50),
     current_user: User = Depends(get_current_user),
@@ -132,8 +153,10 @@ async def list_attempts(
     return paginated(items=items, total=total, page=page, page_size=page_size)
 
 
-@router.get("/attempts/{session_id}")
+@router.get("/attempts/{session_id}", response_model=ExamAttemptDetailResponse)
+@rate_limit("60/minute")
 async def get_attempt(
+    request: Request,
     session_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -193,7 +216,9 @@ async def submit_attempt(
 
 
 @router.get("/{paper_id}", response_model=ExamPaperDetail)
+@rate_limit("60/minute")
 async def get_exam_paper(
+    request: Request,
     paper_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { ArrowLeft, Radio } from "lucide-react";
+import { ArrowLeft, Play, Radio } from "lucide-react";
 import { ChannelStartCard, type ChannelStartBasis } from "@/components/channels/ChannelStartCard";
 import { ChannelSubscribeButton } from "@/components/channels/ChannelSubscribeButton";
 import { ChannelVideoRow } from "@/components/channels/ChannelVideoRow";
@@ -16,7 +16,6 @@ import { LinkButton } from "@/components/ui/LinkButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { VideoCardData } from "@/components/ui/VideoCard";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
-import { useVideoMetadata } from "@/hooks/useVideoMetadata";
 import { api, ApiError } from "@/lib/api";
 import { userInitial } from "@/lib/avatar";
 import {
@@ -24,7 +23,8 @@ import {
   formatCollectedVideos,
   formatDifficultyRange,
 } from "@/lib/channelLearning";
-import { formatViews } from "@/lib/format";
+import { formatCount, formatViews } from "@/lib/format";
+import { SUBSCRIPTION_EVENT, type SubscriptionChange } from "@/lib/subscriptionEvents";
 import { scrollKey } from "@/lib/scrollMemory";
 import type { ChannelDifficultyRange, ChannelSummary } from "@/types/channels";
 
@@ -73,25 +73,11 @@ function deriveDifficultyRange(
   return { min: CEFR_ORDER[Math.min(...indexes)], max: CEFR_ORDER[Math.max(...indexes)] };
 }
 
-/** 「218 句字幕 · 268 个考试词」；两个都没有就返回 null（不显示空行）。 */
-function learningHintFor(video: {
-  subtitle_count?: number | null;
-  exam_word_count?: number | null;
-}): string | null {
-  const parts: string[] = [];
-  if (typeof video.subtitle_count === "number" && video.subtitle_count > 0) {
-    parts.push(`${video.subtitle_count} 句字幕`);
-  }
-  if (typeof video.exam_word_count === "number" && video.exam_word_count > 0) {
-    parts.push(`${video.exam_word_count} 个考试词`);
-  }
-  return parts.length ? parts.join(" · ") : null;
-}
-
-/** 页头事实行里的小分隔点。 */
+/** 页头事实行里的小分隔点。手机上只靠间距分组：390px 一行放不下，
+ *  换行时圆点会孤零零地落到行首（`· 原平台粉丝…`），比没有更碍读。 */
 function FactSeparator() {
   return (
-    <span aria-hidden className="text-muted-soft">
+    <span aria-hidden className="hidden text-muted-soft sm:inline">
       ·
     </span>
   );
@@ -234,11 +220,30 @@ export default function ChannelDetailPage() {
     return () => controller.abort();
   }, [slug]);
 
-  const metadata = useVideoMetadata(videos);
-  const mergedVideos = useMemo(
-    () => videos.map((video) => ({ ...video, ...(metadata[idOf(video)] ?? {}) })),
-    [videos, metadata]
-  );
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const change = (event as CustomEvent<SubscriptionChange>).detail;
+      if (change.slug !== slug) return;
+      setChannel((current) =>
+        current
+          ? {
+              ...current,
+              is_subscribed: change.subscribed,
+              subscriber_count: Math.max(
+                0,
+                (current.subscriber_count ?? 0) +
+                  Number(change.subscribed) -
+                  Number(current.is_subscribed)
+              ),
+            }
+          : current
+      );
+    };
+    window.addEventListener(SUBSCRIPTION_EVENT, listener);
+    return () => window.removeEventListener(SUBSCRIPTION_EVENT, listener);
+  }, [slug]);
+
+  const mergedVideos = videos;
 
   const directionChips = useMemo(() => directionLabels(channel?.learning_directions), [channel]);
 
@@ -285,6 +290,22 @@ export default function ChannelDetailPage() {
   const headerFacts: { key: string; label: string; title?: string }[] = [
     { key: "collected", label: formatCollectedVideos(collectedCount) },
   ];
+  if (channel?.subscriber_count != null) {
+    headerFacts.push({
+      key: "subscribers",
+      label: `${formatCount(channel.subscriber_count)} 人订阅`,
+    });
+  }
+  if (channel?.total_view_count != null) {
+    headerFacts.push({
+      key: "views",
+      label: formatCount(channel.total_view_count),
+      title: "本站播放完成次数",
+    });
+  }
+  if (channel?.recent_video_count && channel.recent_video_count > 0) {
+    headerFacts.push({ key: "recent", label: `近 30 天新增 ${channel.recent_video_count} 段` });
+  }
   if (difficultyText) headerFacts.push({ key: "difficulty", label: `难度 ${difficultyText}` });
   if (accentLabel) headerFacts.push({ key: "accent", label: `口音：${accentLabel}` });
   if (followerCount !== null) {
@@ -335,71 +356,80 @@ export default function ChannelDetailPage() {
           </>
         ) : channel ? (
           <>
-            <PageHeader
-              crumb={
-                <Link
-                  href="/channels"
-                  className="inline-flex items-center gap-1 transition-colors hover:text-ink"
-                >
-                  <ArrowLeft size={13} aria-hidden />
-                  全部频道
-                </Link>
-              }
-              title={
-                <span className="flex items-center gap-3 sm:gap-4">
-                  <span className="relative size-14 shrink-0 overflow-hidden rounded-pill border border-hairline bg-surface-card sm:size-16">
-                    {channel.cover_url ? (
-                      <Image src={channel.cover_url} alt="" sizes="64px" loading="eager" />
-                    ) : (
+            {/* 设计 channel-hero：380×240 封面 + 正文 + 订阅操作。 */}
+            <div className="mt-2 grid gap-5 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)] md:items-start xl:grid-cols-[380px_minmax(0,1fr)]">
+              <div className="relative aspect-[19/12] overflow-hidden rounded-lg border border-hairline bg-surface-card">
+                {channel.cover_url ? (
+                  <Image
+                    src={channel.cover_url}
+                    alt=""
+                    sizes="(max-width: 767px) 100vw, 380px"
+                    loading="eager"
+                  />
+                ) : (
+                  <span
+                    className="flex h-full w-full items-center justify-center text-[64px] font-bold text-muted"
+                    aria-hidden
+                  >
+                    {userInitial(channel.name)}
+                  </span>
+                )}
+              </div>
+
+              <PageHeader
+                crumb={
+                  <Link
+                    href="/channels"
+                    className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+                  >
+                    <ArrowLeft size={13} aria-hidden />
+                    全部频道
+                  </Link>
+                }
+                title={<span className="min-w-0 break-words">{channel.name}</span>}
+                meta={
+                  <>
+                    {introText && (
                       <span
-                        className="flex h-full w-full items-center justify-center text-title font-bold text-muted"
-                        aria-hidden
+                        className="line-clamp-3 block max-w-[62ch] text-copy-lg leading-relaxed text-body"
+                        title={introText}
                       >
-                        {userInitial(channel.name)}
+                        {introText}
                       </span>
                     )}
-                  </span>
-                  <span className="min-w-0 break-words">{channel.name}</span>
-                </span>
-              }
-              description={
-                <>
-                  {introText && (
-                    <span
-                      className="line-clamp-3 block max-w-[62ch] text-copy-lg leading-relaxed text-body"
-                      title={introText}
-                    >
-                      {introText}
-                    </span>
-                  )}
-                  {directionChips.length > 0 && (
-                    <span className="mt-2.5 flex flex-wrap gap-1.5">
-                      {directionChips.map((label) => (
+                    {directionChips.length > 0 && (
+                      <span className="mt-2.5 flex flex-wrap gap-1.5">
+                        {directionChips.map((label) => (
+                          <span
+                            key={label}
+                            className="inline-flex h-6 items-center rounded-pill border border-hairline bg-surface-soft px-2.5 text-caption font-semibold text-body"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    <span className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta tabular-nums text-muted sm:gap-x-2">
+                      {headerFacts.map((fact, index) => (
                         <span
-                          key={label}
-                          className="inline-flex h-6 items-center rounded-pill border border-hairline bg-surface-soft px-2.5 text-caption font-semibold text-body"
+                          key={fact.key}
+                          title={fact.title}
+                          aria-label={
+                            fact.key === "views" ? `本站播放 ${fact.label} 次` : undefined
+                          }
+                          className="inline-flex items-center gap-2 whitespace-nowrap"
                         >
-                          {label}
+                          {index > 0 && <FactSeparator />}
+                          {fact.key === "views" && <Play size={13} aria-hidden />}
+                          {fact.label}
                         </span>
                       ))}
                     </span>
-                  )}
-                  <span className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-meta tabular-nums text-muted">
-                    {headerFacts.map((fact, index) => (
-                      <span
-                        key={fact.key}
-                        title={fact.title}
-                        className="inline-flex items-center gap-2 whitespace-nowrap"
-                      >
-                        {index > 0 && <FactSeparator />}
-                        {fact.label}
-                      </span>
-                    ))}
-                  </span>
-                </>
-              }
-              actions={<ChannelSubscribeButton slug={channel.slug} />}
-            />
+                  </>
+                }
+                actions={<ChannelSubscribeButton slug={channel.slug} />}
+              />
+            </div>
 
             <div className="user-page-layout has-aside">
               <div className="user-page-main">
@@ -408,7 +438,6 @@ export default function ChannelDetailPage() {
                     video={startCard.video}
                     basis={startCard.basis}
                     slug={channel.slug}
-                    learningHint={learningHintFor(startCard.video)}
                   />
                 )}
 
@@ -454,7 +483,6 @@ export default function ChannelDetailPage() {
                               video={video}
                               slug={channel.slug}
                               badge={badge}
-                              learningHint={learningHintFor(video)}
                               eager={index === 0}
                             />
                           </li>
@@ -516,13 +544,6 @@ export default function ChannelDetailPage() {
                       </div>
                     </div>
                   )}
-                </section>
-
-                <section className="user-aside-sec">
-                  <h2 className="user-aside-title">订阅之后</h2>
-                  <p className="text-meta leading-relaxed text-body">
-                    订阅后会出现在「频道」页的「我订阅的频道」，方便回到这里查看最近收录、继续没学完的内容；随时可以取消。
-                  </p>
                 </section>
 
                 {related.length > 0 && (

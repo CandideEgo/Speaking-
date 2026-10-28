@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -30,11 +31,11 @@ from app.api.v1 import (
     learning,
     learning_plan,
     media,
+    notes,
     notifications,
     payments,
     presence,
     recommendations,
-    redeem,
     shadowing,
     users,
     videos,
@@ -109,7 +110,7 @@ async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONR
         body = {"code": f"HTTP_{exc.status_code}", "message": str(detail) if detail is not None else ""}
         if detail is not None:
             body["detail"] = jsonable_encoder(detail)
-    return JSONResponse(status_code=exc.status_code, content=body)
+    return JSONResponse(status_code=exc.status_code, content=body, headers=exc.headers)
 
 
 async def _validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -125,6 +126,38 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
             "detail": errors,
         },
     )
+
+
+def _security_headers() -> dict[str, str]:
+    """Headers every response should carry, including error responses.
+
+    The middleware only decorates responses that travel back through it; a
+    response produced by the catch-all exception handler bypasses ``call_next``
+    and used to miss them.
+    """
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    }
+    if settings.env == "production":
+        headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        connect_src = f"'self' {settings.csp_connect_domains}" if settings.csp_connect_domains else "'self'"
+        headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            # YouTube IFrame player (no-local-file fallback) needs its own
+            # script + frame + connect sources.
+            "script-src 'self' https://www.youtube.com https://s.ytimg.com; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "media-src 'self' https:; "
+            "frame-src https://www.youtube.com https://www.youtube-nocookie.com; "
+            f"connect-src {connect_src} https://www.youtube.com; "
+            "object-src 'none'; "
+            "base-uri 'self'"
+        )
+    return headers
 
 
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -155,6 +188,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
     return JSONResponse(
         status_code=500,
         content={"code": ErrorCode.INTERNAL_ERROR, "message": "服务器内部错误，请稍后重试"},
+        headers=_security_headers(),
     )
 
 
@@ -177,6 +211,25 @@ async def lifespan(app: FastAPI):
             "will fail closed (send-code 502, verify always rejected). "
             "Set SMS_LOGIN_ENABLED=true + ALIYUN_SMS_ACCESS_KEY/SECRET_KEY."
         )
+    if settings.env == "production" and not settings.alert_webhook_url:
+        logger.warning(
+            "ALERT_WEBHOOK_URL is not configured in production — external alerts "
+            "fall back to in-app admin notifications only (best-effort, and lost "
+            "if the DB is unavailable). Set it to receive pipeline failures off-site."
+        )
+    # ECDICT builds its in-process index lazily on first lookup (~0.7s for
+    # 14k words, synchronous SQLite reads). Without prewarming, the first
+    # word-card/search request after every deploy blocks its worker's event
+    # loop for that whole build. Pay it once at startup instead.
+    if settings.env != "testing":
+        from app.services import ecdict
+
+        if ecdict.is_available():
+            try:
+                await asyncio.to_thread(ecdict.get_index)
+                logger.info("ecdict_index_warmed")
+            except Exception:
+                logger.warning("ecdict index prewarm failed; first lookup will build it", exc_info=True)
     # Cross-worker notification fan-out. Tests drive the subscriber directly
     # with a fake pubsub instead of starting a real connection.
     if settings.env != "testing":
@@ -209,8 +262,20 @@ def create_app() -> FastAPI:
     # any create_all (e.g. conftest in tests) or Alembic autogenerate runs.
     from app import models
 
-    app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
-    Instrumentator().instrument(app).expose(app)
+    # Defence in depth: the public docs/schema (and the metrics endpoint) are
+    # useful in dev but are not part of the public surface. Production nginx
+    # happens to route only /api/, /media/ and /health to the backend, but a
+    # future proxy change must not be the only thing hiding them.
+    is_production = settings.env == "production"
+    app = FastAPI(
+        title=settings.app_name,
+        debug=settings.debug,
+        lifespan=lifespan,
+        docs_url=None if is_production else "/docs",
+        redoc_url=None if is_production else "/redoc",
+        openapi_url=None if is_production else "/openapi.json",
+    )
+    Instrumentator().instrument(app).expose(app, endpoint="/internal/metrics" if is_production else "/metrics")
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
@@ -249,26 +314,7 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def add_security_headers(request: Request, call_next):
         response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        if settings.env == "production":
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
-            connect_src = f"'self' {settings.csp_connect_domains}" if settings.csp_connect_domains else "'self'"
-            response.headers["Content-Security-Policy"] = (
-                "default-src 'self'; "
-                # YouTube IFrame player (no-local-file fallback) needs its own
-                # script + frame + connect sources.
-                "script-src 'self' https://www.youtube.com https://s.ytimg.com; "
-                "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: https:; "
-                "media-src 'self' https:; "
-                "frame-src https://www.youtube.com https://www.youtube-nocookie.com; "
-                f"connect-src {connect_src} https://www.youtube.com; "
-                "object-src 'none'; "
-                "base-uri 'self'"
-            )
+        response.headers.update(_security_headers())
         return response
 
     allowed_origins = (
@@ -293,7 +339,6 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix="/api/v1")
     app.include_router(videos.router, prefix="/api/v1")
     app.include_router(favorites.router, prefix="/api/v1")
-    app.include_router(redeem.router, prefix="/api/v1")
     app.include_router(presence.router, prefix="/api/v1")
     app.include_router(payments.router, prefix="/api/v1")
     if settings.env in ("development", "testing"):
@@ -316,10 +361,14 @@ def create_app() -> FastAPI:
     app.include_router(feedback.router, prefix="/api/v1")
     app.include_router(feedback.admin_router, prefix="/api/v1")
     app.include_router(notifications.router, prefix="/api/v1")
+    app.include_router(notes.router, prefix="/api/v1")
     app.include_router(learning.router, prefix="/api/v1")
     app.include_router(learning_plan.router, prefix="/api/v1")
     app.include_router(shadowing.router, prefix="/api/v1")
     app.include_router(behavior.router, prefix="/api/v1")
+    from app.api.v1 import listening
+
+    app.include_router(listening.router, prefix="/api/v1")
     app.include_router(exams.router, prefix="/api/v1")
     # 原卷 PDF 单独一个 router：exams 的末尾 catch-all GET /{paper_id} 会把
     # /exams/pdfs 当 paper_id 吃掉。

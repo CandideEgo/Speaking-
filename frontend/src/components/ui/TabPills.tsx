@@ -82,16 +82,18 @@ export function TabPills<K extends string = string>({
           <button
             key={tab.key}
             type="button"
+            aria-pressed={isActive}
             onClick={() => onChange(tab.key)}
             className={cn(
               // shrink-0 + nowrap：放进 overflow-x-auto 的筛选行时不被压缩成多行/竖排。
-              "inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap transition-colors duration-150",
+              // 移动端把筛选 chip / tab 的高度抬到 44px 触控基线；桌面仍按设计 32px。
+              "inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap transition-colors duration-150 min-[1025px]:min-h-8",
               !isChips && "rounded-pill text-meta font-medium text-muted",
               !isChips && !isActive && "hover:text-ink",
               !isChips && SIZE_CLASSES[size],
               !isChips && shape === "rect" && "rounded-sm",
               isChips &&
-                "h-8 rounded-pill border border-hairline-strong bg-canvas px-3 text-meta font-medium text-body hover:border-muted-soft hover:text-ink",
+                "h-11 rounded-pill border border-hairline-strong bg-canvas px-3 text-meta font-medium text-body hover:border-muted-soft hover:text-ink min-[1025px]:h-8",
               isActive &&
                 (isChips
                   ? "border-ink bg-ink text-canvas hover:text-canvas"

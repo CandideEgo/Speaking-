@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
+import { openWatch, setupWatch } from "./watch-baseline.fixture";
 
 /**
  * Watch-page e2e tests（桌面版式）。
@@ -66,7 +67,7 @@ async function openFirstVideo(page: Page, token: string): Promise<boolean> {
   if (!href) return false;
   await page.goto(href);
   try {
-    await page.locator('[role="tablist"]').first().waitFor({ state: "visible", timeout: 15000 });
+    await page.getByTestId("video-frame").waitFor({ state: "visible", timeout: 15000 });
   } catch {
     return false;
   }
@@ -98,53 +99,37 @@ test.describe("Watch Page - Valid Video", () => {
   });
 });
 
-test.describe("Watch Page - Subtitle Mode Tabs", () => {
-  // 模式词表是 `lib/subtitleModes` 的单一来源：`hidden` 档的用户可见名是「关闭」，
-  // 不是「隐藏」；定位收进 aria-label="字幕模式" 的 tablist，避免与别的控件撞词。
-  const modeTab = (page: Page, label: string) =>
-    page.locator(`[role="tablist"][aria-label="字幕模式"] [role="tab"]:has-text("${label}")`);
-
-  test("subtitle mode tabs render 双语 / 英文 / 中文 / 关闭 labels", async ({ page, request }) => {
-    const token =
-      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
-    if (!(await openFirstVideo(page, token))) {
-      test.skip();
-      return;
-    }
-    for (const label of ["双语", "英文", "中文", "关闭"]) {
-      await expect(modeTab(page, label)).toBeVisible();
-    }
+test.describe("Watch Page - Subtitle Modes", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await setupWatch(page);
+    await openWatch(page);
   });
 
-  test("clicking a mode tab activates it", async ({ page, request }) => {
-    const token =
-      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
-    if (!(await openFirstVideo(page, token))) {
-      test.skip();
-      return;
-    }
-    const tab = modeTab(page, "英文");
-    await tab.click();
-    await expect(tab).toHaveAttribute("aria-selected", "true");
+  test("文稿不重复提供字幕切换或时间戳", async ({ page }) => {
+    await expect(page.getByRole("tablist", { name: "字幕模式" })).toHaveCount(0);
+    await expect(page.getByTestId("watch-transcript").locator(".font-mono")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "字幕：双语（S）" })).toBeVisible();
+    await expect(page.getByTestId("sentence-actions").getByText("少一点辅助再听")).toHaveCount(0);
   });
 
-  // BUG-03：S 键能切到「关闭」档，但面板里原来看不到回来的 tab —— 切过去就回不来。
-  test("『关闭』档在面板里有 tab，且能切回双语", async ({ page, request }) => {
-    const token =
-      process.env.DESIGN_E2E_TOKEN || (await registerUserViaApi(request, uniquePhone())).token;
-    if (!(await openFirstVideo(page, token))) {
-      test.skip();
-      return;
-    }
-    const close = modeTab(page, "关闭");
-    await close.click();
-    await expect(close).toHaveAttribute("aria-selected", "true");
-    // 隐藏档在桌面同时命中当前句卡与文稿面板两处提示，取第一个即可。
-    await expect(page.getByText("字幕已关闭").first()).toBeVisible();
+  test("播放器按钮切换字幕，文稿与当前句同步", async ({ page }) => {
+    await page.getByRole("button", { name: "字幕：双语（S）" }).click();
+    await expect(page.getByRole("button", { name: "字幕：英文（S）" })).toBeVisible();
+    await expect(page.getByTestId("current-sentence-zh")).toHaveCount(0);
+    await expect(page.getByTestId("watch-transcript")).not.toContainText("我走进去了。");
+  });
 
-    const bilingual = modeTab(page, "双语");
-    await bilingual.click();
-    await expect(bilingual).toHaveAttribute("aria-selected", "true");
+  test("S 键循环关闭字幕并恢复双语", async ({ page }) => {
+    for (const label of ["英文", "中文", "关闭", "双语"]) {
+      await page.keyboard.press("s");
+      await expect(
+        page.getByTestId("controls-bar").getByRole("button", { name: `字幕：${label}（S）` })
+      ).toBeVisible();
+      if (label === "关闭")
+        await expect(page.getByTestId("watch-transcript")).toContainText("字幕已关闭");
+    }
+    await expect(page.getByTestId("current-sentence-zh")).toContainText("我走进去了。");
   });
 });
 

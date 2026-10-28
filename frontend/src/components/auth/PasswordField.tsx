@@ -144,16 +144,15 @@ export function PasswordField({
                   ok ? "text-body" : "text-muted"
                 )}
               >
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "grid h-3.5 w-3.5 flex-none place-items-center rounded-full border",
-                    ok
-                      ? "border-success/40 bg-success-soft text-success-text"
-                      : "border-hairline-strong text-transparent"
+                <span aria-hidden="true" className="grid h-3.5 w-3.5 flex-none place-items-center">
+                  {/* 未满足时用一个小圆点：空圆环会被读成「可点选的单选按钮」。 */}
+                  {ok ? (
+                    <span className="grid h-3.5 w-3.5 place-items-center rounded-full border border-success/40 bg-success-soft text-success-text">
+                      <Check size={9} strokeWidth={3.2} />
+                    </span>
+                  ) : (
+                    <span className="h-1 w-1 rounded-full bg-hairline-strong" />
                   )}
-                >
-                  <Check size={9} strokeWidth={3.2} />
                 </span>
                 {rule.label}
               </li>

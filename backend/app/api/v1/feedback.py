@@ -11,7 +11,7 @@ Admin side:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_admin_user, get_current_user
@@ -21,14 +21,16 @@ from app.models.feedback import Feedback
 from app.models.user import User
 from app.schemas.feedback import (
     AdminFeedbackResponse,
+    AdminFeedbackRow,
     AdminFeedbackUpdate,
     AnnouncementCreate,
     AnnouncementResponse,
     FeedbackCreate,
     FeedbackResponse,
 )
-from app.schemas.pagination import paginated
-from app.services.notification_service import broadcast_announcement
+from app.schemas.pagination import PaginatedResponse, paginated
+from app.services.notification_service import count_announcement_recipients
+from app.tasks.notification_tasks import broadcast_announcement
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -75,7 +77,7 @@ async def list_my_feedback(
 # --- Admin side --------------------------------------------------------------
 
 
-@admin_router.get("/feedback", response_model=dict)
+@admin_router.get("/feedback", response_model=PaginatedResponse[AdminFeedbackRow])
 @rate_limit("30/minute")
 async def list_admin_feedback(
     request: Request,
@@ -85,15 +87,21 @@ async def list_admin_feedback(
     _admin: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all feedback, optionally filtered by status. Newest first."""
-    stmt = select(Feedback)
+    """List all feedback, optionally filtered by status. Newest first.
+
+    Typed ``PaginatedResponse[AdminFeedbackRow]`` with a real ``total`` — the old
+    bare-dict response omitted it while every other admin list had it (ADM-10).
+    ``Feedback.id`` is the tiebreaker so equal ``created_at`` rows cannot be
+    duplicated/skipped across pages.
+    """
+    base = select(Feedback)
     if status_filter:
-        stmt = stmt.where(Feedback.status == status_filter)
-    stmt = stmt.order_by(Feedback.created_at.desc())
-    result = await db.execute(stmt.offset((page - 1) * page_size).limit(page_size + 1))
-    rows = result.scalars().all()
-    has_more = len(rows) > page_size
-    items = rows[:page_size]
+        base = base.where(Feedback.status == status_filter)
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
+    result = await db.execute(
+        base.order_by(Feedback.created_at.desc(), Feedback.id.desc()).offset((page - 1) * page_size).limit(page_size)
+    )
+    items = result.scalars().all()
 
     # Resolve user names in one pass (phone redacted to last 4 for privacy).
     user_ids = {f.user_id for f in items}
@@ -103,21 +111,20 @@ async def list_admin_feedback(
         for u in user_result.scalars().all():
             users[u.id] = u
 
-    def serialize(f: Feedback) -> dict:
+    def serialize(f: Feedback) -> AdminFeedbackRow:
         u = users.get(f.user_id)
         name = u.name if u and u.name else None
         if not name and u and u.phone:
             name = f"用户 ***{u.phone[-4:]}"
         elif not name:
             name = "匿名用户"
-        resp = AdminFeedbackResponse.model_validate({**f.__dict__, "user_name": name})
-        return resp.model_dump(mode="json")
+        return AdminFeedbackRow.model_validate({**f.__dict__, "user_name": name})
 
     return paginated(
         [serialize(f) for f in items],
         page=page,
         page_size=page_size,
-        has_more=has_more,
+        total=total,
     )
 
 
@@ -163,16 +170,22 @@ async def broadcast_admin_announcement(
     _admin: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Broadcast an announcement notification to every user. Returns the count
-    notified. Admin only."""
-    count = await broadcast_announcement(
-        db,
+    """Queue an announcement broadcast to every user. Admin only.
+
+    The request path only counts recipients and enqueues the fan-out Celery
+    task; the per-user INSERTs and WebSocket pushes happen in the worker
+    (ADM-07 — they used to run inside this HTTP transaction). ``notified_count``
+    is therefore the number of users the broadcast was queued for.
+    """
+    recipient_count = await count_announcement_recipients(db)
+    broadcast_announcement.delay(
         title=payload.title,
         message=payload.message,
         related_url=payload.related_url,
     )
     return AnnouncementResponse(
-        notified_count=count,
+        queued=True,
+        notified_count=recipient_count,
         title=payload.title,
         message=payload.message,
     )

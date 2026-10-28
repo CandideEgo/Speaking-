@@ -33,7 +33,7 @@ export function SaveSentenceButton({ subtitleId }: { subtitleId: string }) {
     }
   }
   return (
-    <Button variant="outline" size="sm" disabled={busy} aria-pressed={!!saved} onClick={toggle}>
+    <Button variant="text" size="sm" disabled={busy} aria-pressed={!!saved} onClick={toggle}>
       <Bookmark size={14} fill={saved ? "currentColor" : "none"} />
       {saved ? "已收藏这句" : "收藏这句"}
     </Button>

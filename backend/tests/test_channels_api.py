@@ -157,6 +157,70 @@ async def test_admin_attach_videos_overwrites_assignment(client, admin_headers, 
     assert video.channel_ref == b.id
 
 
+async def test_admin_attach_videos_reports_missing_and_only_counts_real_changes(client, admin_headers, db_session):
+    """ADM-19: `attached` used to be the matched-row count (already-attached ids
+    included) and nonexistent ids were silently dropped."""
+    target = await _make_channel(db_session, slug="attach-target")
+    other = await _make_channel(db_session, slug="attach-other")
+    already = await _make_video(db_session, channel_ref=target.id)
+    moved = await _make_video(db_session, channel_ref=other.id)
+
+    resp = await client.post(
+        f"/api/v1/channels/admin/{target.id}/videos",
+        json={"video_ids": [already.id, moved.id, moved.id, "no-such-video"]},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    # Only `moved` actually changed; the duplicate id is de-duped and the
+    # missing one is reported back instead of being ignored.
+    assert resp.json() == {"attached": 1, "missing_ids": ["no-such-video"]}
+    await db_session.refresh(moved)
+    assert moved.channel_ref == target.id
+    await db_session.refresh(already)
+    assert already.channel_ref == target.id
+
+
+async def test_admin_attach_videos_rejects_unbounded_batch(client, admin_headers, db_session):
+    channel = await _make_channel(db_session, slug="attach-big")
+    resp = await client.post(
+        f"/api/v1/channels/admin/{channel.id}/videos",
+        json={"video_ids": [f"video-{i}" for i in range(201)]},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 422
+
+
+async def test_admin_create_channel_slug_race_returns_400_not_500(client, admin_headers, db_session, monkeypatch):
+    """Two admins POST the same slug at once: both pass the pre-check, the loser
+    hits the unique index. That must be a readable 400, not the 500 envelope."""
+    await _make_channel(db_session, slug="raced-slug")
+
+    async def _always_free(db, slug, *, exclude_id=None):
+        return False
+
+    monkeypatch.setattr(channel_service, "_slug_exists", _always_free)
+    resp = await client.post(
+        "/api/v1/channels/admin", json={"name": "Race", "slug": "raced-slug"}, headers=admin_headers
+    )
+    assert resp.status_code == 400, resp.text
+    body = resp.json()
+    assert body["code"] == "BAD_REQUEST"
+    assert "slug 已存在" in body["message"]
+
+
+async def test_admin_update_channel_slug_race_returns_400_not_500(client, admin_headers, db_session, monkeypatch):
+    first = await _make_channel(db_session, slug="race-alpha")
+    await _make_channel(db_session, slug="race-beta")
+
+    async def _always_free(db, slug, *, exclude_id=None):
+        return False
+
+    monkeypatch.setattr(channel_service, "_slug_exists", _always_free)
+    resp = await client.patch(f"/api/v1/channels/admin/{first.id}", json={"slug": "race-beta"}, headers=admin_headers)
+    assert resp.status_code == 400, resp.text
+    assert "slug 已存在" in resp.json()["message"]
+
+
 async def test_admin_video_patch_sets_channel_ref(client, admin_headers, db_session):
     channel = await _make_channel(db_session)
     video = await _make_video(db_session)
@@ -510,18 +574,22 @@ async def test_admin_video_patch_channel_ref_invalidates_browse_cache_only_on_ch
             assert resp.status_code == 200
 
         # Unrelated field: the cached cards are unchanged, so leave them alone.
-        await _patch({"title": "Renamed"})
+        await _patch({"admin_notes": "internal note"})
         # Clearing an already-empty channel_ref normalizes to None -> no change.
         await _patch({"channel_ref": ""})
         invalidate.assert_not_awaited()
 
-        # A real assignment changes the cached author link -> invalidate exactly once.
-        await _patch({"channel_ref": channel.id})
+        # A title edit rewrites the text inside every cached card -> invalidate.
+        await _patch({"title": "Renamed"})
         invalidate.assert_awaited_once()
+
+        # A real assignment changes the cached author link -> invalidate again.
+        await _patch({"channel_ref": channel.id})
+        assert invalidate.await_count == 2
 
         # Re-sending the same value is a no-op (idempotent PATCH).
         await _patch({"channel_ref": channel.id})
-        assert invalidate.await_count == 1
+        assert invalidate.await_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -611,3 +679,28 @@ async def test_subscriptions_carry_continue_video_and_unlearned_count(client, au
     assert row["continue_video"]["progress_percentage"] == 40.5
     assert row["continue_video"]["position_seconds"] == 121.5
     assert row["unlearned_count"] == 1
+
+
+async def test_channel_subscription_state_is_viewer_scoped(client, db_session, auth_headers):
+    from app.models.user_content import ChannelSubscription
+
+    me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+    channel = await _make_channel(db_session, name="Subscribed", slug="subscribed-one")
+    await _make_video(db_session, channel_ref=channel.id)
+    db_session.add(ChannelSubscription(user_id=me["id"], channel_id=channel.id))
+    await db_session.commit()
+
+    anonymous = (await client.get("/api/v1/channels")).json()["items"][0]
+    assert anonymous["is_subscribed"] is False
+    # Subscriber count is public; only the viewer-specific flag changes.
+    assert anonymous["subscriber_count"] == 1
+
+    signed_in = (await client.get("/api/v1/channels", headers=auth_headers)).json()["items"][0]
+    assert signed_in["is_subscribed"] is True
+    assert signed_in["subscriber_count"] == 1
+
+    detail = (await client.get(f"/api/v1/channels/{channel.slug}", headers=auth_headers)).json()["channel"]
+    assert detail["is_subscribed"] is True
+    assert detail["subscriber_count"] == 1
+    assert "latest_published_at" in detail
+    assert "recent_video_count" in detail

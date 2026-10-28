@@ -116,7 +116,7 @@ export function CurrentSentenceCard({
   const isBand = variant === "band";
   // 设计稿的字号是分档的（桌面 22 / 1280 20 / 375 18），而「小/中/大」是用户偏好；
   // 这里按桌面/移动各取一套映射：默认档在桌面 20、移动 18，大档桌面 22。
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const isDesktop = useMediaQuery("(min-width: 1025px)");
   const fontEn = (isDesktop ? SUBTITLE_FONT_EN_DESKTOP : SUBTITLE_FONT_EN_MOBILE)[fontSize];
   const fontZh = (isDesktop ? SUBTITLE_FONT_ZH_DESKTOP : SUBTITLE_FONT_ZH_MOBILE)[fontSize];
   // 展开态默认自己管（`expanded`/`onToggleExpand` 传了才由调用方接管）。
@@ -232,10 +232,8 @@ export function CurrentSentenceCard({
           )}
           {/* 「点带下划线的词看释义」不在卡内单独占一行：它作为桌面动作行的行内后缀
               渲染（page.tsx 的 desktopActions），句卡高度回到预算内。 */}
-          {/* 元信息行（仅齐平带）：计数 + 展开开关，右对齐、高 24px（AA 线）。
-              计数从右上角搬到这里，是因为那个位置会和英文第一行抢宽度 —— 长句第一行
-              一直被 `6 / 187` 压住半截。 */}
-          {isBand && (counter || canExpand) && (
+          {/* 计数和展开开关独占一行，不覆盖原句或译文。 */}
+          {(counter || canExpand) && (
             <div className="mt-0.5 flex h-6 items-center justify-end gap-1.5">
               {counter && (
                 <span
@@ -271,19 +269,10 @@ export function CurrentSentenceCard({
           )}
         </>
       )}
-      {/* 卡片形态（桌面）计数器仍在右上角：DOM 与位置一个字不改。 */}
-      {!isBand && counter && (
-        <span
-          data-testid="subtitle-counter"
-          className="absolute right-3 top-2 text-caption font-mono text-muted"
-        >
-          {counter}
-        </span>
-      )}
       {/* S5：桌面动作带 —— 在英文/中文两个块之外（不占那两行的高度预算）。
           分隔线 + 上边距是「同一张卡里的一段」，不是又一个盒子。 */}
       {desktopActions && (
-        <div className="hidden lg:flex flex-col border-t border-hairline mt-1.5 pt-1.5">
+        <div className="hidden min-[1025px]:flex flex-col border-t border-hairline mt-1.5 pt-1.5">
           {desktopActions}
         </div>
       )}

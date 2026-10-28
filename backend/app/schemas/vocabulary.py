@@ -17,6 +17,10 @@ class VocabularyResponse(BaseModel):
     mastery_level: str
     context_sentence: str | None = None
     video_id: str | None = None
+    # Display-only enrichment filled by vocabulary_service.attach_word_sources:
+    # the word row shows "来源视频 · mm:ss" instead of a bare link.
+    video_title: str | None = None
+    subtitle_start_time: float | None = None
     # Phase 1 D3b: drill "回看原句" needs the originating subtitle; null when
     # the word was added before the column existed (no source shown).
     subtitle_id: str | None = None
@@ -84,7 +88,11 @@ class VocabularyStatsResponse(BaseModel):
     learning_count: int
     reviewing_count: int
     mastered_count: int
+    # Legacy badge count (folds new words in). UI uses due_review_count.
     due_count: int
+    # Due words in the review queue only (excludes new/mastered); identical to
+    # daily-session.totals.due_total.
+    due_review_count: int
 
 
 # ---------------------------------------------------------------------------
@@ -175,3 +183,81 @@ class StudySessionAnswerResponse(BaseModel):
     session_status: Literal["active", "finished", "abandoned"]
     graduated: bool
     today: TodayTrainingSummary
+
+
+# ---------------------------------------------------------------------------
+# Response schemas (BE-07: daily-session / practice / word actions were dicts)
+# ---------------------------------------------------------------------------
+
+
+class DailySessionTotals(BaseModel):
+    new_total: int
+    due_total: int
+
+
+class TrainingPreview(BaseModel):
+    active_session_id: str | None = None
+    new_words: list[VocabularyResponse]
+    review_words: list[VocabularyResponse]
+
+
+class DailySessionResponse(BaseModel):
+    training_preview: TrainingPreview
+    new_words: list[VocabularyResponse]
+    review_words: list[VocabularyResponse]
+    totals: DailySessionTotals
+    preferences: VocabularyPreferencesResponse
+    today: TodayTrainingSummary
+
+
+class VocabularyAddResponse(BaseModel):
+    id: str
+    word: str
+    context_sentence: str | None = None
+    video_id: str | None = None
+    subtitle_id: str | None = None
+    created_at: str
+
+
+class VocabularyReviewResponse(BaseModel):
+    id: str
+    word: str
+    next_review_at: str
+    interval_days: int
+    review_count: int
+    wrong_count: int
+    last_wrong_at: str | None = None
+
+
+class VocabularyMasteredResponse(BaseModel):
+    id: str
+    word: str
+    mastery_level: str
+
+
+class VocabularyDeleteResponse(BaseModel):
+    success: bool
+
+
+class LearningWordsResponse(BaseModel):
+    words: list[str]
+
+
+class PracticeItem(BaseModel):
+    word: str
+    category: str
+    type: str
+    translation: str | None = None
+    options: list[str] | None = None
+    answer: str | None = None
+    phonetic: str | None = None
+    sentence_template: str | None = None
+    full_sentence: str | None = None
+    start_time: float | None = None
+    end_time: float | None = None
+    video_id: str | None = None
+    subtitle_id: str | None = None
+
+
+class VocabularyPracticeResponse(BaseModel):
+    items: list[PracticeItem]

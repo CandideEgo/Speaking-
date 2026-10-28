@@ -3,16 +3,15 @@
 Two families:
 
 - ``build_user_export`` — assemble a ZIP for one ``DataExportTask``: structured
-  JSON + CSV for profile / vocabulary / shadowing / learning records /
-  notification preferences / behavior events, plus the original avatar and
-  shadowing audio files. On success the user gets an in-app notification with a
-  link back to the export page; failures retry a bounded number of times and
-  notify the user once they give up.
+  JSON + CSV for profile / vocabulary / learning records / notification
+  preferences / behavior events, plus the original avatar. On success the user
+  gets an in-app notification with a link back to the export page; failures
+  retry a bounded number of times and notify the user once they give up.
 - ``purge_deleted_accounts`` — daily sweep for accounts whose 30-day window
-  elapsed. Deletes personal data and user-generated media (avatar, shadowing
-  recordings, uploaded video media), anonymizes ``behavior_events`` by nulling
-  ``user_id`` (kept for aggregate stats), then deletes the user row — which is
-  the moment the phone number is released (封禁/试用绕过防线靠它维持整个冷静期).
+  elapsed. Deletes personal data and user-generated media (avatar, uploaded
+  video media), anonymizes ``behavior_events`` by nulling ``user_id`` (kept for
+  aggregate stats), then deletes the user row — which is the moment the phone
+  number is released (封禁/试用绕过防线靠它维持整个冷静期).
 
 Both tasks open their own sessions via ``async_session`` so they run on the
 shared celery-asyncio loop (``run_async``). Task bodies accept an optional
@@ -91,25 +90,13 @@ async def _gather_export(db, user) -> dict:
     from sqlalchemy import select
 
     from app.models.behavior import BehaviorEvent
-    from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
+    from app.models.learning import LearningRecord, Vocabulary
     from app.models.preferences import DEFAULT_NOTIFICATION_PREFS, UserPreferences
-    from app.models.shadowing import ShadowingAttempt
 
     vocabulary = (
         (
             await db.execute(
                 select(Vocabulary).where(Vocabulary.user_id == user.id).order_by(Vocabulary.created_at.asc())
-            )
-        )
-        .scalars()
-        .all()
-    )
-    shadowing = (
-        (
-            await db.execute(
-                select(ShadowingAttempt)
-                .where(ShadowingAttempt.user_id == user.id)
-                .order_by(ShadowingAttempt.created_at.asc())
             )
         )
         .scalars()
@@ -125,10 +112,6 @@ async def _gather_export(db, user) -> dict:
         )
         .scalars()
         .all()
-    )
-    # Frozen speaking attempts are still the user's data if any exist historically.
-    speaking_attempts = (
-        (await db.execute(select(SpeakingAttempt).where(SpeakingAttempt.user_id == user.id))).scalars().all()
     )
     behavior_events = (
         (
@@ -147,9 +130,7 @@ async def _gather_export(db, user) -> dict:
 
     return {
         "vocabulary": vocabulary,
-        "shadowing": shadowing,
         "learning_records": learning_records,
-        "speaking_attempts": speaking_attempts,
         "behavior_events": behavior_events,
         "notification_preferences": {
             "notification_preferences": notification_prefs,
@@ -225,18 +206,6 @@ async def _build_export(task_id: str) -> dict:
             }
             for v in data["vocabulary"]
         ]
-        shadow_rows = [
-            {
-                "id": s.id,
-                "video_id": s.video_id,
-                "subtitle_id": s.subtitle_id,
-                "audio_url": s.audio_url,
-                "duration_ms": s.duration_ms,
-                "is_satisfied": s.is_satisfied,
-                "created_at": _iso(s.created_at),
-            }
-            for s in data["shadowing"]
-        ]
         record_rows = [
             {
                 "id": r.id,
@@ -270,8 +239,6 @@ async def _build_export(task_id: str) -> dict:
             zf.writestr("profile.json", _json_bytes(profile))
             zf.writestr("vocabulary.json", _json_bytes(vocab_rows))
             zf.writestr("vocabulary.csv", _csv_bytes(vocab_rows))
-            zf.writestr("shadowing.json", _json_bytes(shadow_rows))
-            zf.writestr("shadowing.csv", _csv_bytes(shadow_rows))
             zf.writestr("learning_records.json", _json_bytes(record_rows))
             zf.writestr("learning_records.csv", _csv_bytes(record_rows))
             zf.writestr("notification_preferences.json", _json_bytes(data["notification_preferences"]))
@@ -279,19 +246,13 @@ async def _build_export(task_id: str) -> dict:
             zf.writestr("behavior_events.csv", _csv_bytes(behavior_rows))
             zf.writestr(
                 "README.txt",
-                "SeeWord 数据导出包。\n"
-                "包含个人资料、词汇、跟读记录、学习记录、通知偏好与行为事件；\n"
-                "media/ 目录下为头像与跟读录音原件。\n",
+                "SeeWord 数据导出包。\n包含个人资料、词汇、学习记录、通知偏好与行为事件；\nmedia/ 目录下为头像原件。\n",
             )
 
-            # Media originals: avatar + shadowing recordings (stored by URL).
+            # Media originals: avatar.
             avatar_path = _resolve_media(user.avatar_url)
             if avatar_path is not None:
                 zf.write(avatar_path, f"media/avatar/{avatar_path.name}")
-            for s in data["shadowing"]:
-                audio_path = _resolve_media(s.audio_url)
-                if audio_path is not None:
-                    zf.write(audio_path, f"media/shadowing/{audio_path.name}")
 
         size = zip_path.stat().st_size
         # Relative to the media root — the download endpoint joins it back.
@@ -359,8 +320,7 @@ def build_user_export(self, task_id: str):
 
 # ── 30-day deletion purge ───────────────────────────────────────────
 
-# Files whose names are derived from the user id itself (the shadowing folder),
-# plus the fixed per-user subtrees we always clear.
+# Fixed per-user media subtrees that deletion always clears.
 _USER_MEDIA_SUBDIRS = ("exports",)
 
 
@@ -373,7 +333,6 @@ async def _purge_user(db, user) -> None:
     from app.core.database import Base
     from app.models.behavior import BehaviorEvent
     from app.models.data_export import DataExportTask
-    from app.models.shadowing import ShadowingAttempt
     from app.models.user import User as UserModel
 
     # 1. Collect media to delete before the rows go away.
@@ -381,15 +340,6 @@ async def _purge_user(db, user) -> None:
     avatar_path = _resolve_media(user.avatar_url)
     if avatar_path is not None:
         media_paths.append(avatar_path)
-    shadow_urls = (
-        (await db.execute(select(ShadowingAttempt.audio_url).where(ShadowingAttempt.user_id == user.id)))
-        .scalars()
-        .all()
-    )
-    for url in shadow_urls:
-        p = _resolve_media(url)
-        if p is not None:
-            media_paths.append(p)
     export_paths = [
         _media_root() / fp
         for fp in (
@@ -433,7 +383,6 @@ async def _purge_user(db, user) -> None:
             logger.warning("account_purge_media_unlink_failed", path=str(path))
     for subdir in _USER_MEDIA_SUBDIRS:
         _rmtree(_media_root() / subdir / user.id)
-    _rmtree(_media_root() / "shadowing" / user.id)
     logger.info("account_purged", user_id=user.id, media_files=len(media_paths))
 
 

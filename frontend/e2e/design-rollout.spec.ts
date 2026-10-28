@@ -37,10 +37,12 @@ test("账号读取暂时失败显示重试状态，保留当前页面", async ({
 });
 
 test("导航按断点切换，观看页归属首页", async ({ page }) => {
-  for (const width of [375, 768, 1280, 1440]) {
+  // 设计契约（styles.css:1669）：≤1024 收侧栏、改底部导航。壳层断点必须与
+  // 观看页内部断点（1025）一致，所以 1024 / 1025 两档都要钉住。
+  for (const width of [375, 768, 1024, 1025, 1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    if (width >= 768) {
+    if (width >= 1025) {
       await expect(page.locator(".user-sidebar")).toBeVisible();
       await page.getByRole("button", { name: "折叠导航" }).click();
       await expect(page.getByRole("button", { name: "展开导航" })).toHaveAttribute(
@@ -51,7 +53,8 @@ test("导航按断点切换，观看页归属首页", async ({ page }) => {
     } else {
       await expect(page.locator(".user-sidebar")).toBeHidden();
     }
-    if (width < 768) await expect(page.getByRole("navigation", { name: "底部导航" })).toBeVisible();
+    if (width <= 1024)
+      await expect(page.getByRole("navigation", { name: "底部导航" })).toBeVisible();
     else await expect(page.getByRole("navigation", { name: "底部导航" })).toBeHidden();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(
       false
@@ -118,7 +121,12 @@ test("每日推荐换组不开始会话，显式开始后进入真实答题", as
   await expect.poll(() => starts).toBe(1);
   await expect(page.getByText("文章预览", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /交卷/ }).first()).toBeVisible();
-  const cards = page.locator("div.rounded-md:has(button[data-testid='exam-option'])");
+  // 单栏布局默认先展示原文（双栏布局没有这组切换）；切到「题目」才能点到选项。
+  const questionsToggle = page
+    .getByRole("group", { name: "阅读视图" })
+    .getByRole("button", { name: "题目" });
+  if (await questionsToggle.isVisible()) await questionsToggle.click();
+  const cards = page.getByTestId("exam-question");
   const count = await cards.count();
   expect(count).toBeGreaterThan(0);
   for (let i = 0; i < count; i++) await cards.nth(i).getByTestId("exam-option").first().click();
@@ -131,10 +139,11 @@ test("每日推荐换组不开始会话，显式开始后进入真实答题", as
 test("四类搜索和词单旧入口可用", async ({ page }) => {
   await page.goto("/search?q=habit");
   for (const group of ["视频", "字幕", "词汇", "频道"]) {
+    // 分组 pill 的可访问名带结果计数（「视频 8」），所以按前缀匹配而不是 exact。
     await expect(
       page
         .getByRole("navigation", { name: "搜索类型" })
-        .getByRole("link", { name: group, exact: true })
+        .getByRole("link", { name: new RegExp(`^${group}`) })
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: group, exact: true })).toBeVisible();
   }
@@ -142,22 +151,29 @@ test("四类搜索和词单旧入口可用", async ({ page }) => {
   await expect(page).toHaveURL(/\/vocabulary\/sets$/);
 });
 
-test("观看页保留全站导航，播放控制和句子收藏位于内容区", async ({ page }) => {
+test("观看页保留全站导航，播放控制接入壳层、句子收藏在抽屉", async ({ page }) => {
   expect(videoId, "需要 seed_e2e.py 提供观看页数据").toBeTruthy();
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(`/watch/${videoId}`);
   const tabs = page.getByRole("navigation", { name: "底部导航" });
   await expect(tabs).toBeVisible();
-  await expect(tabs.getByRole("link", { name: "首页", exact: true })).toHaveAttribute(
+  await expect(tabs.getByRole("link", { name: "发现", exact: true })).toHaveAttribute(
     "aria-current",
     "page"
   );
   const controls = page.getByTestId("watch-bottom-bar");
   await expect(controls).toBeVisible();
-  expect(await controls.getAttribute("data-shell-bottom-bar")).toBeNull();
+  // 新版手机观看页的播放栏由 WatchChromeProvider 接入壳层：底栏带 watch 标记。
+  expect(await controls.getAttribute("data-shell-bottom-bar")).toBe("watch");
   for (const action of ["watch-prev", "watch-toggle-play", "watch-next", "watch-replay"]) {
     await expect(page.getByTestId(action)).toBeVisible();
   }
+  // 手机端句级操作（含「收藏这句」）收进 ⋯ 抽屉，先打开再操作。
+  async function openMoreSheet() {
+    await page.getByRole("button", { name: "更多设置", exact: true }).click();
+    await expect(page.getByTestId("watch-more-sheet")).toBeVisible();
+  }
+  await openMoreSheet();
   const save = page.getByRole("button", { name: "收藏这句", exact: true });
   const unsave = page.getByRole("button", { name: "已收藏这句", exact: true });
   if (await unsave.isVisible()) await unsave.click();
@@ -165,8 +181,11 @@ test("观看页保留全站导航，播放控制和句子收藏位于内容区",
   await expect(unsave).toHaveAttribute("aria-pressed", "true");
   const sentence = await page.getByTestId("current-sentence-en").innerText();
   await page.reload();
+  await openMoreSheet();
   await expect(unsave).toHaveAttribute("aria-pressed", "true");
   await page.goto("/favorites");
+  // 设计收藏页是「视频 / 原句」两个 tab（V-18）：先切到原句再看保存的句子。
+  await page.getByRole("button", { name: /原句/ }).click();
   const saved = page
     .getByRole("region", { name: "收藏的句子", exact: true })
     .getByRole("link")
@@ -174,6 +193,7 @@ test("观看页保留全站导航，播放控制和句子收藏位于内容区",
   await expect(saved).toHaveAttribute("href", /[?&]sub=/);
   await saved.click();
   await expect(page.getByTestId("current-sentence-en")).toHaveText(sentence);
+  await openMoreSheet();
   await unsave.click();
 });
 

@@ -12,10 +12,13 @@ export default function RootNotFound() {
   return (
     <main className="user-ui flex min-h-dvh items-center justify-center bg-canvas px-4 pt-6 pb-18">
       <div className="w-full max-w-md text-center">
-        <h1 className="font-mono text-[56px] font-bold leading-none tracking-[-0.04em] text-ink">
+        <p
+          aria-hidden="true"
+          className="font-mono text-[56px] font-bold leading-none tracking-[-0.04em] text-ink"
+        >
           404
-        </h1>
-        <p className="mt-4 text-title font-semibold text-ink">页面不存在</p>
+        </p>
+        <h1 className="mt-4 text-title font-semibold text-ink">页面不存在</h1>
         <p className="mt-2 text-copy leading-relaxed text-muted">
           你访问的页面可能已被移动或删除。如果链接是从聊天记录里复制来的，可能是它已经过期了。
         </p>

@@ -23,7 +23,7 @@ def _force_dev_fake_sms(monkeypatch):
     """Force the SMS service into dev-fake mode (accept code '1234')."""
     import app.services.sms_service as sms_svc
 
-    monkeypatch.setattr(sms_svc, "_real_send_enabled", lambda: False)
+    monkeypatch.setattr(sms_svc, "_dev_fake_enabled", lambda: True)
 
 
 class TestSmsRegister:
@@ -66,7 +66,7 @@ class TestSmsRegister:
         assert resp.status_code == 201
         assert resp.json()["user"]["name"] == "Phone User"
 
-    async def test_register_duplicate_phone_returns_409(self, client: AsyncClient):
+    async def test_register_duplicate_phone_returns_409(self, client: AsyncClient, fake_redis):
         await client.post(
             "/api/v1/auth/sms/send-code",
             json={"phone": _TEST_PHONE, "purpose": "register"},
@@ -75,6 +75,9 @@ class TestSmsRegister:
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
         )
+        # The 60s resend cooldown is a separate guard; clear it so this test
+        # exercises the duplicate-phone branch rather than the cooldown.
+        await fake_redis.delete(f"sms:cooldown:{_TEST_PHONE}:register")
         await client.post(
             "/api/v1/auth/sms/send-code",
             json={"phone": _TEST_PHONE, "purpose": "register"},
@@ -173,7 +176,7 @@ class TestSmsLoginAutoCreate:
             )
         ).status_code == 401
 
-    async def test_sms_login_existing_returns_token_and_is_new_user_false(self, client: AsyncClient):
+    async def test_sms_login_existing_returns_token_and_is_new_user_false(self, client: AsyncClient, fake_redis):
         await client.post(
             "/api/v1/auth/sms/send-code",
             json={"phone": _TEST_PHONE, "purpose": "register"},
@@ -181,6 +184,13 @@ class TestSmsLoginAutoCreate:
         await client.post(
             "/api/v1/auth/sms/register",
             json={"phone": _TEST_PHONE, "code": _DEV_FAKE_CODE, "password": _TEST_PASSWORD},
+        )
+        # The register above consumed the code; login needs a fresh one (and the
+        # resend cooldown must be cleared to obtain it).
+        await fake_redis.delete(f"sms:cooldown:{_TEST_PHONE}:register")
+        await client.post(
+            "/api/v1/auth/sms/send-code",
+            json={"phone": _TEST_PHONE, "purpose": "auth"},
         )
         resp = await client.post(
             "/api/v1/auth/sms/login",

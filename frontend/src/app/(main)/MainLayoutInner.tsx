@@ -5,14 +5,27 @@ import { usePathname, useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { PublicTopBar } from "@/components/layout/PublicTopBar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { UnreadCountSync } from "@/components/layout/UnreadCountSync";
 import { ShellSkeleton } from "@/components/common/ShellSkeleton";
 import { DeletionBanner } from "@/components/profile/DeletionBanner";
 import { useAuthStore } from "@/stores/authStore";
+import { useVocabularyStore } from "@/stores/vocabularyStore";
+import { useWatchStore } from "@/stores/watchStore";
 import { api } from "@/lib/api";
 import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
+import { WatchChromeProvider, WatchShellControls } from "@/components/watch/WatchChromeProvider";
 
 export function MainLayoutInner({ children }: { children: React.ReactNode }) {
+  return (
+    <WatchChromeProvider>
+      <MainLayoutContent>{children}</MainLayoutContent>
+    </WatchChromeProvider>
+  );
+}
+
+function MainLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
@@ -20,6 +33,14 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
 
   const pathname = usePathname();
   const isWatch = pathname.startsWith("/watch/");
+  const immersive = useWatchStore((s) => s.immersive) && isWatch;
+  const fetchVocabStats = useVocabularyStore((s) => s.fetchStats);
+
+  // Vocab due badges live in three chrome surfaces. Refresh once per shell
+  // mount here; the surfaces only read the store.
+  useEffect(() => {
+    if (isAuthenticated) void fetchVocabStats();
+  }, [isAuthenticated, fetchVocabStats]);
 
   // Onboarding gate: the server flag is the only source of truth. Resolve it
   // before rendering the shell so a new user never sees the home page flash
@@ -68,11 +89,14 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   // D0 登录墙：受保护路由已被 middleware 302 到 /login；能走到这里的未登录访问
-  // 只剩白名单页（/redeem、/upgrade 等），直接渲染页面内容（不带应用 shell）。
+  // 只剩白名单页（/upgrade、/contact 等），直接渲染页面内容（不带应用 shell）。
+  // 设计应用壳（index.html:90-113）只有 sidebar/topbar/main：登录后的页面不再
+  // 渲染 SiteFooter；未登录白名单页保留协议入口。
   if (!isAuthenticated) {
     return (
       <div className="user-ui min-h-dvh bg-canvas">
         <div className="container-page">
+          <PublicTopBar />
           {children}
           <SiteFooter />
         </div>
@@ -83,24 +107,25 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
   // 壳统一管理安全区和常规流底部导航，内容滚动区不再补固定底栏占位。
   return (
     <div
-      className="user-ui user-shell h-dvh overflow-hidden"
+      className={`user-ui user-shell h-dvh overflow-hidden${immersive ? " is-watch-immersive" : ""}`}
       style={{
         paddingTop: "env(safe-area-inset-top, 0px)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
     >
+      {/* 键盘用户的「跳到正文」必须是页面第一个可聚焦元素：放在 Sidebar 之前，
+          否则要穿过侧栏 15+ 个停靠点才到它（审计 F3）。目标仍是唯一的主滚动区。 */}
+      <a
+        href={`#${SCROLL_CONTAINER_ID}`}
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:border focus:border-hairline focus:bg-canvas focus:px-4 focus:py-2 focus:text-meta focus:font-semibold focus:text-ink"
+      >
+        跳到正文
+      </a>
       <Sidebar />
+      <UnreadCountSync />
       <div className="user-shell-main">
         <TopBar />
         <DeletionBanner />
-        {/* 键盘用户的「跳到正文」：侧栏 + 顶栏有 20+ 个 tab 停靠点，
-            没有 skip link 时每次进页都要 Tab 穿过去。目标就是唯一的主滚动区。 */}
-        <a
-          href={`#${SCROLL_CONTAINER_ID}`}
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-sm focus:border focus:border-hairline focus:bg-canvas focus:px-4 focus:py-2 focus:text-meta focus:font-semibold focus:text-ink"
-        >
-          跳到正文
-        </a>
         <main
           id={SCROLL_CONTAINER_ID}
           tabIndex={-1}
@@ -109,11 +134,9 @@ export function MainLayoutInner({ children }: { children: React.ReactNode }) {
           {/* DEC-075：容器归壳层所有 —— 全站唯一 .container-page 在这里渲染一次，
             页面不再自带容器类。h-full 让页面根的 min-h-full（练习 / 考试 / 搜索等
             满屏流）仍以滚动容器的高度为基准，几何与「页面自己写容器」时一致。 */}
-          <div className="container-page h-full">
-            {children}
-            {!isWatch && <SiteFooter />}
-          </div>
+          <div className="container-page h-full">{children}</div>
         </main>
+        <WatchShellControls />
         <MobileTabBar />
       </div>
     </div>

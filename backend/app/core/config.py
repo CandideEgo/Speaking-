@@ -14,6 +14,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _ENV_ALIASES = {"prod": "production"}
 _ENV_VALUES = ("development", "testing", "production")
 
+# Only HMAC algorithms are supported: ``create_token``/``decode_token`` sign with
+# a shared secret, so an env value of e.g. ``"none"`` or an asymmetric algorithm
+# name must not be accepted just because PyJWT would parse it.
+_JWT_ALGORITHMS = ("HS256", "HS384", "HS512")
+
+# HS256 keys shorter than the hash output (32 bytes) are cheap to brute-force.
+# production/testing must provide at least this many characters.
+_MIN_JWT_SECRET_LENGTH = 32
+_DEV_JWT_SECRET = "dev_secret_change_in_production"
+
 
 class Settings(BaseSettings):
     app_name: str = "SeeWord"
@@ -36,10 +46,15 @@ class Settings(BaseSettings):
 
     # Alibaba Cloud Dypnsapi — SMS verification code for phone login / change
     # phone / reset password (SendSmsVerifyCode / CheckSmsVerifyCode: the code
-    # is generated and verified server-side by Aliyun). When sms_login_enabled
-    # is False (or AK/SK missing), sms_service falls back to a dev fake that
-    # logs/accepts the fixed code "1234" — no Aliyun calls.
+    # is generated and verified server-side by Aliyun). The fixed-code dev fake
+    # ("1234") is opt-in via sms_dev_fake_enabled and only allowed outside
+    # production; without it, missing AK/SK fail closed.
     sms_login_enabled: bool = False
+    # Explicit opt-in for the fixed-code dev fake ("1234"). Required for local
+    # dev / CI phone flows; if ENV is forgotten in a deployment this stays
+    # False, so the fake cannot silently turn a public box into "any phone can
+    # log in with 1234". Refused outright in production.
+    sms_dev_fake_enabled: bool = False
     aliyun_sms_access_key: str = ""
     aliyun_sms_secret_key: str = ""
     aliyun_sms_sign_name: str = "速通互联验证码"
@@ -191,10 +206,6 @@ class Settings(BaseSettings):
     # 验签一律失败（见 ``jinshuju_service._purchase_secret``）。
     jinshuju_purchase_token_secret: str = ""
     jinshuju_purchase_token_ttl_minutes: int = 1440
-
-    # Redeem code lifecycle (ADR-0007). Pro is sold via WeChat mini-shop +
-    # redeem codes (no on-site payment per ICP compliance).
-    redeem_code_unused_expiry_days: int = 180  # unused codes auto-expire after N days
 
     # Free-tier video unlock quota (产品设计规划 §2.2): Free users may unlock
     # this many videos per calendar month; each unlock is permanent. Quotas
@@ -369,13 +380,23 @@ class Settings(BaseSettings):
         # comparison (logging, HSTS/CSP, CORS, limiter) sees the same string.
         object.__setattr__(self, "env", env)
 
+        # The signing algorithm is an attack surface, not a preference: a typo
+        # or an injected value must fail at boot, not at the first token check.
+        algorithm = self.jwt_algorithm.strip().upper()
+        if algorithm not in _JWT_ALGORITHMS:
+            raise RuntimeError(
+                f"JWT_ALGORITHM={self.jwt_algorithm!r} is not supported "
+                f"({', '.join(_JWT_ALGORITHMS)} are the only accepted HMAC algorithms)"
+            )
+        object.__setattr__(self, "jwt_algorithm", algorithm)
+
         if env == "development":
             if not self.database_url:
                 object.__setattr__(
                     self, "database_url", "postgresql+asyncpg://seeword:seeword_dev@localhost:5432/seeword"
                 )
             if not self.jwt_secret:
-                object.__setattr__(self, "jwt_secret", "dev_secret_change_in_production")
+                object.__setattr__(self, "jwt_secret", _DEV_JWT_SECRET)
             return
 
         # Every other env has no localhost fallback, so an empty secret must
@@ -383,11 +404,33 @@ class Settings(BaseSettings):
         # "production" branch so `ENV=testing` cannot become a way around it.
         if not self.jwt_secret:
             raise RuntimeError(f"JWT_SECRET must be set when ENV={env!r} (development is the only env with a fallback)")
+        # Non-empty is not enough: a 1-character key makes HS256 forgeable by
+        # brute force (anyone can mint an access token for any user, admins
+        # included). Testing is covered too so CI cannot grow a weak-secret habit.
+        if self.jwt_secret == _DEV_JWT_SECRET or len(self.jwt_secret) < _MIN_JWT_SECRET_LENGTH:
+            raise RuntimeError(
+                f"JWT_SECRET must be at least {_MIN_JWT_SECRET_LENGTH} characters and must not be the "
+                f"development default when ENV={env!r}. Generate one with: openssl rand -hex 32"
+            )
         if not self.database_url:
             raise RuntimeError(
                 f"DATABASE_URL must be set when ENV={env!r} (development is the only env with a fallback)"
             )
         if env == "production":
+            if self.sms_dev_fake_enabled:
+                raise RuntimeError(
+                    "SMS_DEV_FAKE_ENABLED must not be enabled in production "
+                    "(the fixed code '1234' would let anyone log into any phone account)"
+                )
+            # 站内微信/支付宝回调验签目前是 stub（HMAC 而非平台 RSA 证书），
+            # 一旦被误开，合法回调会被拒、伪造回调可能开通会员。生产入口是
+            # 金数据收款页；要开站内支付必须先实现官方验签并删掉这条 guard。
+            if self.payments_enabled:
+                raise RuntimeError(
+                    "PAYMENTS_ENABLED must stay false in production: the WeChat/Alipay callback "
+                    "verification is a stub until the official RSA/signature SDK is wired. "
+                    "Use the Jinshuju payment flow instead."
+                )
             # The guard is "an LLM key must exist", not "the OpenAI key must
             # exist": production may run entirely on the Command Code provider.
             # An empty pair is still fatal — features would fail at call time.

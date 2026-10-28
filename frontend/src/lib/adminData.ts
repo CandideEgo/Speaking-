@@ -10,13 +10,12 @@ import { adminApi } from "@/lib/adminApi";
 import type {
   AdminAccount,
   AdminChannel,
-  AdminOrder,
+  AdminPayment,
+  AdminPaymentSummary,
   AdminSettings,
   AdminStats,
   AdminUser,
   Paginated,
-  RedemptionRecord,
-  RedeemCode,
   Subtitle,
   SubtitleRevision,
   VideoAdmin,
@@ -88,6 +87,38 @@ export async function setUserPlan(
     plan: res.plan as "free" | "pro",
     plan_expires_at: res.plan_expires_at,
   };
+}
+
+// ---------------------------------------------------------------------------
+// 金数据 payments (replaces the removed legacy orders surface)
+// ---------------------------------------------------------------------------
+
+/** List 金数据 payment records (read-only; `raw_json` never returned). */
+export function listPayments(
+  opts: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+    keyword?: string;
+  } = {}
+): Promise<Paginated<AdminPayment>> {
+  const params = new URLSearchParams();
+  if (opts.page) params.set("page", String(opts.page));
+  if (opts.page_size) params.set("page_size", String(opts.page_size));
+  if (opts.status) params.set("status", opts.status);
+  if (opts.keyword) params.set("keyword", opts.keyword);
+  const qs = params.toString();
+  return adminApi<Paginated<AdminPayment>>(`/api/v1/admin/payments${qs ? `?${qs}` : ""}`);
+}
+
+/** Status counters + revenue sums (fen) for the payments page. */
+export function paymentSummary(): Promise<AdminPaymentSummary> {
+  return adminApi<AdminPaymentSummary>("/api/v1/admin/payments/summary");
+}
+
+/** Enqueue the 金数据 sync Celery task (no inline external request). */
+export function syncPayments(): Promise<{ queued: boolean }> {
+  return adminApi<{ queued: boolean }>("/api/v1/admin/payments/sync", { method: "POST" });
 }
 
 // ---------------------------------------------------------------------------
@@ -190,6 +221,8 @@ export async function updateVideo(id: string, patch: Partial<VideoAdmin>): Promi
   // Map admin-only fields to the VideoAdminUpdate schema
   const body: Record<string, unknown> = {};
   if (patch.title !== undefined) body.title = patch.title;
+  // "" clears the Chinese title (backend normalizes it to NULL).
+  if (patch.title_zh !== undefined) body.title_zh = patch.title_zh ?? "";
   if (patch.difficulty_level !== undefined) body.difficulty_level = patch.difficulty_level;
   if (patch.topic_tags !== undefined) body.topic_tags = patch.topic_tags;
   if (patch.is_official !== undefined) body.is_official = patch.is_official;
@@ -467,52 +500,6 @@ export async function recomputeWordLevels(
 }
 
 // ---------------------------------------------------------------------------
-// Orders
-// ---------------------------------------------------------------------------
-
-export function listOrders(
-  opts: {
-    page?: number;
-    page_size?: number;
-  } = {}
-): Promise<Paginated<AdminOrder>> {
-  const params = new URLSearchParams();
-  if (opts.page) params.set("page", String(opts.page));
-  if (opts.page_size) params.set("page_size", String(opts.page_size));
-  const qs = params.toString();
-  return adminApi<Paginated<AdminOrder>>(`/api/v1/admin/orders${qs ? `?${qs}` : ""}`);
-}
-
-// ---------------------------------------------------------------------------
-// Redemption records (prototype 29 订单管理 — 订单=兑换码激活记录)
-// ---------------------------------------------------------------------------
-
-export function listRedemptions(
-  opts: {
-    page?: number;
-    page_size?: number;
-    status?: "redeemed" | "revoked" | "refunded";
-    keyword?: string;
-  } = {}
-): Promise<Paginated<RedemptionRecord>> {
-  const params = new URLSearchParams();
-  if (opts.page) params.set("page", String(opts.page));
-  if (opts.page_size) params.set("page_size", String(opts.page_size));
-  if (opts.status) params.set("status", opts.status);
-  if (opts.keyword) params.set("keyword", opts.keyword);
-  const qs = params.toString();
-  return adminApi<Paginated<RedemptionRecord>>(`/api/v1/admin/redemptions${qs ? `?${qs}` : ""}`);
-}
-
-export function redemptionSummary(): Promise<{
-  redeemed: number;
-  revoked: number;
-  refunded: number;
-}> {
-  return adminApi("/api/v1/admin/redemptions/summary");
-}
-
-// ---------------------------------------------------------------------------
 // Platform settings (prototype 32 系统设置)
 // ---------------------------------------------------------------------------
 
@@ -529,83 +516,6 @@ export function saveAdminSettings(patch: Partial<AdminSettings>): Promise<AdminS
 
 export function listAdminAccounts(): Promise<AdminAccount[]> {
   return adminApi<AdminAccount[]>("/api/v1/admin/admins");
-}
-
-// ---------------------------------------------------------------------------
-// Redeem codes (admin endpoints in redeem.py, ADR-0007)
-// ---------------------------------------------------------------------------
-
-export function listRedeemCodes(
-  opts: {
-    page?: number;
-    page_size?: number;
-    status?: RedeemCode["status"];
-    batch_label?: string;
-    keyword?: string;
-  } = {}
-): Promise<Paginated<RedeemCode>> {
-  const params = new URLSearchParams();
-  if (opts.page) params.set("page", String(opts.page));
-  if (opts.page_size) params.set("page_size", String(opts.page_size));
-  if (opts.status) params.set("status", opts.status);
-  if (opts.batch_label) params.set("batch_label", opts.batch_label);
-  if (opts.keyword) params.set("keyword", opts.keyword);
-  const qs = params.toString();
-  return adminApi<Paginated<RedeemCode>>(`/api/v1/redeem-codes${qs ? `?${qs}` : ""}`);
-}
-
-/** Per-status counts for the redeem-code stat strip (prototype 30). */
-export function redeemCodeSummary(): Promise<Record<string, number>> {
-  return adminApi<Record<string, number>>("/api/v1/redeem-codes/summary");
-}
-
-export async function generateRedeemCodes(opts: {
-  count: number;
-  plan: "free" | "pro";
-  duration_days: number;
-  batch_label?: string;
-}): Promise<RedeemCode[]> {
-  return adminApi<RedeemCode[]>("/api/v1/redeem-codes/generate", {
-    method: "POST",
-    body: JSON.stringify(opts),
-  });
-}
-
-export async function exportRedeemCsv(): Promise<{
-  csv: string;
-  total: number;
-}> {
-  return adminApi<{ csv: string; total: number }>("/api/v1/redeem-codes/export");
-}
-
-/** Admin voids an *unused* code (leak / error). Terminal -> revoked. */
-export async function revokeRedeemCode(
-  codeId: string,
-  reason: "leak" | "error" = "error"
-): Promise<{
-  success: boolean;
-  message: string;
-  code_id: string;
-  status: string;
-}> {
-  return adminApi(`/api/v1/redeem-codes/${codeId}/revoke`, {
-    method: "POST",
-    body: JSON.stringify({ reason }),
-  });
-}
-
-/** Admin refund clawback on a redeemed code (claws back time, ADR-0007). */
-export async function refundRedeemCode(codeId: string): Promise<{
-  success: boolean;
-  message: string;
-  code_id: string;
-  user_id: string;
-  plan: string;
-  plan_expires_at: string | null;
-}> {
-  return adminApi(`/api/v1/redeem-codes/${codeId}/refund`, {
-    method: "POST",
-  });
 }
 
 // ---------------------------------------------------------------------------

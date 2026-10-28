@@ -87,22 +87,7 @@ celery_app.conf.update(
             "task": "app.tasks.home_content_tasks.sweep_home_content_generations",
             "schedule": 600,  # every 10 minutes
         },
-        # ── 内测期免费开放（需求 §2.3）：以下三个 Pro/兑换码相关 beat 已停用。
-        # 任务体保留（tests 直调 + 未来收费复用），仅摘掉调度。
-        # "downgrade-expired-pro": {
-        #     "task": "app.tasks.redeem_tasks.downgrade_expired_pro",
-        #     "schedule": 3600,  # every hour
-        # },
-        # "expire-unused-redeem-codes": {
-        #     "task": "app.tasks.redeem_tasks.expire_unused_redeem_codes",
-        #     "schedule": 86400,  # every day
-        # },
-        # "send-pro-expiring-reminders": {
-        #     "task": "app.tasks.reminder_tasks.send_pro_expiring_reminders",
-        #     "schedule": crontab(minute=0, hour=1),
-        # },
         # D6 学习提醒：每小时扫一次，按用户本地时间匹配词汇复习提醒点与 21:00 断签警告。
-        # （与 Pro 无关，保留。）
         "send-hourly-reminders": {
             "task": "app.tasks.reminder_tasks.send_hourly_reminders",
             "schedule": crontab(minute=0),  # every hour on the hour
@@ -123,11 +108,10 @@ import app.core.logging as _logging
 import app.models
 import app.tasks.account_tasks
 import app.tasks.home_content_tasks
+import app.tasks.notification_tasks
 import app.tasks.order_tasks
 import app.tasks.payment_tasks
 import app.tasks.ranking_tasks
-import app.tasks.redeem_tasks
 import app.tasks.reminder_tasks
-import app.tasks.report_tasks
 import app.tasks.scoring_tasks
 import app.tasks.video_processing

@@ -1,15 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
-/**
- * 首页：真实表达与点词学习，顶部横条包含续学 / 少量复习 / 练习入口。
- * 下方保留分类、难度、排序齐全的视频流。
- *
- * 这些用例只关心三件仍然值得守的事：
- *   1) 续播只给最近一条「未完成且看过一点」的记录，链接带 from=home；
- *   2) 任一入口取数失败不拖垮推荐流；
- *   3) 学习横条始终在内容之前，桌面三栏、手机换行且不横向溢出。
- * API 全量 mock：这些测试不依赖真实库里的视频与学习记录。
- */
+/** 真实位置续播与精选/发现流独立；没有记录时省略，失败时可重试。 */
 
 function mintToken(): string {
   const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -153,10 +144,16 @@ async function mockHome(
 ) {
   // 注册顺序：catch-all 先，具体路由后（Playwright 后注册的先匹配）。
   await page.route("**/api/**", (route) => route.abort("failed"));
+  await page.route("**/api/v1/users/me", (route) =>
+    route.fulfill({ json: { id: "probe", name: "学习者", onboarding_completed: true } })
+  );
   await page.route("**/api/v1/recommendations/home**", (route) =>
     route.fulfill({ json: RECOMMENDATION })
   );
   await page.route("**/api/v1/browse/featured**", (route) => route.fulfill({ json: FEATURED }));
+  await page.route("**/api/v1/browse/home-editorial", (route) =>
+    route.fulfill({ json: { editorial: null } })
+  );
   await page.route("**/api/v1/discovery/learning-metadata**", (route) =>
     route.fulfill({ json: METADATA })
   );
@@ -191,6 +188,30 @@ async function mockHome(
       },
     });
   });
+  await page.route("**/api/v1/learning/continue**", (route) => {
+    if (options.recordsFail) {
+      return route.abort("failed");
+    }
+    const valid = options.records.filter((r) => !r.completed && r.progress > 0).slice(0, 1);
+    return route.fulfill({
+      json: {
+        items: valid.map((r) => ({
+          video: {
+            id: r.video_id,
+            title: r.title,
+            title_zh: r.title,
+            thumbnail_url: null,
+            duration: r.duration ?? 600,
+          },
+          position_seconds: 60,
+          progress_percentage: r.progress,
+          remaining_seconds: (r.duration ?? 600) - 60,
+          last_accessed_at: "2026-10-12T12:00:00Z",
+        })),
+        total: valid.length,
+      },
+    });
+  });
 
   if (options.authenticated) {
     const token = mintToken();
@@ -212,158 +233,99 @@ async function mockHome(
   }
 }
 
-test.describe("首页第一行动：续学 / 复习 / 找视频", () => {
-  test("续学只给最近一条进行中记录，链接直接落到真实位置", async ({ page }) => {
+test.describe("首页续看入口", () => {
+  test("只展示最近一条有效续看记录，恢复真实时间", async ({ page }) => {
     await mockHome(page, { authenticated: true, records: IN_PROGRESS });
     await page.goto("/");
-
     const rail = page.getByTestId("continue-learning-rail");
-    await expect(rail).toBeVisible();
-    await expect(rail.getByText("进行中课程 A")).toBeVisible();
-    await expect(rail.getByText("已看 60%")).toBeVisible();
-    await expect(rail.getByText("进行中课程 B")).toHaveCount(0);
-    await expect(rail.getByText("已完成课程")).toHaveCount(0);
-    await expect(rail.getByText("未开始课程")).toHaveCount(0);
-
-    // 缩略图/标题/按钮三处都指向同一段视频，且都带真实位置 t=60。
-    const links = rail.locator('a[href*="/watch/"]');
-    await expect(links.first()).toHaveAttribute("href", /\/watch\/v1\?from=home&t=60/);
-    await expect(rail.locator('a[href*="/watch/v2"]')).toHaveCount(0);
-    await expect(rail.getByRole("link", { name: "继续学习 · 1:00" })).toHaveAttribute(
-      "href",
-      "/watch/v1?from=home&t=60"
-    );
-
-    // 首页邀请完成一小轮，而不是把全部到期数量变成压力。
-    const vocab = page.getByRole("region", { name: "词汇复习" });
-    await expect(vocab.getByRole("link", { name: /先复习 5 个词/ })).toHaveAttribute(
-      "href",
-      "/vocabulary/drill?review_count=5"
-    );
-    await expect(
-      page
-        .getByRole("region", { name: "找视频", exact: true })
-        .getByRole("link", { name: /按主题/ })
-    ).toHaveAttribute("href", "#feed");
-
-    // 主行动不吞推荐流。
-    await expect(page.getByText("推荐视频 A")).toBeVisible();
+    await expect(rail).toContainText("进行中课程 A");
+    await expect(rail).toContainText("60%");
+    await expect(rail).not.toContainText("进行中课程 B");
+    await expect(rail).toHaveAttribute("href", "/watch/v1?from=home&t=60");
+    await expect(page.getByRole("navigation", { name: "我的学习入口" })).toHaveCount(0);
+    await expect(page.getByText("推荐视频 A", { exact: true })).toBeVisible();
   });
 
-  test("没有可继续记录时，今日精选就是首屏主任务（完整视频入口）", async ({ page }) => {
-    await mockHome(page, { authenticated: true, records: [] });
+  test("没有可继续记录时直接展示精选，不留空的续看条", async ({ page }) => {
+    await mockHome(page, { authenticated: true, records: IN_PROGRESS.slice(2) });
     await page.goto("/");
-
+    await expect(page.getByRole("link", { name: "观看完整视频", exact: true })).toBeVisible();
     await expect(page.getByTestId("continue-learning-rail")).toHaveCount(0);
-    const task = page.getByRole("region", { name: "今日学习任务" });
-    await expect(task).toBeVisible();
-    await expect(task.getByRole("heading", { name: "本周精选视频" })).toBeVisible();
-    // 兜底没有片段数据：主按钮如实去完整视频，不写「听懂这段」。
-    const cta = task.getByRole("link", { name: /从这段开始/ });
-    await expect(cta).toHaveAttribute("href", "/watch/featured-1?from=home");
-    await expect(cta).toHaveAttribute("data-variant", "primary");
-    await expect(task.getByText("The rush we feel is not a property of the world.")).toBeVisible();
+    await expect(page.getByTestId("continue-learning-placeholder")).toHaveCount(0);
   });
 
-  test("到期不足 5 个时显示实际数量，没有到期词时改去词库", async ({ page }) => {
-    await mockHome(page, { authenticated: true, records: [] });
-    let due = 3;
-    await page.route("**/api/v1/vocabulary/stats**", (route) =>
-      route.fulfill({ json: { due_count: due, total: 12 } })
-    );
-    await page.goto("/");
-    const vocab = page.getByRole("region", { name: "词汇复习" });
-    await expect(vocab.getByRole("link", { name: /先复习 3 个词/ })).toHaveAttribute(
-      "href",
-      "/vocabulary/drill?review_count=5"
-    );
-    due = 0;
-    await page.reload();
-    await expect(vocab.getByRole("link", { name: /翻翻我的词库/ })).toHaveAttribute(
-      "href",
-      "/vocabulary"
-    );
-    await expect(page.getByTestId("continue-learning-rail")).toHaveCount(0);
-  });
-
-  test("首页短复习只请求 5 个到期词，不启动完整的今日训练", async ({ page }) => {
-    await mockHome(page, { authenticated: true, records: IN_PROGRESS });
-    const practiceRequests: URL[] = [];
-    const fullTrainingRequests: string[] = [];
-    page.on("request", (request) => {
-      if (/\/vocabulary\/(daily-session|sessions)(\?|$)/.test(request.url()))
-        fullTrainingRequests.push(request.url());
-    });
-    await page.route("**/api/v1/vocabulary/practice**", (route) => {
-      practiceRequests.push(new URL(route.request().url()));
-      return route.fulfill({ json: { items: [] } });
-    });
-    await page.goto("/");
-    await page.getByRole("link", { name: /先复习 5 个词/ }).click();
-    await expect(page).toHaveURL(/\/vocabulary\/drill\?review_count=5$/);
-    await expect.poll(() => practiceRequests.length).toBeGreaterThan(0);
-    await expect(page.getByText("今天没有到期词，去听一点新内容吧。")).toBeVisible();
-    for (const request of practiceRequests) {
-      expect(request.searchParams.get("count")).toBe("5");
-      expect(request.searchParams.get("due_only")).toBe("true");
-    }
-    expect(fullTrainingRequests).toEqual([]);
-  });
-
-  test("续播加载失败可重试，今日任务与推荐流照常", async ({ page }) => {
-    await mockHome(page, { authenticated: true, records: [], recordsFail: true });
-    await page.goto("/");
-
-    await expect(page.getByText("学习记录暂时未能加载，今天先从这里开始。")).toBeVisible({
-      timeout: 15000,
-    });
-    await expect(page.getByRole("button", { name: "重试" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "今日学习任务" })).toBeVisible();
-    await expect(page.getByText("推荐视频 A")).toBeVisible();
-  });
-
-  test("未登录不渲染续播", async ({ page }) => {
-    await mockHome(page, { authenticated: false, records: IN_PROGRESS });
-    await page.goto("/");
-
-    // 首页属受保护路由：未登录会被 proxy 302 到 /login?next=/，根本进不了首页。
-    await expect(page).toHaveURL(/\/login(\?|$)/);
-    await expect(page.getByTestId("continue-learning-rail")).toHaveCount(0);
-  });
-});
-
-test.describe("首页版式：主行动优先", () => {
-  test("1440 桌面：续学在最上方，任务在左、复习/找视频退到右栏", async ({ page }) => {
+  test("本周节奏展示真实学习统计，进度条保留记录口径", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await mockHome(page, { authenticated: true, records: IN_PROGRESS });
-    await page.goto("/");
-
-    const rail = (await page.getByTestId("continue-learning-rail").boundingBox())!;
-    const task = (await page.getByRole("region", { name: "今日学习任务" }).boundingBox())!;
-    const aside = (await page.getByRole("complementary", { name: "其他学习入口" }).boundingBox())!;
-    expect(rail.y + rail.height).toBeLessThanOrEqual(task.y);
-    expect(aside.x).toBeGreaterThanOrEqual(task.x + task.width - 1);
-    expect(aside.width).toBeLessThan(500);
-    await expect(page.locator(".home-personal")).toHaveCount(0);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-      1440
+    await page.route("**/api/v1/users/me/overview", (route) =>
+      route.fulfill({
+        json: {
+          streak: { current: 2, longest: 5, last_active_date: null },
+          this_week: {
+            start_date: "2026-10-19",
+            minutes: 35,
+            days_active: 4,
+            daily: [],
+          },
+          words: { total: 10, due_review_count: 2 },
+        },
+      })
     );
-  });
+    await page.route("**/api/v1/discovery/subscriptions", (route) => route.fulfill({ json: [] }));
 
-  test("390 移动：续学换行、仍在任务之前，主 CTA 可点且无横向溢出", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 812 });
-    await mockHome(page, { authenticated: true, records: IN_PROGRESS });
     await page.goto("/");
-
-    const rail = (await page.getByTestId("continue-learning-rail").boundingBox())!;
-    const task = (await page.getByRole("region", { name: "今日学习任务" }).boundingBox())!;
-    expect(rail.y + rail.height).toBeLessThanOrEqual(task.y);
-    await expect(page.getByTestId("continue-learning-rail")).toBeVisible();
-    const metrics = await page.evaluate(() => ({
-      docWidth: document.documentElement.scrollWidth,
-      viewportWidth: window.innerWidth,
-    }));
-    expect(metrics.docWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1);
-    await expect(page.getByRole("link", { name: /继续学习/ })).toBeVisible();
+    const bar = page.getByRole("progressbar", { name: "本周学习天数" });
+    await expect(bar).toBeVisible();
+    await expect(bar).toHaveAttribute("aria-valuenow", "4");
+    await expect(bar).toHaveAttribute("title", "按实际发生的学习记录统计");
+    const learning = page.getByRole("complementary", { name: "今天的进度" });
+    await expect(learning).toContainText("4 / 7 天");
+    await expect(learning).toContainText("35 分钟");
+    await expect(learning).toContainText("2 天");
   });
+
+  test("续看加载失败允许重试，不阻塞精选和推荐流", async ({ page }) => {
+    await mockHome(page, { authenticated: true, records: [], recordsFail: true });
+    await page.goto("/");
+    await expect(page.getByText("观看记录暂时未能加载")).toBeVisible();
+    await expect(page.getByRole("link", { name: "观看完整视频", exact: true })).toBeVisible();
+    await expect(page.getByText("推荐视频 A", { exact: true })).toBeVisible();
+    await page.route("**/api/v1/learning/continue**", (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            {
+              video: { id: "v1", title: "进行中课程 A", title_zh: "进行中课程 A" },
+              position_seconds: 60,
+              progress_percentage: 60,
+              remaining_seconds: 540,
+            },
+          ],
+          total: 1,
+        },
+      })
+    );
+    // The rail error and the sidebar overview error can both render a 重试
+    // button; scope this click to the continue-learning error message.
+    const continueError = page.getByRole("status").filter({ hasText: "观看记录暂时未能加载" });
+    await continueError.getByRole("button", { name: "重试", exact: true }).click();
+    await expect(page.getByTestId("continue-learning-rail")).toContainText("进行中课程 A");
+  });
+
+  for (const width of [1440, 390, 320]) {
+    test(`${width}：紧凑续看在精选之前且不溢出`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await mockHome(page, { authenticated: true, records: IN_PROGRESS });
+      await page.goto("/");
+      const rail = page.getByTestId("continue-learning-rail");
+      await expect(rail).toBeVisible();
+      const r = (await rail.boundingBox())!;
+      const c = (await page.locator(".home-editorial-lead").boundingBox())!;
+      expect(r.y + r.height).toBeLessThanOrEqual(c.y);
+      const geometry = await page
+        .locator("#main-scroll")
+        .evaluate((el) => ({ scroll: el.scrollWidth, width: el.clientWidth }));
+      expect(geometry.scroll).toBeLessThanOrEqual(geometry.width);
+    });
+  }
 });

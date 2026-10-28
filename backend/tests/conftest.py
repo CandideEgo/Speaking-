@@ -30,7 +30,9 @@ os.environ["ENV"] = "testing"
 # below is the production URL, never a safe test target.
 _db_url_explicit = "DATABASE_URL" in os.environ
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://speaking:speaking_dev@localhost:5432/speaking")
-os.environ.setdefault("JWT_SECRET", "test_secret_for_pytest")
+os.environ.setdefault("JWT_SECRET", "test_secret_for_pytest_at_least_32_chars")
+# The fixed-code dev fake is opt-in (BE-06); tests exercise phone flows with it.
+os.environ.setdefault("SMS_DEV_FAKE_ENABLED", "true")
 # The punctuation restoration model imports `transformers` (5.x), whose import
 # hangs indefinitely on this platform. Disable it in tests — the module falls
 # back to no-punctuation mode, and the dedicated tests assert graceful fallback.

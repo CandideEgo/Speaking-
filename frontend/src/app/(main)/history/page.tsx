@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ArrowRight, Bell, Bookmark, Calendar, Check, Play } from "lucide-react";
+import { ArrowRight, Calendar, Check, GraduationCap, Play } from "lucide-react";
 import { api } from "@/lib/api";
 import { Image } from "@/components/ui/Image";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -19,12 +19,36 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { InlineSpinner } from "@/components/common/Spinner";
 import { PageTransition } from "@/components/common/PageTransition";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { formatTimeSpent } from "@/lib/date";
+import { videoTitleZh } from "@/lib/videoDisplay";
 import type { LearningRecord, Paginated } from "@/types";
 
 type FilterKey = "all" | "active" | "completed";
+
+/** 设计「最近练习」卡：最近一次作答的试卷与答对数。 */
+interface LatestAttempt {
+  id: string;
+  mode: string;
+  exam_level: string | null;
+  paper_title: string | null;
+  question_count: number;
+  score: number | null;
+  correct_count: number | null;
+  started_at: string;
+  submitted_at: string | null;
+}
+
+interface VocabStats {
+  total: number;
+  due_review_count: number;
+  mastered_count: number;
+}
 
 const FILTER_TABS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "全部" },
@@ -67,6 +91,13 @@ function formatClock(seconds: number | null | undefined): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function formatNotifyDate(iso: string | null): string {
+  if (!iso) return "日期待定";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "日期待定";
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 /** 本周时长：设计口径写「3.4 小时」，按量级选单位。 */
@@ -112,6 +143,10 @@ export default function HistoryPage() {
     completedCount: number;
     overallTotal: number;
   } | null>(null);
+  // 设计在记录列表上方还有最近观看 / 最近练习 / 词汇进展三张卡（V-19）。
+  const [recent, setRecent] = useState<LearningRecord | null>(null);
+  const [attempt, setAttempt] = useState<LatestAttempt | null>(null);
+  const [vocab, setVocab] = useState<VocabStats | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
@@ -124,13 +159,18 @@ export default function HistoryPage() {
       api<Paginated<LearningRecord>>("/api/v1/learning/records?page=1&page_size=1").catch(
         () => null
       ),
-    ]).then(([weekly, completed, overall]) => {
+      api<Paginated<LatestAttempt>>("/api/v1/exams/attempts?page=1&page_size=1").catch(() => null),
+      api<VocabStats>("/api/v1/vocabulary/stats").catch(() => null),
+    ]).then(([weekly, completed, overall, attempts, vocabStats]) => {
       if (!alive) return;
       setStats({
         weekSeconds: (weekly?.this_week_minutes ?? 0) * 60,
         completedCount: completed?.total ?? 0,
         overallTotal: overall?.total ?? 0,
       });
+      setRecent(overall?.items?.[0] ?? null);
+      setAttempt(attempts?.items?.[0] ?? null);
+      setVocab(vocabStats);
     });
     return () => {
       alive = false;
@@ -153,15 +193,6 @@ export default function HistoryPage() {
       })
       .filter((g) => g.items.length > 0);
   }, [records]);
-
-  const todayCount = useMemo(
-    () => records.filter((r) => dayBucket(r.last_accessed_at || r.created_at) === "今天").length,
-    [records]
-  );
-  const wordsLearned = useMemo(
-    () => records.reduce((sum, r) => sum + (r.words_learned || 0), 0),
-    [records]
-  );
 
   const week = weekDuration(stats?.weekSeconds ?? 0);
   const overallTotal = stats?.overallTotal ?? 0;
@@ -194,9 +225,10 @@ export default function HistoryPage() {
     <PageTransition>
       <div className="user-page">
         <PageHeader
-          crumb="学习历史"
-          title="学习记录"
-          description="按天排出看过的每一段，带进度和停留时长。想接着上次的地方继续，点每行右侧的「继续观看」。"
+          crumb="我的"
+          title="观看历史"
+
+          variant="eyebrow"
           actions={
             resume ? (
               <LinkButton
@@ -204,57 +236,153 @@ export default function HistoryPage() {
                 variant="primary"
                 icon={Play}
               >
-                继续《{(resume.video?.title || "上一段").slice(0, 18)}》
+                继续《
+                {(resume.video ? videoTitleZh(resume.video) : "上一段").slice(0, 18)}》
               </LinkButton>
             ) : undefined
           }
         />
 
-        {/* 汇总统计：设计是平铺 stat-grid（20px 数值 + 13px 中性标签） */}
+        {/* 汇总统计：设计把 4 个数字放进描边卡里（不是裸铺在画布上）。 */}
         {stats && overallTotal > 0 && (
-          <div className="mt-6 user-stat-grid">
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {week.value}
-                <span className="ml-1 text-meta font-semibold text-muted">{week.unit}</span>
-              </span>
-              <span className="user-stat-label">本周学习时长</span>
+          <Card variant="outline" padding={5} className="mt-6">
+            <div className="user-stat-grid">
+              <div className="user-stat">
+                <span className="user-stat-num">
+                  {week.value}
+                  <span className="ml-1 text-meta font-semibold text-muted">{week.unit}</span>
+                </span>
+                <span className="user-stat-label">本周学习时长</span>
+              </div>
+              <div className="user-stat">
+                <span className="user-stat-num">
+                  {overallTotal}
+                  <span className="ml-1 text-meta font-semibold text-muted">段</span>
+                </span>
+                <span className="user-stat-label">已学视频</span>
+              </div>
+              <div className="user-stat">
+                <span className="user-stat-num">
+                  {completedCount}
+                  <span className="ml-1 text-meta font-semibold text-muted">段</span>
+                </span>
+                <span className="user-stat-label">学完视频</span>
+              </div>
+              <div className="user-stat">
+                <span className="user-stat-num">
+                  {profile?.current_streak ?? 0}
+                  <span className="ml-1 text-meta font-semibold text-muted">天</span>
+                </span>
+                <span className="user-stat-label">连续学习</span>
+              </div>
             </div>
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {overallTotal}
-                <span className="ml-1 text-meta font-semibold text-muted">段</span>
-              </span>
-              <span className="user-stat-label">已学视频</span>
-            </div>
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {completedCount}
-                <span className="ml-1 text-meta font-semibold text-muted">段</span>
-              </span>
-              <span className="user-stat-label">学完视频</span>
-            </div>
-            <div className="user-stat">
-              <span className="user-stat-num">
-                {profile?.current_streak ?? 0}
-                <span className="ml-1 text-meta font-semibold text-muted">天</span>
-              </span>
-              <span className="user-stat-label">连续学习</span>
-            </div>
-          </div>
+          </Card>
         )}
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        {/* 设计在记录列表上方补三张卡：最近观看 / 最近练习 / 词汇进展（V-19）。 */}
+        <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <Card variant="outline" padding={5}>
+            <h2 className="text-copy font-semibold text-ink">最近观看</h2>
+            {recent ? (
+              <div className="mt-3 flex items-center gap-3">
+                <span className="relative block aspect-video w-20 shrink-0 overflow-hidden rounded-sm border border-hairline bg-surface-card">
+                  <Image src={recent.video?.thumbnail_url} alt="" sizes="80px" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-meta font-semibold text-ink">
+                    {recent.video ? videoTitleZh(recent.video) : "未知视频"}
+                  </p>
+                  <p className="mt-0.5 text-caption text-muted">
+                    看到 {formatClock(recent.position_seconds)} ·{" "}
+                    {Math.round(recent.progress_percentage || 0)}%
+                  </p>
+                </div>
+                <LinkButton
+                  href={watchHref(recent.video_id, { from: "history" })}
+                  variant="outline"
+                  size="sm"
+                >
+                  继续
+                </LinkButton>
+              </div>
+            ) : (
+              <p className="mt-3 text-meta text-muted">
+                还没有观看记录，看一段视频就会出现在这里。
+              </p>
+            )}
+          </Card>
+
+          <Card variant="outline" padding={5}>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-copy font-semibold text-ink">最近练习</h2>
+              <Link href="/practice" className="text-caption text-brand-700 hover:underline">
+                去练习
+              </Link>
+            </div>
+            {attempt ? (
+              <div className="mt-3 flex items-center gap-3">
+                <span className="grid h-10 w-14 shrink-0 place-items-center rounded-sm bg-surface-soft text-muted">
+                  <GraduationCap size={18} aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-meta font-semibold text-ink">
+                    {attempt.paper_title ||
+                      (attempt.mode === "daily_check" ? "每日一练" : "真题练习")}
+                  </p>
+                  <p className="mt-0.5 text-caption text-muted">
+                    {formatNotifyDate(attempt.submitted_at ?? attempt.started_at)} ·{" "}
+                    {attempt.submitted_at
+                      ? `${attempt.correct_count ?? 0} / ${attempt.question_count} 答对`
+                      : "进行中"}
+                  </p>
+                </div>
+                <LinkButton
+                  href={`/practice/exams/result/${attempt.id}`}
+                  variant="outline"
+                  size="sm"
+                >
+                  回看
+                </LinkButton>
+              </div>
+            ) : (
+              <p className="mt-3 text-meta text-muted">还没有练习记录，去题库挑一套试试。</p>
+            )}
+          </Card>
+
+          <Card variant="outline" padding={5}>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-copy font-semibold text-ink">词汇进展</h2>
+              <Link href="/vocabulary" className="text-caption text-brand-700 hover:underline">
+                去复习
+              </Link>
+            </div>
+            <div className="mt-3 space-y-1.5 text-meta">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted">全部词汇</span>
+                <span className="tabular-nums text-ink">{vocab?.total ?? "—"}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted">今天到期</span>
+                <span className="tabular-nums text-ink">{vocab?.due_review_count ?? "—"}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted">已掌握</span>
+                <span className="tabular-nums text-ink">{vocab?.mastered_count ?? "—"}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="mt-6">
           <TabPills
             tabs={tabs}
             activeKey={filter}
             onChange={(key) => setFilter(key as FilterKey)}
           />
-          <span className="text-meta text-muted">共 {overallTotal} 段记录</span>
         </div>
 
-        <div className="user-page-layout has-aside">
-          <div className="user-page-main">
+        <div className="mt-6">
+          <div>
             {loading && records.length === 0 ? (
               <InlineSpinner className="py-12" />
             ) : error && records.length === 0 ? (
@@ -263,7 +391,7 @@ export default function HistoryPage() {
               <EmptyState
                 icon={Calendar}
                 title="暂无学习记录"
-                description="看完第一个视频就会出现在这里"
+                description="看完第一个视频就会出现在这里。"
                 action={
                   <Link
                     href="/"
@@ -296,9 +424,9 @@ export default function HistoryPage() {
               <div>
                 {groups.map((group) => (
                   <section key={group.label}>
-                    <h3 className="mb-2 mt-6 text-meta font-bold tracking-[0.06em] text-muted first:mt-0">
+                    <h2 className="mb-2 mt-6 text-meta font-bold tracking-[0.06em] text-muted first:mt-0">
                       {group.label} · {group.items.length} 段 · 共 {formatTimeSpent(group.seconds)}
-                    </h3>
+                    </h2>
                     <ul className="divide-y divide-hairline-soft">
                       {group.items.map((record) => (
                         <RecordRow key={record.id} record={record} />
@@ -318,65 +446,6 @@ export default function HistoryPage() {
               )}
             </div>
           </div>
-
-          <aside className="user-page-aside" aria-label="记录说明">
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">这些数字怎么算</h2>
-              <div className="user-kv">
-                <div className="user-kv-row">
-                  <span className="user-kv-key">记录条数</span>
-                  <span className="user-kv-val">{overallTotal} 段</span>
-                </div>
-                <div className="user-kv-row">
-                  <span className="user-kv-key">今天</span>
-                  <span className="user-kv-val">{todayCount} 段</span>
-                </div>
-                <div className="user-kv-row">
-                  <span className="user-kv-key">生词合计</span>
-                  <span className="user-kv-val">{wordsLearned} 个</span>
-                </div>
-                <div className="user-kv-row">
-                  <span className="user-kv-key">连续学习</span>
-                  <span className="user-kv-val">{profile?.current_streak ?? 0} 天</span>
-                </div>
-                <div className="user-kv-row">
-                  <span className="user-kv-key">本周时长</span>
-                  <span className="user-kv-val">
-                    {week.value} {week.unit}
-                  </span>
-                </div>
-              </div>
-              <p className="mt-3 text-meta leading-relaxed text-body">
-                停留时长按播放器实际播放时间累计，暂停和切走不算。进度按看到的时间点除以总时长。
-              </p>
-            </section>
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">从记录回到学习</h2>
-              <div className="flex flex-col gap-2">
-                <Link
-                  href="/favorites"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Bookmark size={14} className="text-muted" />
-                  收藏的句子和词
-                </Link>
-                <Link
-                  href="/vocabulary"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Bookmark size={14} className="text-muted" />
-                  今天到期的词
-                </Link>
-                <Link
-                  href="/notifications"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Bell size={14} className="text-muted" />
-                  学习提醒
-                </Link>
-              </div>
-            </section>
-          </aside>
         </div>
       </div>
     </PageTransition>
@@ -390,12 +459,13 @@ function RecordRow({ record }: { record: LearningRecord }) {
   const remaining =
     duration && !record.completed ? Math.max(0, Math.round(duration * (1 - pct / 100))) : null;
   const href = watchHref(record.video_id, { from: "history" });
+  const titleZh = record.video ? videoTitleZh(record.video) : "未知视频";
 
   return (
     <li className="grid grid-cols-1 items-center gap-3 py-4 md:grid-cols-[10rem_minmax(0,1fr)_13rem]">
       <Link
         href={href}
-        aria-label={`继续观看 ${record.video?.title || "这个视频"}`}
+        aria-label={`继续观看 ${titleZh}`}
         className="relative block aspect-video overflow-hidden rounded-md border border-hairline bg-surface-card"
       >
         <Image
@@ -414,20 +484,27 @@ function RecordRow({ record }: { record: LearningRecord }) {
       </Link>
 
       <div className="min-w-0">
-        <p className="text-copy font-semibold leading-snug text-ink">
-          <Link href={href} className="hover:text-brand-700">
-            {record.video?.title || "未知视频"}
+        {record.video ? (
+          <Link href={href} className="block hover:text-brand-700">
+            <VideoTitle
+              video={record.video}
+              as="span"
+              zhClassName="text-copy font-semibold leading-snug text-ink"
+            />
           </Link>
-        </p>
+        ) : (
+          <p className="text-copy font-semibold leading-snug text-ink">未知视频</p>
+        )}
+        {record.video && <VideoMetadata video={record.video} className="mt-1" />}
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-muted">
-          <span>{record.words_learned} 个生词</span>
+          {record.video?.channel_name && <span>{record.video.channel_name}</span>}
+          <DifficultyBadge level={record.video?.difficulty_level} size="sm" />
           {record.time_spent_seconds > 0 && (
             <span>看了 {formatTimeSpent(record.time_spent_seconds)}</span>
           )}
           {record.position_seconds != null && (
             <span>停在 {formatClock(record.position_seconds)}</span>
           )}
-          {record.quiz_score !== null && <span>测验 {Math.round(record.quiz_score)} 分</span>}
           {record.completed && (
             <span className="inline-flex items-center gap-1 font-semibold text-success-text">
               <Check size={12} />

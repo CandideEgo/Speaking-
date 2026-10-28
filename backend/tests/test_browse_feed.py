@@ -78,6 +78,7 @@ async def _make_video(
     is_published: bool = True,
     topic_tags: str = "tech",
     difficulty_level: str = "B1",
+    duration: float = 120.0,
 ) -> Video:
     v = Video(
         title=title,
@@ -89,7 +90,7 @@ async def _make_video(
         review_status=VideoReviewStatus.published.value,
         topic_tags=topic_tags,
         difficulty_level=difficulty_level,
-        duration=120.0,
+        duration=duration,
         favorite_count=favorite_count,
         view_count=view_count,
         video_url_720p=f"/media/{title}.mp4",
@@ -273,8 +274,8 @@ class TestSortCacheKeys:
         # 键名带上卡片形状版本号，从常量拼出来，免得下次改形状时这里跟着一起改
         # （改形状就该换版本号，见 services/video_card.CARD_SHAPE_VERSION）。
         v = f"v{CARD_SHAPE_VERSION}"
-        assert f"browse:feed:{v}:all:all:favorite:1:20" in keys
-        assert f"browse:feed:{v}:all:all:weekly_favorite:1:20" in keys
+        assert f"browse:feed:{v}:all:all:favorite:all:1:20" in keys
+        assert f"browse:feed:{v}:all:all:weekly_favorite:all:1:20" in keys
 
     async def test_every_sort_value_returns_200(self, client, db_session):
         users = await _make_users(db_session, 1)
@@ -286,3 +287,33 @@ class TestSortCacheKeys:
             resp = await client.get(_FEED, params={"sort": sort})
             assert resp.status_code == 200, sort
             assert _ids(resp) == [v.id], sort
+
+
+class TestDurationFilter:
+    async def test_duration_buckets_compose_with_filters(self, client, db_session):
+        short = await _make_video(db_session, title="short", duration=120.0)
+        medium = await _make_video(db_session, title="medium", duration=600.0)
+        long = await _make_video(db_session, title="long", duration=1200.0)
+
+        resp = await client.get(_FEED, params={"duration_max": 300})
+        assert _ids(resp) == [short.id]
+
+        resp = await client.get(_FEED, params={"duration_min": 301, "duration_max": 900})
+        assert _ids(resp) == [medium.id]
+
+        resp = await client.get(_FEED, params={"duration_min": 901})
+        assert _ids(resp) == [long.id]
+
+        resp = await client.get(_FEED, params={"duration_min": 301, "level": "B1", "sort": "hot"})
+        assert resp.status_code == 200
+
+    async def test_invalid_range_is_400(self, client):
+        resp = await client.get(_FEED, params={"duration_min": 900, "duration_max": 300})
+        assert resp.status_code == 400
+
+    async def test_videos_without_duration_drop_out(self, client, db_session):
+        no_duration = await _make_video(db_session, title="unknown", duration=0.0)
+        no_duration.duration = None
+        await db_session.commit()
+        resp = await client.get(_FEED, params={"duration_min": 1})
+        assert no_duration.id not in _ids(resp)

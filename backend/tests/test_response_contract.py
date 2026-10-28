@@ -89,6 +89,7 @@ _CARD_ITEM_KEYS = [
     "subtitle_count",
     "thumbnail_url",
     "title",
+    "title_zh",
     "topic_tags",
     "upload_date",
     "video_source",
@@ -180,15 +181,17 @@ class TestCardShapes:
         assert [i["title"] for i in body["items"]] == ["cold"]
         assert sorted(body["items"][0].keys()) == _CARD_ITEM_KEYS
 
-    async def test_admin_feedback_dict_endpoint(self, client, db_session, admin_headers):
-        """``response_model=dict`` sites have no enforced shape at all.
+    async def test_admin_feedback_list_is_typed_with_total(self, client, db_session, admin_headers):
+        """ADM-10: this used to be ``response_model=dict`` and omit ``total``.
 
-        The envelope here is missing `total`, which every other list endpoint
-        returns — exactly the kind of drift an unbound response model allows.
+        It is now a typed ``PaginatedResponse[AdminFeedbackRow]`` — the shared
+        envelope keys, ``total`` included, like every other admin list.
         """
         resp = await client.get(_ADMIN_FEEDBACK, headers=admin_headers)
         assert resp.status_code == 200
-        assert sorted(resp.json().keys()) == ["has_more", "items", "page", "page_size"]
+        body = resp.json()
+        assert sorted(body.keys()) == _ENVELOPE_KEYS
+        assert body["total"] == 0
 
 
 class TestCardScopesDifferByValueNotByShape:
@@ -294,10 +297,15 @@ class TestErrorEnvelopeShapes:
         assert resp.status_code == 404
         assert resp.json()["code"] == "HTTP_404"
 
-    async def test_unknown_ranking_scope_is_422(self, client):
+    async def test_unknown_ranking_scope_is_422_validation_error(self, client):
+        """业务参数非法与 pydantic 校验共用 422 + VALIDATION_ERROR。
+
+        旧实现在路由里 ``HTTPException(422, ...)``，code 是 ``HTTP_422``，前端无法
+        按 code 区分「字段格式错」与「业务参数非法」。现在只有一种 422 code。
+        """
         resp = await client.get(_RANKINGS, params={"scope": "nope"})
         assert resp.status_code == 422
-        assert resp.json()["code"] == "HTTP_422"
+        assert resp.json()["code"] == "VALIDATION_ERROR"
 
     async def test_request_validation_error_is_envelope(self, client):
         resp = await client.get(_PUBLIC, params={"page": 0})
@@ -318,15 +326,246 @@ class TestOpenApiResponseModels:
     """
 
     @staticmethod
-    def _schema(path: str, method: str) -> dict:
+    def _schema(path: str, method: str, status: str = "200") -> dict:
         from app.main import create_app
 
-        return create_app().openapi()["paths"][path][method]["responses"]["200"]["content"]["application/json"][
+        return create_app().openapi()["paths"][path][method]["responses"][status]["content"]["application/json"][
             "schema"
         ]
 
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
+
+    def test_admin_stats_and_external_callbacks_are_typed(self):
+        """BE-07: final batch — dashboard stats and webhook acks."""
+        assert self._schema("/api/v1/admin/stats", "get")["$ref"].endswith("AdminStatsResponse")
+        assert self._schema("/api/v1/internal/transcription/callback", "post")["$ref"].endswith("AcknowledgedResponse")
+        for path, name in (
+            ("/api/v1/payments/callback/alipay", "AlipayCallbackResponse"),
+            ("/api/v1/payments/callback/wechat", "WechatCallbackResponse"),
+            ("/api/v1/payments/jinshuju/webhook", "JinshujuWebhookResponse"),
+            ("/api/v1/payments/mock-pay", "MockPaymentResponse"),
+        ):
+            assert self._schema(path, "post")["$ref"].endswith(name)
+
+    def test_unlock_response_is_typed(self):
+        """BE-07: legacy unlock used a plain dict."""
+        assert self._schema("/api/v1/videos/{video_id}/unlock", "post")["$ref"].endswith("VideoUnlockResponse")
+
+    def test_channel_admin_routes_are_typed(self):
+        """BE-07: channel admin list/create/update/attach used dicts."""
+        assert self._schema("/api/v1/channels/admin/all", "get")["$ref"].endswith("AdminChannelListResponse")
+        assert self._schema("/api/v1/channels/admin", "post", "201")["$ref"].endswith("ChannelAdminRefResponse")
+        assert self._schema("/api/v1/channels/admin/{channel_id}", "patch")["$ref"].endswith("ChannelAdminRefResponse")
+        assert self._schema("/api/v1/channels/admin/{channel_id}/videos", "post")["$ref"].endswith(
+            "ChannelAttachVideosResponse"
+        )
+
+    def test_video_admin_reports_and_revisions_are_typed(self):
+        """BE-07: video admin pending/quality/revision endpoints used dicts."""
+        assert self._schema("/api/v1/videos/admin/pending-count", "get")["$ref"].endswith("PendingCountsResponse")
+        assert self._schema("/api/v1/videos/admin/takedown-suggestions", "get")["$ref"].endswith(
+            "TakedownSuggestionsResponse"
+        )
+        reports = self._schema("/api/v1/videos/admin/{video_id}/quality-reports", "get")
+        assert reports["type"] == "array"
+        for path in (
+            "/api/v1/videos/admin/{video_id}/subtitles/revisions",
+            "/api/v1/videos/admin/{video_id}/subtitles/{subtitle_id}/revisions",
+        ):
+            assert self._schema(path, "get")["$ref"].endswith("PaginatedResponse_SubtitleRevisionItem_")
+        assert self._schema("/api/v1/videos/admin/{video_id}/subtitles/word-levels/recompute", "post")["$ref"].endswith(
+            "RecomputeWordLevelsResponse"
+        )
+
+    def test_admin_settings_and_user_action_routes_are_typed(self):
+        """BE-07: admin settings/worker/user actions used bare dicts."""
+        for method in ("get", "put"):
+            assert self._schema("/api/v1/admin/settings", method)["$ref"].endswith("AdminSettingsResponse")
+        assert self._schema("/api/v1/admin/worker-status", "get")["$ref"].endswith("WorkerStatusResponse")
+        assert self._schema("/api/v1/admin/admins", "get")["type"] == "array"
+        assert self._schema("/api/v1/admin/users/{user_id}/ban", "patch")["$ref"].endswith("AdminUserBanResponse")
+        assert self._schema("/api/v1/admin/users/{user_id}/role", "patch")["$ref"].endswith("AdminUserRoleResponse")
+        assert self._schema("/api/v1/admin/users/{user_id}/plan", "patch")["$ref"].endswith("AdminUserPlanResponse")
+
+    def test_admin_payments_routes_are_typed(self):
+        """金数据 payment surface: typed list/summary/sync + no raw_json leak."""
+        assert self._schema("/api/v1/admin/payments", "get")["$ref"].endswith("PaginatedResponse_AdminPaymentRow_")
+        assert self._schema("/api/v1/admin/payments/summary", "get")["$ref"].endswith("AdminPaymentSummaryResponse")
+        assert self._schema("/api/v1/admin/payments/sync", "post")["$ref"].endswith("AdminPaymentSyncResponse")
+
+        from app.main import create_app
+
+        row_schema = create_app().openapi()["components"]["schemas"]["AdminPaymentRow"]
+        properties = row_schema["properties"]
+        for field in (
+            "id",
+            "entry_token",
+            "serial_number",
+            "phone",
+            "user_id",
+            "user_phone",
+            "user_name",
+            "tier_name",
+            "amount_fen",
+            "duration_days",
+            "trade_status",
+            "trade_no",
+            "payment_method",
+            "status",
+            "error_message",
+            "entry_created_at",
+            "created_at",
+            "applied_at",
+        ):
+            assert field in properties, f"AdminPaymentRow missing field: {field}"
+        # The external raw payload carries buyer PII and must never be exposed.
+        assert "raw_json" not in properties
+
+    def test_legacy_admin_orders_route_is_gone(self):
+        """ADM-19/§5: the dead ``GET /admin/orders`` surface was removed."""
+        from app.main import create_app
+
+        paths = create_app().openapi()["paths"]
+        assert "/api/v1/admin/orders" not in paths
+
+    def test_notes_exam_pdf_and_payment_routes_are_typed(self):
+        """BE-07: notes list, exam PDF list and payment polling used dicts."""
+        assert self._schema("/api/v1/notes", "get")["$ref"].endswith("PaginatedResponse_NoteItem_")
+        assert self._schema("/api/v1/exam-pdfs", "get")["$ref"].endswith("ExamPdfListResponse")
+        assert self._schema("/api/v1/payments/status", "get")["$ref"].endswith("PaymentStatusResponse")
+        assert self._schema("/api/v1/payments/order/{order_id}", "get")["$ref"].endswith("OrderStatusResponse")
+        assert self._schema("/api/v1/payments/create-order", "post")["$ref"].endswith("CreateOrderResponse")
+
+    def test_discovery_search_and_daily_routes_are_typed(self):
+        """BE-07: global search and daily recommendation used bare dicts."""
+        assert self._schema("/api/v1/discovery/search", "get")["$ref"].endswith("SearchResponse")
+        assert self._schema("/api/v1/discovery/daily", "get")["$ref"].endswith("DailyPreviewResponse")
+        assert self._schema("/api/v1/discovery/daily/start", "post")["$ref"].endswith("DailyStartResponse")
+        assert self._schema("/api/v1/discovery/practice-summary", "get")["$ref"].endswith("PracticeSummaryResponse")
+
+    def test_recommendation_and_presence_routes_are_typed(self):
+        """BE-07: recommendation feeds, heartbeat and unlocked-ids were dicts."""
+        assert self._schema("/api/v1/recommendations/home", "get")["$ref"].endswith("RecommendationHomeResponse")
+        assert self._schema("/api/v1/recommendations/category/{tag}", "get")["$ref"].endswith(
+            "RecommendationCategoryResponse"
+        )
+        assert self._schema("/api/v1/presence/heartbeat", "post")["$ref"].endswith("OkResponse")
+        assert self._schema("/api/v1/videos/unlocked-ids", "get")["$ref"].endswith("UnlockedVideoIdsResponse")
+
+    def test_user_overview_is_typed(self):
+        """BE-07: the aggregated profile overview used a bare dict."""
+        assert self._schema("/api/v1/users/me/overview", "get")["$ref"].endswith("OverviewResponse")
+
+    def test_discovery_set_crud_routes_are_typed(self):
+        """BE-07: user-created set CRUD used bare acknowledgement dicts."""
+        assert self._schema("/api/v1/discovery/sets", "post", "201")["$ref"].endswith("SetCreatedResponse")
+        assert self._schema("/api/v1/discovery/sets/{set_id}", "patch")["$ref"].endswith("SetRenamedResponse")
+        assert self._schema("/api/v1/discovery/sets/{set_id}", "delete")["$ref"].endswith("SetDeletedResponse")
+        assert self._schema("/api/v1/discovery/sets/{set_id}/words", "post")["$ref"].endswith("SetWordsAddedResponse")
+        assert self._schema("/api/v1/discovery/sets/{set_id}/words/{set_word_id}", "delete")["$ref"].endswith(
+            "SetWordRemovedResponse"
+        )
+
+    def test_browse_and_discovery_catalog_helpers_are_typed(self):
+        """BE-07: categories/featured/dictionary/learning-metadata used dicts."""
+        assert self._schema("/api/v1/browse/categories", "get")["$ref"].endswith("CategoriesResponse")
+        assert self._schema("/api/v1/browse/featured", "get")["$ref"].endswith("FeaturedVideosResponse")
+        assert self._schema("/api/v1/discovery/dictionary", "get")["$ref"].endswith("DictionaryResponse")
+        metadata = self._schema("/api/v1/discovery/learning-metadata", "get")
+        assert metadata["type"] == "object"
+        assert metadata["additionalProperties"]["$ref"].endswith("LearningMetadataItem")
+
+    def test_exam_routes_have_typed_models(self):
+        """BE-07: exam paper/wrong/attempt lists and stats must be typed."""
+        assert self._schema("/api/v1/exams", "get")["$ref"].endswith("ExamPaperListResponse")
+        assert self._schema("/api/v1/exams/wrong", "get")["$ref"].endswith("PaginatedResponse_ExamWrongItem_")
+        assert self._schema("/api/v1/exams/attempts", "get")["$ref"].endswith("PaginatedResponse_ExamAttemptItem_")
+        assert self._schema("/api/v1/exams/attempts/{session_id}", "get")["$ref"].endswith("ExamAttemptDetailResponse")
+
+    def test_vocabulary_routes_have_typed_models(self):
+        """BE-07: daily session/practice/word actions used bare dicts."""
+        assert self._schema("/api/v1/vocabulary/daily-session", "get")["$ref"].endswith("DailySessionResponse")
+        assert self._schema("/api/v1/vocabulary/practice", "get")["$ref"].endswith("VocabularyPracticeResponse")
+        assert self._schema("/api/v1/vocabulary", "post", "201")["$ref"].endswith("VocabularyAddResponse")
+        assert self._schema("/api/v1/vocabulary/{word_id}/review", "post")["$ref"].endswith("VocabularyReviewResponse")
+        assert self._schema("/api/v1/vocabulary/{word_id}/mastered", "post")["$ref"].endswith(
+            "VocabularyMasteredResponse"
+        )
+        assert self._schema("/api/v1/vocabulary/{word_id}", "delete")["$ref"].endswith("VocabularyDeleteResponse")
+        assert self._schema("/api/v1/vocabulary/words", "get")["$ref"].endswith("LearningWordsResponse")
+
+    def test_vocab_set_routes_have_typed_models(self):
+        """BE-07: vocab-set collect/list/detail/sieve used bare dicts."""
+        assert self._schema("/api/v1/vocab-sets", "post")["$ref"].endswith("CollectVocabSetResponse")
+        assert self._schema("/api/v1/vocab-sets", "get")["type"] == "array"
+        assert self._schema("/api/v1/vocab-sets/{set_id}", "get")["$ref"].endswith("VocabSetDetail")
+        assert self._schema("/api/v1/vocab-sets/{set_id}/sieve", "get")["$ref"].endswith("SieveStateResponse")
+        for path in (
+            "/api/v1/vocab-sets/{set_id}/words/{set_word_id}/learned",
+            "/api/v1/vocab-sets/{set_id}/words/{set_word_id}/unmark",
+            "/api/v1/vocab-sets/{set_id}/words/{set_word_id}/sieve",
+        ):
+            assert self._schema(path, "post")["$ref"].endswith("SetWordProgressResponse")
+
+    def test_video_like_and_search_suggestion_routes_are_typed(self):
+        """BE-07: like/search helper endpoints used to return bare dicts."""
+        assert self._schema("/api/v1/videos/{video_id}/like", "post")["$ref"].endswith("VideoLikeToggleResponse")
+        assert self._schema("/api/v1/videos/{video_id}/like-status", "get")["$ref"].endswith("VideoLikeStatusResponse")
+        assert self._schema("/api/v1/videos/search/suggest", "get")["$ref"].endswith("SearchSuggestionsResponse")
+        assert self._schema("/api/v1/videos/search/hot", "get")["$ref"].endswith("HotSearchesResponse")
+
+    def test_learning_stats_and_continue_routes_are_typed(self):
+        """BE-07: continue/progress/weekly stats used to return bare dicts."""
+        assert self._schema("/api/v1/learning/continue", "get")["$ref"].endswith("ContinueLearningResponse")
+        assert self._schema("/api/v1/learning/progress/{video_id}", "get")["$ref"].endswith("WatchProgressResponse")
+        assert self._schema("/api/v1/learning/stats/weekly", "get")["$ref"].endswith("WeeklyStatsResponse")
+        dist = self._schema("/api/v1/learning/stats/event-distribution", "get")
+        assert dist["type"] == "array"
+
+    def test_discovery_subscription_and_favorite_routes_are_typed(self):
+        """BE-07: discovery subscription/favorite routes used untyped dicts."""
+        assert self._schema("/api/v1/discovery/subscriptions", "get")["type"] == "array"
+        assert self._schema("/api/v1/discovery/subscriptions/{slug}", "put")["$ref"].endswith("SubscriptionState")
+        assert self._schema("/api/v1/discovery/sentence-favorites", "get")["$ref"].endswith(
+            "PaginatedResponse_SentenceFavoriteItem_"
+        )
+        assert self._schema("/api/v1/discovery/sentence-favorites/{subtitle_id}", "put")["$ref"].endswith(
+            "SentenceFavoriteStatus"
+        )
+
+    def test_channel_routes_have_typed_models(self):
+        """BE-07: channel directory and detail used to return untyped dicts."""
+        assert self._schema("/api/v1/channels", "get")["$ref"].endswith("PaginatedResponse_ChannelCard_")
+        assert self._schema("/api/v1/channels/{slug}", "get")["$ref"].endswith("ChannelDetailResponse")
+
+    def test_listening_routes_have_typed_models(self):
+        """The newest feature routes must appear in OpenAPI with concrete items."""
+        assert self._schema("/api/v1/listening/videos", "get")["$ref"].endswith("PaginatedResponse_ListeningVideoCard_")
+        assert self._schema("/api/v1/listening/sessions", "get")["$ref"].endswith(
+            "PaginatedResponse_ListeningSessionSummary_"
+        )
+        for method in ("post",):
+            assert self._schema("/api/v1/listening/sessions", method)["$ref"].endswith("ListeningSessionResponse")
+
+    def test_all_paginated_responses_have_typed_items(self):
+        """Every ``PaginatedResponse[...]`` in the OpenAPI must type its items.
+
+        Regression for BE-07: four admin/catalog lists (and
+        ``/videos/{id}/vocabulary``) used bare or ``dict`` item types, so the
+        OpenAPI showed ``items: {}`` and generated clients could not see fields.
+        """
+        from app.main import create_app
+
+        schemas = create_app().openapi()["components"]["schemas"]
+        assert "PaginatedResponse" not in schemas, "bare PaginatedResponse leaked into OpenAPI"
+        paginated = {name: schema for name, schema in schemas.items() if name.startswith("PaginatedResponse_")}
+        assert paginated, "expected at least one typed paginated response"
+        for name, schema in paginated.items():
+            items = schema["properties"]["items"]
+            assert items.get("type") == "array", name
+            assert items.get("items"), f"{name} has untyped items"
+            assert items["items"].get("$ref") != "#/components/schemas/dict", f"{name} still uses dict items"
 
     def test_notification_preferences_are_typed(self):
         for method in ("get", "put"):

@@ -378,9 +378,15 @@ def _post_transcription_callback(
 ) -> bool:
     """POST transcription results to the cloud callback endpoint.
 
-    Retries 5xx / transport errors with exponential backoff; 4xx responses are
-    not retried (permanent client-side problem). Returns True on acknowledged
-    delivery. Used by the GPU worker, which has no database access.
+    Retries 5xx / 408 / 425 / 429 and transport errors with exponential
+    backoff. Other 4xx responses are permanent client-side problems (bad
+    secret, deleted video, invalid payload) and are not retried. Returns True
+    on acknowledged delivery. Used by the GPU worker, which has no database
+    access.
+
+    The callback endpoint itself rate-limits at 30/min, so 429 is transient and
+    must be retried — treating every 4xx as permanent used to drop a finished
+    GPU transcription on the floor.
     """
     import httpx
 
@@ -415,6 +421,7 @@ def _post_transcription_callback(
     headers = {"X-Callback-Secret": settings.transcription_callback_secret}
     max_retries = settings.transcription_callback_max_retries
     timeout = settings.transcription_callback_timeout
+    transient_4xx = {408, 425, 429}
 
     for attempt in range(max_retries + 1):
         try:
@@ -423,21 +430,42 @@ def _post_transcription_callback(
             if 200 <= resp.status_code < 300:
                 logger.info("Transcription callback delivered", video_id=video_id, status=status, attempt=attempt)
                 return True
-            if 400 <= resp.status_code < 500:
+            if 400 <= resp.status_code < 500 and resp.status_code not in transient_4xx:
                 logger.error(
-                    "Transcription callback rejected (4xx, not retrying)",
+                    "Transcription callback rejected (permanent 4xx, not retrying)",
                     video_id=video_id,
                     code=resp.status_code,
                     body=resp.text[:200],
                 )
                 return False
-            # 5xx → fall through to retry
+            # 5xx and transient 4xx (rate limit / timeout / too early) → retry
+            logger.warning(
+                "Transcription callback transient failure",
+                video_id=video_id,
+                code=resp.status_code,
+                attempt=attempt,
+            )
         except httpx.HTTPError as e:
             logger.warning("Transcription callback error", video_id=video_id, attempt=attempt, error=str(e))
         if attempt < max_retries:
             time.sleep(min(2**attempt, 30))
     logger.error("Transcription callback exhausted retries", video_id=video_id, status=status)
     return False
+
+
+def _send_alert_sync(title: str, message: str, *, severity: str = "critical") -> None:
+    """Fire an alert from a synchronous Celery task (best effort).
+
+    ``send_alert`` is async because the webhook uses httpx; the GPU task is
+    synchronous and runs in a prefork worker with no event loop, so a fresh
+    loop is safe here. Never let alerting break the task itself.
+    """
+    try:
+        from app.services.alert_service import send_alert
+
+        asyncio.run(send_alert(title, message, severity=severity))
+    except Exception:
+        logger.warning("GPU task alert delivery failed", exc_info=True)
 
 
 @celery_app.task(bind=True, max_retries=3, name="app.tasks.video_processing.transcribe_video_gpu")
@@ -455,15 +483,34 @@ def transcribe_video_gpu(self, video_id: str, source: str, platform: str, langua
     try:
         svc = TranscriptionService()
         segments = svc._sync_transcribe(source, VideoSource(platform))
-        _post_transcription_callback(video_id, status="ok", segments=segments)
     except Exception as e:
         logger.exception("GPU transcription failed for video %s", video_id)
         if self.request.retries >= self.max_retries:
             # Let the cloud know transcription is unrecoverable so it can mark
             # the video failed instead of waiting for the watchdog.
             _post_transcription_callback(video_id, status="error", error=str(e))
+            _send_alert_sync(
+                "GPU 转录最终失败",
+                f"video {video_id}: {e}",
+            )
             raise
         raise self.retry(exc=e, countdown=60) from e
+
+    if not _post_transcription_callback(video_id, status="ok", segments=segments):
+        # The transcription itself succeeded; only delivery failed (e.g.
+        # rate limit / network). Retrying re-runs the transcription, but that
+        # is cheaper than leaving the video stuck in ``processing`` with a
+        # silently "successful" Celery task.
+        logger.error("GPU transcription callback delivery failed; retrying task for %s", video_id)
+        if self.request.retries >= self.max_retries:
+            _send_alert_sync(
+                "GPU 转录回调投递最终失败",
+                f"video {video_id}: callback still undeliverable after {self.max_retries} retries",
+            )
+        raise self.retry(
+            exc=RuntimeError(f"transcription callback delivery failed for {video_id}"),
+            countdown=60,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -516,6 +563,14 @@ async def _run_translating(ctx: PipelineCtx) -> None:
     from app.models.video import VideoStatus
 
     db, video, video_id = ctx.db, ctx.video, ctx.video_id
+    # Stamp the translating step *before* the LLM work starts. The old code
+    # only touched step_started_at after every subtitle was translated, so the
+    # watchdog kept seeing the transcription start time while a long
+    # translation was legitimately running and could mark the video error.
+    video.processing_step = "translating"
+    touch_step_started_at(video)
+    video.processing_progress = STEP_PROGRESS["translating"]
+    await db.commit()
     sub_result = await db.execute(
         select(Subtitle).where(Subtitle.video_id == video.id).order_by(Subtitle.sentence_index)
     )
@@ -578,8 +633,15 @@ async def _run_translating(ctx: PipelineCtx) -> None:
             ctx.stop()
             return
         video.quality_flag = decision  # "quality_warning" or None
-    video.processing_step = "translating"
-    touch_step_started_at(video)
+
+    # Best-effort Chinese title for every card surface. It runs inside the same
+    # transaction as the subtitle translations but must never fail the step —
+    # translate_video_title already swallows engine errors and returns None.
+    if not video.title_zh:
+        from app.services.video_title import translate_video_title
+
+        video.title_zh = await translate_video_title(video.title, engine=ctx.engine)
+
     video.processing_progress = STEP_PROGRESS["translating"]
     await db.commit()
     await update_progress(video_id, "translating")
@@ -1067,7 +1129,29 @@ async def _run_watchdog_pipeline() -> None:
                 step=step,
             )
         if stuck:
+            # In-app fallback + out-of-band webhook: a timed-out pipeline used
+            # to leave only a log line, so nobody noticed until an admin
+            # happened to open the video list.
+            from app.services.notification_service import notify_admins
+
+            summary = ", ".join(f"{v.id}@{v.error_message}" for v in stuck[:10])
+            await notify_admins(
+                db,
+                title="管线步骤超时",
+                message=f"Watchdog 标记 {len(stuck)} 个视频失败：{summary}",
+                related_url=None,
+            )
             await db.commit()
+            try:
+                from app.services.alert_service import send_alert
+
+                await send_alert(
+                    "管线步骤超时",
+                    f"Watchdog marked {len(stuck)} video(s) failed. {summary}",
+                    severity="critical",
+                )
+            except Exception:
+                logger.warning("watchdog alert delivery failed", exc_info=True)
 
 
 @celery_app.task(name="app.tasks.video_processing.watchdog_stale_pipeline")

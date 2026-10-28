@@ -46,11 +46,23 @@ class VideoReviewStatus(str, enum.Enum):
 
 class Video(Base):
     __tablename__ = "videos"
-    __table_args__ = (Index("ix_videos_homepage_status", "show_on_homepage", "is_published", "status"),)
+    __table_args__ = (
+        Index("ix_videos_homepage_status", "show_on_homepage", "is_published", "status"),
+        # Public feed/ranking visibility triple (is_official, is_published,
+        # status): the homepage-first index cannot serve it.
+        Index("ix_videos_public", "is_official", "is_published", "status"),
+        # Created by an older migration and still useful for source-URL dedup;
+        # kept in the model so autogenerate does not see it as removable drift.
+        Index("ix_videos_source_url", "source_url"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
+    # Chinese display title (translated by the pipeline, editable by admins).
+    # Kept separate from ``title`` so the original English title stays the
+    # canonical source for search, dedup and standard-version matching.
+    title_zh: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_url: Mapped[str] = mapped_column(String(2000), nullable=False)
     video_source: Mapped[str] = mapped_column(
         SAEnum(VideoSource, name="videosource"), default=VideoSource.local, nullable=False

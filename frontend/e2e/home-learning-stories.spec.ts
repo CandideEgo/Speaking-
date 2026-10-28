@@ -122,59 +122,29 @@ async function mockStories(page: Page, mediaFails = false) {
   });
 }
 
-test("无编排时只展示一个真实视频任务，不展开教学细节", async ({ page }) => {
+test("普通精选不请求字幕预览或媒体，不展示学习任务", async ({ page }) => {
   await mockStories(page);
+  const unnecessary: string[] = [];
+  page.on("request", (request) => {
+    if (/learning-metadata|home-preview/.test(request.url())) unnecessary.push(request.url());
+  });
   await page.goto("/");
-
-  const task = page.getByRole("region", { name: "今日学习任务" });
-  await expect(task).toBeVisible();
-  await expect(task.locator(".home-editorial-lead")).toHaveCount(1);
-  await expect(task.getByRole("heading", { name: "Action verbs" })).toBeVisible();
-  await expect(task.getByText("学会日常生活里的自然表达", { exact: false })).toBeVisible();
-  await expect(task.getByRole("link", { name: "从这段开始 · 3:00" })).toHaveAttribute(
+  const card = page.getByRole("article", { name: "精选视频", exact: true });
+  await expect(card.getByRole("heading", { name: "Action verbs", exact: true })).toBeVisible();
+  await expect(card.getByRole("link", { name: "观看完整视频", exact: true })).toHaveAttribute(
     "href",
     "/watch/actions?from=home"
   );
-  await expect(task.getByText("Kick. Flick. Skip. Punch. Yank.")).toBeVisible();
-  await expect(task.getByText("踢。弹。跳。打。拽。")).toBeVisible();
-
-  // 没有编辑场景时不拿原句硬凑「今天就能用」。
   await expect(page.locator("#home-scenarios")).toHaveCount(0);
-  await expect(
-    page.getByRole("region", { name: "词汇复习" }).getByRole("link", { name: /先复习/ })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("region", { name: "找视频", exact: true }).getByRole("link", { name: /按主题/ })
-  ).toHaveAttribute("href", "#feed");
+  await expect(page.getByText("Kick. Flick. Skip. Punch. Yank.")).toHaveCount(0);
+  expect(unnecessary).toEqual([]);
 });
 
-test("首屏只有一个任务位，不需要先做选择或展开预览", async ({ page }) => {
-  await mockStories(page);
+test("媒体不可试听仍可进入完整视频", async ({ page }) => {
+  await mockStories(page, true);
   await page.goto("/");
-
-  await expect(page.locator(".home-editorial-lead")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "学前预览" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "脸和手的细节" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "开始观看" })).toHaveCount(0);
-  await expect(page.locator(".home-story-more")).toHaveCount(0);
-});
-
-test("390 手机和 1440 桌面都能读到任务与主按钮，没有水平溢出", async ({ page }) => {
-  await mockStories(page);
-  await page.goto("/");
-  for (const width of [390, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    const task = page.getByRole("region", { name: "今日学习任务" });
-    await expect(task).toBeVisible();
-    await expect(task.getByRole("link", { name: /从这段开始/ })).toBeVisible();
-    const metrics = await page.evaluate(() => ({
-      width: innerWidth,
-      scroll: document.documentElement.scrollWidth,
-    }));
-    expect(metrics.scroll).toBeLessThanOrEqual(metrics.width);
-    const content = await page
-      .locator(".home-compact")
-      .evaluate((element) => ({ width: element.clientWidth, scroll: element.scrollWidth }));
-    expect(content.scroll).toBeLessThanOrEqual(content.width);
-  }
+  await expect(page.getByRole("link", { name: "观看完整视频", exact: true })).toHaveAttribute(
+    "href",
+    "/watch/actions?from=home"
+  );
 });

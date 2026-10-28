@@ -25,12 +25,20 @@ export function useScrollRestore(
   // 原地筛选只在进入页面时恢复一次，换条件仍按新 key 保存当前位置。
   // StrictMode 同 key 重挂 effect 时仍可恢复，避免首轮清理取消恢复后丢失位置。
   const entryKey = useRef<string | null>(key);
+  // 挂载时的路由。壳层滚动容器跨路由共用，离场时它的重置滚动属于下一个页面。
+  const entryUrl = useRef("");
   useEffect(() => {
     if (!restoreOnKeyChange && entryKey.current !== key) entryKey.current = null;
     if (!ready) return;
     const container = document.getElementById(SCROLL_CONTAINER_ID);
     if (!container) return;
-    return watchContainer(container, () => key, restoreOnKeyChange || entryKey.current === key);
+    entryUrl.current = `${window.location.pathname}${window.location.search}`;
+    return watchContainer(
+      container,
+      () => key,
+      restoreOnKeyChange || entryKey.current === key,
+      entryUrl.current
+    );
   }, [ready, key, restoreOnKeyChange]);
 }
 
@@ -38,7 +46,8 @@ export function useScrollRestore(
 function watchContainer(
   container: HTMLElement,
   currentKey: () => string,
-  restore: boolean
+  restore: boolean,
+  entryUrl: string
 ): () => void {
   let restoring = false;
   let frame = 0;
@@ -97,6 +106,10 @@ function watchContainer(
   function onScroll() {
     // 恢复期间的中间位置不能写：会把存档覆盖成一个没人想回去的偏移。
     if (restoring) return;
+    // 壳层滚动容器跨路由共用：离开本页时滚动会被重置，Firefox 会在组件清理
+    // 之前发出一次 scroll(0)。route 已切换说明这个滚动属于下一个页面，写进本页
+    // 存档就会让「返回列表恢复位置」失效。
+    if (`${window.location.pathname}${window.location.search}` !== entryUrl) return;
     pending = { key: currentKey(), top: container.scrollTop };
     if (timer === null) timer = setTimeout(flush, SAVE_THROTTLE_MS);
   }

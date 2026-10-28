@@ -81,7 +81,7 @@ export default function SubtitleModeTabs({
     // 搬到分段容器上）。三段各 ≥44px 高，补上原来 32px chip 行欠的触控基线。
     <div className="flex h-12 items-center gap-1 px-2 overflow-x-auto scrollbar-hide shrink-0">
       <div
-        className="flex items-center gap-0.5 rounded-lg bg-surface-card p-0.5"
+        className="flex min-w-0 flex-1 items-center gap-0.5 rounded-lg bg-surface-card p-0.5"
         role="tablist"
         aria-label="字幕模式"
         onKeyDown={handleKeyDown}
@@ -97,7 +97,7 @@ export default function SubtitleModeTabs({
             aria-selected={subtitleMode === m.key}
             tabIndex={subtitleMode === m.key ? 0 : -1}
             className={cn(
-              "flex h-11 min-w-[72px] items-center justify-center gap-1.5 rounded-md px-3 text-copy font-semibold whitespace-nowrap transition-colors duration-150 cursor-pointer",
+              "flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-meta font-semibold whitespace-nowrap transition-colors duration-150 cursor-pointer",
               compact && "px-2",
               subtitleMode === m.key
                 ? "bg-canvas text-brand-700 shadow-sm"
@@ -116,7 +116,7 @@ export default function SubtitleModeTabs({
           onClick={onToggleCollapse}
           // 折叠键在移动端没有对象（≤1023px 折出的竖轨并不真的让出一列），只在桌面渲染
           // —— `hidden lg:flex`，与 `isMobile` 同一档断点（DEC-070 T4b）。
-          className="hidden lg:flex ml-auto items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-ink hover:bg-surface-soft transition-colors duration-150 cursor-pointer"
+          className="hidden min-[1025px]:flex ml-auto items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-ink hover:bg-surface-soft transition-colors duration-150 cursor-pointer"
           title={collapsed ? "展开字幕面板" : "收起为字幕轨"}
           aria-label={collapsed ? "展开字幕面板" : "收起为字幕轨"}
         >

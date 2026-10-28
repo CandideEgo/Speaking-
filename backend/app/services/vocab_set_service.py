@@ -33,6 +33,7 @@ from app.models.video import Video
 from app.models.vocab_set import VocabSet, VocabSetWord
 from app.services import ecdict
 from app.services.exam_service import user_target_level
+from app.services.vocabulary_service import apply_ecdict_fields
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +61,6 @@ _FALLBACK_LEVEL = "cet4"
 # Unmark scheduling (S8): a word leaving 已掌握 re-enters the loop on the
 # DEC-057 次日 schedule — the same first interval a round-wrong word gets.
 UNMARK_INTERVAL_DAYS = 1
-
-# ECDICT's pos field carries frequency codes ("v:2/n:98") and can exceed the
-# Vocabulary.part_of_speech column width — truncate defensively.
-_POS_MAX_LEN = 20
 
 
 def _level_label(level: str) -> str:
@@ -184,11 +181,12 @@ async def _find_or_create_vocab(
     """Find (or create + ECDICT-enrich) the user's Vocabulary row for a token.
 
     New rows are filled from ``ecdict.lookup`` — definition / translation /
-    part_of_speech / ipa — with ``first_seen_at`` stamped on creation, plus the
-    originating ``subtitle_id`` (词→句 deep link, S7). ``mastery_level`` stays at
-    its default "new"; lookups returning nothing still create the row (the
-    sieve only needs the word itself). Existing rows are returned untouched:
-    一词多视频不做多来源 (设计文档 §7.4), the first source sentence wins.
+    part_of_speech / ipa / exam_level — with ``first_seen_at`` stamped on
+    creation, plus the originating ``subtitle_id`` (词→句 deep link, S7).
+    ``mastery_level`` stays at its default "new"; lookups returning nothing
+    still create the row (the sieve only needs the word itself). Existing rows
+    are returned untouched: 一词多视频不做多来源 (设计文档 §7.4), the first
+    source sentence wins.
     """
     vocab = (
         await db.execute(select(Vocabulary).where(Vocabulary.user_id == user_id, Vocabulary.word == token))
@@ -205,13 +203,7 @@ async def _find_or_create_vocab(
     )
     entry = ecdict.lookup(token)
     if entry:
-        vocab.definition = entry.get("definition")
-        vocab.translation = entry.get("translation")
-        pos = entry.get("pos")
-        vocab.part_of_speech = pos[:_POS_MAX_LEN] if pos else None
-        vocab.ipa = entry.get("phonetic")
-        if entry.get("example_sentences"):
-            vocab.example_sentences = entry["example_sentences"]
+        apply_ecdict_fields(vocab, entry)
     db.add(vocab)
     try:
         # SAVEPOINT around the insert: two concurrent collects for the same
@@ -418,7 +410,12 @@ async def get_set_detail(db: AsyncSession, user: User, set_id: str, scope: str =
             "part_of_speech": v.part_of_speech,
             "definition": v.definition,
             "mastery_level": v.mastery_level,
-            "context_sentence": v.context_sentence,
+            # 原句优先用收词时存下的 ``context_sentence``；从视频收来的词通常
+            # 只带了 ``subtitle_id``，此时用关联字幕的英文原句补上——否则每一行
+            # 都显示「没有原句」，而句子其实就在隔壁这张表里。
+            "context_sentence": v.context_sentence or (sub.text_en if sub is not None else None),
+            "context_sentence_zh": sub.text_zh if sub is not None else None,
+            "exam_level": v.exam_level,
             "subtitle_id": v.subtitle_id,
             "video_id": v.video_id,
             "start_time": sub.start_time if sub is not None else None,

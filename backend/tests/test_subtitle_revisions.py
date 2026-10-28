@@ -169,6 +169,69 @@ class TestRollback:
         assert items[0]["after"]["text_en"] == "hello"
         assert items[0]["before"]["text_en"] == "changed"
 
+    async def test_rollback_rejects_and_does_not_commit_overlap(
+        self, client: AsyncClient, auth_headers: dict, admin_headers: dict
+    ):
+        """ADM-13: 回滚把旧时间轴带回来时，若与当前邻居重叠 → 409 且不落库。"""
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            owner = await _owner_id(db)
+            v = Video(
+                title="Rollback overlap",
+                source_url="https://www.youtube.com/watch?v=rollback_overlap",
+                video_source="imported",
+                status=VideoStatus.ready,
+                is_official=False,
+                is_published=False,
+                user_id=owner,
+            )
+            db.add(v)
+            await db.flush()
+            first = Subtitle(video_id=v.id, start_time=0.0, end_time=2.0, text_en="first", sentence_index=0)
+            second = Subtitle(video_id=v.id, start_time=3.0, end_time=4.0, text_en="second", sentence_index=1)
+            db.add_all([first, second])
+            await db.commit()
+            vid, first_id, second_id = v.id, first.id, second.id
+
+        # 1) 缩短第一句，让 revision 记下「回滚会变回 end=2.0」。
+        resp = await client.patch(
+            f"/api/v1/videos/admin/{vid}/subtitles/{first_id}",
+            json={"end_time": 1.0},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        resp = await client.get(f"/api/v1/videos/admin/{vid}/subtitles/{first_id}/revisions", headers=admin_headers)
+        rev_id = resp.json()["items"][0]["id"]
+
+        # 2) 邻居前移：现在允许（第一句已缩短到 1.0）。
+        resp = await client.patch(
+            f"/api/v1/videos/admin/{vid}/subtitles/{second_id}",
+            json={"start_time": 1.5},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200, resp.text
+
+        # 3) 回滚第一句会把 end 恢复成 2.0 → 与 second.start=1.5 重叠。
+        resp = await client.post(
+            f"/api/v1/videos/admin/{vid}/subtitles/{first_id}/rollback/{rev_id}",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 409, resp.text
+        assert resp.json()["code"] == "CONFLICT"
+        assert "冲突" in resp.json()["message"]
+
+        # 没有半提交状态：时间轴原样，回滚也没有写新的 revision。
+        async with TestSessionLocal() as db:
+            first = await db.get(Subtitle, first_id)
+            second = await db.get(Subtitle, second_id)
+            assert first.end_time == 1.0
+            assert second.start_time == 1.5
+            revisions = (
+                (await db.execute(select(SubtitleRevision).where(SubtitleRevision.video_id == vid))).scalars().all()
+            )
+            assert len(revisions) == 2  # 两次编辑，回滚未落审计
+
 
 class TestHistoryEndpoints:
     """Per-video and per-subtitle revision listings."""

@@ -1,4 +1,16 @@
-import type { RefObject } from "react";
+"use client";
+
+import {
+  createContext,
+  useContext,
+  useState,
+  type RefObject,
+  type ReactNode,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { usePathname } from "next/navigation";
+import { WatchBottomBar } from "@/components/watch/WatchBottomBar";
 
 /** Low-frequency playback callbacks shared by the watch page and its inline controls. */
 export interface WatchChromeState {
@@ -41,4 +53,29 @@ export interface WatchChromeState {
   sentenceNavDisabled?: boolean;
   onReplay?: () => void;
   onSeek?: (time: number, playAfterSeek?: boolean) => void;
+}
+
+const ChromeContext = createContext<WatchChromeState | null>(null);
+const PublishContext = createContext<Dispatch<SetStateAction<WatchChromeState | null>> | null>(
+  null
+);
+
+export function WatchChromeProvider({ children }: { children: ReactNode }) {
+  const [chrome, setChrome] = useState<WatchChromeState | null>(null);
+  return (
+    <PublishContext.Provider value={setChrome}>
+      <ChromeContext.Provider value={chrome}>{children}</ChromeContext.Provider>
+    </PublishContext.Provider>
+  );
+}
+
+export function usePublishWatchChrome() {
+  return useContext(PublishContext);
+}
+
+/** A normal shell row above global navigation, outside the scrolling main. */
+export function WatchShellControls() {
+  const chrome = useContext(ChromeContext);
+  const pathname = usePathname();
+  return chrome && /^\/watch\/[^/]+$/.test(pathname) ? <WatchBottomBar chrome={chrome} /> : null;
 }

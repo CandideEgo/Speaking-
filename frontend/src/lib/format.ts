@@ -59,9 +59,27 @@ export function formatRelativeDay(value: string | null | undefined): string | nu
 /**
  * Format a view count to compact string (e.g. 1.2M, 3.4K)
  */
-export function formatViews(n: number | null): string {
-  if (!n) return "";
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1000).toFixed(1)}K`;
+export function formatCount(value: number | null | undefined, locale: "zh" | "en" = "zh"): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const n = Math.max(0, Math.round(value));
+  const units: [number, string][] =
+    locale === "zh"
+      ? [
+          [100_000_000, "亿"],
+          [10_000, "万"],
+        ]
+      : [
+          [1_000_000_000, "B"],
+          [1_000_000, "M"],
+          [1_000, "K"],
+        ];
+  for (const [base, suffix] of units) {
+    if (n >= base) return `${Number((n / base).toFixed(1))}${suffix}`;
+  }
   return String(n);
+}
+
+/** Compatibility alias: all counts now follow one locale-aware formatter. */
+export function formatViews(n: number | null): string {
+  return formatCount(n);
 }

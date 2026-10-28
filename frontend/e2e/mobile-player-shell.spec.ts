@@ -81,9 +81,16 @@ test.describe("用户端观看布局", () => {
       await expect(page.locator('[data-testid="watch-top-bar"]')).toHaveCount(0);
       const controls = page.getByTestId("watch-bottom-bar");
       await controls.scrollIntoViewIfNeeded();
-      expect(await controls.getAttribute("data-shell-bottom-bar")).toBeNull();
+      expect(await controls.getAttribute("data-shell-bottom-bar")).toBe("watch");
+      expect(
+        await page
+          .locator("main")
+          .evaluate((main) =>
+            main.contains(document.querySelector('[data-shell-bottom-bar="watch"]'))
+          )
+      ).toBe(false);
       const controlBox = (await controls.boundingBox())!;
-      expect(controlBox.y + controlBox.height).toBeLessThanOrEqual(tabs.y + 1);
+      expect(controlBox.y + controlBox.height).toBeCloseTo(tabs.y, 0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(
         false
       );

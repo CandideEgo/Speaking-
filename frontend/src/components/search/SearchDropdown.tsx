@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { Loader2, FileSearch, Subtitles } from "lucide-react";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { watchHref } from "@/lib/watchEntry";
 
 export interface SearchResultItem {
   id: string;
   title: string;
+  title_zh?: string | null;
   video_source: string;
   thumbnail_url: string | null;
   difficulty_level: string | null;
@@ -114,7 +116,12 @@ export function SearchDropdown({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-copy font-medium text-ink line-clamp-1">{video.title}</p>
+                    <VideoTitle
+                      video={video}
+                      as="span"
+                      clampZh={1}
+                      zhClassName="text-copy font-medium text-ink"
+                    />
                     <div className="flex items-center gap-2 mt-0.5">
                       <DifficultyBadge level={video.difficulty_level} />
                     </div>
@@ -153,9 +160,12 @@ export function SearchDropdown({
                     </div>
                     <div className="flex-1 min-w-0">
                       {si === 0 && (
-                        <p className="text-meta font-medium text-ink line-clamp-1">
-                          {result.video.title}
-                        </p>
+                        <VideoTitle
+                          video={result.video}
+                          as="span"
+                          clampZh={1}
+                          zhClassName="text-meta font-medium text-ink"
+                        />
                       )}
                       <p className="text-meta text-muted line-clamp-1 mt-0.5">
                         <span className="text-muted font-mono mr-1.5">

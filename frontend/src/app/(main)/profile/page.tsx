@@ -10,15 +10,18 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageTransition } from "@/components/common/PageTransition";
-import { User as UserIcon, Settings, TrendingUp, Sparkles } from "lucide-react";
+import { User as UserIcon, Settings, TrendingUp, Bookmark, Bell, Phone, Crown } from "lucide-react";
 import ProfileTab from "@/components/profile/ProfileTab";
 import SettingsTab from "@/components/profile/SettingsTab";
+import { ProfileOverview } from "@/components/profile/ProfileOverview";
 import { MasteryTrend } from "@/components/profile/MasteryTrend";
 import {
   EventDistributionChart,
   type EventDistributionItem,
 } from "@/components/profile/EventDistributionChart";
 import { useProfileStore } from "@/stores/profileStore";
+import { useNotificationStore } from "@/stores/notificationStore";
+import { LinkButton } from "@/components/ui/LinkButton";
 
 import { EXAM_LEVELS } from "@/lib/examLevels";
 import { cn } from "@/lib/utils";
@@ -43,15 +46,21 @@ function daysSince(iso: string): number {
   return Math.max(0, Math.floor(diff / 86400000));
 }
 
+/** 头部文案：「加入 0 天」读着别扭，注册当天写「今天加入」。 */
+function joinedLabel(iso: string): string {
+  const days = daysSince(iso);
+  return days === 0 ? "今天加入" : `加入 ${days} 天`;
+}
+
 function targetLabel(preferences: UserPreferences | null): string | null {
   const key = preferences?.target_exam;
   if (!key) return null;
   return EXAM_LEVELS.find((l) => l.key === key)?.label ?? null;
 }
 
-// 设计稿三组（个人资料 / 学习设置 / 账号）；产品把学习统计拆成「学习进度」，
-// 这里保留 4 个 tab，但补齐账号分组（改密/通知/导出/注销）与设计一致的键盘语义。
+// 默认展示个人内容；资料、进度和账户设置仍由原查询参数直接访问。
 const TABS = [
+  { key: "content", label: "内容", longLabel: "我的内容", icon: Bookmark },
   { key: "profile", label: "资料", longLabel: "个人资料", icon: UserIcon },
   { key: "progress", label: "进度", longLabel: "学习进度", icon: TrendingUp },
   { key: "account", label: "账号", longLabel: "账号", icon: Settings },
@@ -60,12 +69,21 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
+/** 各 tab 只显示对应标题。 */
+const TAB_HEADERS: Record<TabKey, { title: string }> = {
+  content: { title: "我的内容" },
+  profile: { title: "个人资料" },
+  progress: { title: "学习进度" },
+  account: { title: "账号与安全" },
+  settings: { title: "学习设置" },
+};
+
 export default function ProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading } = useRequireAuth();
   const rawTab = searchParams.get("tab");
-  const activeTab: TabKey = TABS.find((tab) => tab.key === rawTab)?.key ?? "profile";
+  const activeTab: TabKey = TABS.find((tab) => tab.key === rawTab)?.key ?? "content";
   const setActiveTab = (tab: TabKey) => router.replace(`/profile?tab=${tab}`, { scroll: false });
   const [user, setUser] = useState<User | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
@@ -91,6 +109,8 @@ export default function ProfilePage() {
   const [vocabStats, setVocabStats] = useState<VocabStats | null>(null);
   const [recordsTotal, setRecordsTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  // 顶栏/侧栏已经在轮询未读数，这里直接复用同一个 store，避免再加一个请求。
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   // Every path that lands a `/users/me` payload — the initial load below, plus the
   // PATCH / upload / phone-change handlers wired through `onUpdate` — publishes it to
@@ -179,11 +199,7 @@ export default function ProfilePage() {
         </p>
       )}
       <div className="user-page">
-        <PageHeader
-          crumb="我的"
-          title="账户与学习设置"
-          description="管理个人资料、学习偏好与账户安全。"
-        />
+        <PageHeader crumb="我的" title={TAB_HEADERS[activeTab].title} variant="eyebrow" />
 
         {/* 用户卡（原型 07 user-card）：头像 + 身份 + 学习统计 */}
         <Card padding={5} className="mt-6 flex items-center gap-4">
@@ -203,6 +219,7 @@ export default function ProfilePage() {
                 {isProUser(user) ? "会员" : "免费版"}
               </span>
             </div>
+            {/* 身份副行在所有 tab 都显示：否则「我的内容」下这张卡只剩名字，右侧大片空白。 */}
             <div className="text-copy text-muted mt-1 flex items-center gap-2 flex-wrap">
               {user.phone && <span>{maskPhone(user.phone)}</span>}
               {targetLabel(preferences) && (
@@ -212,20 +229,22 @@ export default function ProfilePage() {
                 </>
               )}
               <span>·</span>
-              <span>加入 {daysSince(user.created_at)} 天</span>
+              <span>{joinedLabel(user.created_at)}</span>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-6">
-            {[
-              { n: recordsTotal, l: "已学视频" },
-              { n: vocabStats?.mastered_count, l: "掌握词汇" },
-            ].map((s) => (
-              <div key={s.l} className="text-center">
-                <div className="text-title font-extrabold font-mono text-ink">{s.n ?? "–"}</div>
-                <div className="text-caption text-muted mt-0.5">{s.l}</div>
-              </div>
-            ))}
-          </div>
+          {activeTab === "progress" && (
+            <div className="hidden sm:flex items-center gap-6">
+              {[
+                { n: recordsTotal, l: "已学视频" },
+                { n: vocabStats?.mastered_count, l: "掌握词汇" },
+              ].map((s) => (
+                <div key={s.l} className="text-center">
+                  <div className="text-title font-extrabold font-mono text-ink">{s.n ?? "–"}</div>
+                  <div className="text-caption text-muted mt-0.5">{s.l}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         <div className="user-page-layout has-aside">
@@ -234,7 +253,7 @@ export default function ProfilePage() {
             <div
               role="tablist"
               aria-label="账户与学习设置分组"
-              className="flex gap-1 overflow-x-auto border-b border-hairline"
+              className="flex flex-wrap gap-1 border-b border-hairline min-[1025px]:flex-nowrap"
             >
               {TABS.map((tab, index) => (
                 <button
@@ -254,7 +273,9 @@ export default function ProfilePage() {
                       : "border-transparent text-muted hover:text-ink"
                   )}
                 >
-                  <tab.icon size={16} />
+                  {/* 手机上五个 tab 带图标会超宽，把「设置」挤到横向滚动区外；
+                      窄屏只留文字，桌面再显示图标。 */}
+                  <tab.icon size={16} className="hidden sm:block" />
                   <span className="sm:hidden">{tab.label}</span>
                   <span className="hidden sm:inline">{tab.longLabel}</span>
                 </button>
@@ -263,6 +284,15 @@ export default function ProfilePage() {
 
             {/* Tab content */}
             <div className="mt-6">
+              {activeTab === "content" && (
+                <div
+                  id="profile-panel-content"
+                  role="tabpanel"
+                  aria-labelledby="profile-tab-content"
+                >
+                  <ProfileOverview />
+                </div>
+              )}
               {activeTab === "profile" && (
                 <div
                   id="profile-panel-profile"
@@ -284,7 +314,6 @@ export default function ProfilePage() {
                     <div className="user-sec-head">
                       <div>
                         <h2 className="user-sec-title">学习统计</h2>
-                        <p className="user-sec-sub mt-1">查看词汇积累与复习安排。</p>
                       </div>
                     </div>
                     <div className="user-stat-grid mt-4">
@@ -311,9 +340,6 @@ export default function ProfilePage() {
                     <div className="user-sec-head">
                       <div>
                         <h2 className="user-sec-title">词库增长与掌握度（近 8 周）</h2>
-                        <p className="user-sec-sub mt-1">
-                          每周一快照；总词汇、已掌握与学习中的变化。
-                        </p>
                       </div>
                     </div>
                     <Card padding={5} className="mt-4">
@@ -422,28 +448,90 @@ export default function ProfilePage() {
           </div>
 
           <aside className="user-page-aside">
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">相关页面</h2>
-              <ul className="space-y-2">
-                <li>
+            {/* 设计 me 页右栏：深色会员卡 + 账户卡。数据全部来自当前用户。 */}
+            <section
+              className="rounded-lg bg-ink p-5 text-canvas"
+              aria-labelledby="member-mini-title"
+            >
+              <p className="text-caption font-semibold tracking-[0.12em] uppercase text-on-dark/60">
+                {isProUser(user) ? "会员" : "免费体验"}
+              </p>
+              <h2
+                id="member-mini-title"
+                className="mt-2 text-title font-semibold tracking-tight text-canvas"
+              >
+                所有视频与逐句字幕
+              </h2>
+              <p className="mt-2 text-meta text-on-dark/70">
+                {isProUser(user) && user.plan_expires_at
+                  ? `有效期至 ${new Date(user.plan_expires_at).toLocaleDateString("zh-CN", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}`
+                  : "升级后解锁完整片库与精听功能"}
+              </p>
+              <LinkButton href="/upgrade" variant="secondary" size="sm" className="mt-4">
+                查看会员
+              </LinkButton>
+            </section>
+
+            <section
+              className="user-aside-sec rounded-md border border-hairline p-4"
+              aria-labelledby="account-title"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="account-title" className="user-aside-title mb-0">
+                  账户
+                </h2>
+                <Link
+                  href="/profile?tab=settings"
+                  className="text-meta font-semibold text-muted transition-colors hover:text-ink"
+                >
+                  设置
+                </Link>
+              </div>
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <Phone size={15} className="flex-none text-muted" aria-hidden />
+                  <div className="min-w-0">
+                    <p className="text-caption text-muted">手机号</p>
+                    <p className="truncate text-meta text-ink">
+                      {user.phone ? maskPhone(user.phone) : "未绑定"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Crown size={15} className="flex-none text-muted" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-caption text-muted">会员状态</p>
+                    <p className="text-meta text-ink">{isProUser(user) ? "会员" : "免费版"}</p>
+                  </div>
                   <Link
                     href="/upgrade"
-                    className="inline-flex items-center gap-1 text-copy font-semibold text-brand-700 hover:underline"
+                    aria-label="查看会员权益"
+                    className="inline-flex min-h-9 items-center text-caption font-semibold text-brand-700 hover:underline"
                   >
-                    <Sparkles size={14} />
-                    会员套餐
+                    查看
                   </Link>
-                </li>
-                <li>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Bell size={15} className="flex-none text-muted" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-caption text-muted">通知</p>
+                    <p className="text-meta text-ink">
+                      {unreadCount > 0 ? `${unreadCount} 条未读` : "没有未读"}
+                    </p>
+                  </div>
                   <Link
-                    href="/vocabulary"
-                    className="inline-flex items-center gap-1 text-copy font-semibold text-brand-700 hover:underline"
+                    href="/notifications"
+                    aria-label="查看通知"
+                    className="inline-flex min-h-9 items-center text-caption font-semibold text-brand-700 hover:underline"
                   >
-                    <TrendingUp size={14} />
-                    词汇与复习
+                    查看
                   </Link>
-                </li>
-              </ul>
+                </div>
+              </div>
             </section>
           </aside>
         </div>

@@ -42,4 +42,3 @@ class Subtitle(Base):
 
     # relationships
     video = relationship("Video", back_populates="subtitles")
-    speaking_attempts = relationship("SpeakingAttempt", back_populates="subtitle")

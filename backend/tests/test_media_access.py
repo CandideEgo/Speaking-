@@ -14,15 +14,25 @@ from app.core.security import create_token
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 
 
-@pytest.fixture
-def media_dir(tmp_path, monkeypatch):
+@pytest_asyncio.fixture
+async def media_dir(tmp_path, monkeypatch, db_session):
     """Point local_media_path at a temp dir with a shadowing recording + a
-    public media file."""
+    public media file. Creates the two users the tokens below refer to, because
+    media auth now goes through the full chain (user must exist)."""
+    from app.models.user import User
+
     settings = get_settings()
     monkeypatch.setattr(settings, "local_media_path", str(tmp_path))
     (tmp_path / "shadowing" / "userA").mkdir(parents=True)
     (tmp_path / "shadowing" / "userA" / "rec.webm").write_bytes(b"fake audio")
     (tmp_path / "public.mp4").write_bytes(b"fake video")
+    db_session.add_all(
+        [
+            User(id="userA", phone="13600000001", hashed_password="x", name="User A"),
+            User(id="userB", phone="13600000002", hashed_password="x", name="User B"),
+        ]
+    )
+    await db_session.commit()
     return tmp_path
 
 
@@ -244,8 +254,21 @@ async def _make_video(
 @pytest_asyncio.fixture
 async def video_media_dir(tmp_path, monkeypatch, db_session):
     """Media dir with pipeline-produced files for videos in various states."""
+    from app.models.user import User
+
     settings = get_settings()
     monkeypatch.setattr(settings, "local_media_path", str(tmp_path))
+
+    # Owners referenced by the UGC videos below; media auth resolves the token
+    # through the real user table, so these rows must exist.
+    db_session.add_all(
+        [
+            User(id="owner-1", phone="13600000011", hashed_password="x", name="Owner 1"),
+            User(id="owner-2", phone="13600000012", hashed_password="x", name="Owner 2"),
+            User(id="owner-3", phone="13600000013", hashed_password="x", name="Owner 3"),
+        ]
+    )
+    await db_session.commit()
 
     official = await _make_video(db_session, is_official=True, review_status="published")
     (tmp_path / f"{official.id}.mp4").write_bytes(b"official video")
@@ -438,6 +461,49 @@ async def test_owner_preview_not_blocked_by_anonymous_denial(client, video_media
     owner = await client.get(f"/media/{v.id}_720p.mp4?token={create_token('owner-1')}")
     assert owner.status_code == 200
     assert owner.content == b"draft video"
+
+
+async def test_banned_owner_token_cannot_preview_draft(client, video_media_dir, db_session):
+    """Media auth must honour the same ban rule as the API auth chain."""
+    from app.models.user import User
+
+    owner = await db_session.get(User, "owner-1")
+    assert owner is not None
+    owner.is_banned = True
+    await db_session.commit()
+
+    v = video_media_dir["ugc_draft"]
+    resp = await client.get(f"/media/{v.id}_720p.mp4?token={create_token('owner-1')}")
+    assert resp.status_code == 404
+
+
+async def test_stale_password_token_cannot_preview_draft(client, video_media_dir, db_session):
+    """A token issued before a password change must fail on media too."""
+    from datetime import timedelta
+
+    from app.models.user import User
+
+    owner = await db_session.get(User, "owner-1")
+    assert owner is not None
+    owner.password_changed_at = datetime.now(UTC) + timedelta(hours=1)
+    await db_session.commit()
+
+    v = video_media_dir["ugc_draft"]
+    resp = await client.get(f"/media/{v.id}_720p.mp4?token={create_token('owner-1')}")
+    assert resp.status_code == 404
+
+
+async def test_banned_shadowing_owner_token_404(client, media_dir, db_session):
+    """Shadowing recordings use the same chain: a banned owner loses access."""
+    from app.models.user import User
+
+    owner = await db_session.get(User, "userA")
+    assert owner is not None
+    owner.is_banned = True
+    await db_session.commit()
+
+    resp = await client.get(f"/media/shadowing/userA/rec.webm?token={create_token('userA')}")
+    assert resp.status_code == 404
 
 
 async def test_shadowing_dotdot_cannot_bypass_publish_gate(client, video_media_dir):

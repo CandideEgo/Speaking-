@@ -12,7 +12,7 @@ see .agent/decisions.md 2026-08-28).
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -20,6 +20,7 @@ from app.core.database import Base
 
 class UserVideoUnlock(Base):
     __tablename__ = "user_video_unlocks"
+    __table_args__ = (Index("ix_user_video_unlocks_user_unlocked_at", "user_id", "unlocked_at"),)
 
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     video_id: Mapped[str] = mapped_column(String(36), ForeignKey("videos.id", ondelete="CASCADE"), primary_key=True)

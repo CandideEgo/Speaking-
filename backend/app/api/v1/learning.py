@@ -9,16 +9,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.limiter import rate_limit
+from app.models.behavior import BehaviorEvent
 from app.models.learning import LearningRecord
 from app.models.learning_plan import LearningEvent
 from app.models.user import User
 from app.models.video import Video
-from app.models.weekly_report import WeeklyReport
 from app.schemas.common import VideoBrief
 from app.schemas.learning import (
+    ContinueLearningResponse,
+    EventDistributionItem,
     LearningRecordResponse,
     SaveProgressRequest,
     SaveProgressResponse,
+    WatchProgressResponse,
+    WeeklyStatsResponse,
 )
 from app.schemas.pagination import PaginatedResponse, paginated
 
@@ -79,6 +83,60 @@ async def list_learning_records(
         records.append(record_resp)
 
     return paginated(records, page=page, page_size=page_size, total=total)
+
+
+@router.get("/continue", response_model=ContinueLearningResponse)
+@rate_limit("30/minute")
+async def continue_learning(
+    request: Request,
+    limit: int = Query(1, ge=1, le=5),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """In-progress videos as feed cards, newest activity first.
+
+    "Continue learning" needs the video card + resume position in one call;
+    the generic records endpoint returns ``VideoBrief`` and makes the client
+    join three more requests to render the strip. Only genuinely started
+    (progress > 0) and still-unfinished records qualify.
+    """
+    from app.services.channel_service import channel_slugs_for
+    from app.services.discovery_service import public_video_filters
+    from app.services.video_card import video_card_payload
+
+    rows = (
+        await db.execute(
+            select(LearningRecord, Video)
+            .join(Video, LearningRecord.video_id == Video.id)
+            .where(
+                LearningRecord.user_id == current_user.id,
+                LearningRecord.completed.is_(False),
+                LearningRecord.progress_percentage > 0,
+                *public_video_filters(),
+            )
+            .order_by(
+                LearningRecord.last_accessed_at.desc().nullslast(),
+                LearningRecord.created_at.desc(),
+            )
+            .limit(limit)
+        )
+    ).all()
+    videos = [video for _, video in rows]
+    slug_map = await channel_slugs_for(db, videos)
+    items = []
+    for record, video in rows:
+        position = float(record.position_seconds or 0)
+        duration = float(video.duration or 0)
+        items.append(
+            {
+                "video": video_card_payload(video, slug_map.get(video.channel_ref) if video.channel_ref else None),
+                "position_seconds": position,
+                "progress_percentage": float(record.progress_percentage or 0),
+                "remaining_seconds": max(0.0, round(duration - position, 1)) if duration else None,
+                "last_accessed_at": record.last_accessed_at,
+            }
+        )
+    return {"items": items, "total": len(items)}
 
 
 @router.get("/records/{record_id}", response_model=LearningRecordResponse)
@@ -150,7 +208,7 @@ async def save_watch_progress(
     )
 
 
-@router.get("/progress/{video_id}")
+@router.get("/progress/{video_id}", response_model=WatchProgressResponse)
 @rate_limit("30/minute")
 async def get_watch_progress(
     request: Request,
@@ -197,7 +255,7 @@ def _week_bounds(now: datetime | None = None) -> tuple[datetime, datetime, datet
     return this_monday, last_monday, this_monday
 
 
-@router.get("/stats/weekly")
+@router.get("/stats/weekly", response_model=WeeklyStatsResponse)
 @rate_limit("30/minute")
 async def stats_weekly(
     request: Request,
@@ -206,7 +264,11 @@ async def stats_weekly(
 ):
     """Aggregated weekly activity for the profile 学习进度 page.
 
-    - this_week_minutes: total watched minutes (LearningRecord.time_spent_seconds)
+    - this_week_minutes: watched seconds from ``behavior_events.watch_time``,
+      bucketed by the event's server timestamp. ``LearningRecord
+      .time_spent_seconds`` is a cumulative counter on the record and cannot
+      be sliced by ``last_accessed_at`` (that would attribute all history to
+      the last visit).
     - last_week_minutes: same for the prior Monday–Sunday window
     - week_delta_pct: 0.0 when last week is 0 (handle "first week" UI)
     - this_week_words/videos: counted from LearningEvent (learned_words /
@@ -216,15 +278,18 @@ async def stats_weekly(
     now = datetime.now(UTC)
     this_monday, last_monday, _ = _week_bounds(now)
 
+    watch_seconds = BehaviorEvent.event_payload["delta_s"].as_float()
+
     async def _minutes_since(start: datetime, end: datetime) -> int:
         result = await db.execute(
-            select(func.coalesce(func.sum(LearningRecord.time_spent_seconds), 0)).where(
-                LearningRecord.user_id == current_user.id,
-                LearningRecord.last_accessed_at >= start,
-                LearningRecord.last_accessed_at < end,
+            select(func.coalesce(func.sum(watch_seconds), 0.0)).where(
+                BehaviorEvent.user_id == current_user.id,
+                BehaviorEvent.event_type == "watch_time",
+                BehaviorEvent.server_ts >= start,
+                BehaviorEvent.server_ts < end,
             )
         )
-        return result.scalars().one() // 60
+        return int(result.scalars().one() or 0) // 60
 
     this_week_minutes = await _minutes_since(this_monday, now)
     last_week_minutes = await _minutes_since(last_monday, this_monday)
@@ -247,22 +312,24 @@ async def stats_weekly(
     this_week_words = await _event_count("learned_words", this_monday)
     this_week_videos = await _event_count("completed_video", this_monday)
 
-    # Daily minutes for the 7 days of this week, Mon→Sun.
+    # Daily minutes for the 7 days of this week, Mon→Sun, from watch_time
+    # behavior events (same source as the weekly totals).
     daily_minutes: list[dict] = []
     rows = (
         await db.execute(
             select(
-                func.date(LearningRecord.last_accessed_at).label("d"),
-                func.coalesce(func.sum(LearningRecord.time_spent_seconds), 0).label("s"),
+                func.date(BehaviorEvent.server_ts).label("d"),
+                func.coalesce(func.sum(watch_seconds), 0.0).label("s"),
             )
             .where(
-                LearningRecord.user_id == current_user.id,
-                LearningRecord.last_accessed_at >= this_monday,
+                BehaviorEvent.user_id == current_user.id,
+                BehaviorEvent.event_type == "watch_time",
+                BehaviorEvent.server_ts >= this_monday,
             )
-            .group_by(func.date(LearningRecord.last_accessed_at))
+            .group_by(func.date(BehaviorEvent.server_ts))
         )
     ).all()
-    by_day = {str(r.d): int(r.s) // 60 for r in rows}
+    by_day = {str(r.d): int(r.s or 0) // 60 for r in rows}
     for i in range(7):
         d = (this_monday + timedelta(days=i)).date().isoformat()
         daily_minutes.append({"date": d, "minutes": by_day.get(d, 0)})
@@ -277,7 +344,7 @@ async def stats_weekly(
     }
 
 
-@router.get("/stats/event-distribution")
+@router.get("/stats/event-distribution", response_model=list[EventDistributionItem])
 @rate_limit("30/minute")
 async def stats_event_distribution(
     request: Request,
@@ -318,24 +385,6 @@ async def stats_heatmap(
     from app.services.retired_features import feature_gone
 
     feature_gone()
-
-
-def _weekly_report_payload(r: WeeklyReport) -> dict:
-    return {
-        "id": r.id,
-        "week_start": r.week_start.isoformat(),
-        "study_days": r.study_days,
-        "total_minutes": r.total_minutes,
-        "new_words": r.new_words,
-        "reviewed_words": r.reviewed_words,
-        "videos_completed": r.videos_completed,
-        "streak_at_week_end": r.streak_at_week_end,
-        "delta_minutes_pct": r.delta_minutes_pct,
-        "daily_minutes": r.daily_minutes or [],
-        "daily_new_words": r.daily_new_words or [],
-        "highlight": r.highlight,
-        "created_at": r.created_at.isoformat() if r.created_at else None,
-    }
 
 
 @router.get("/weekly-reports")

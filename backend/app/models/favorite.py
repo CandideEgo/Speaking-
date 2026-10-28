@@ -8,7 +8,7 @@ Both are scoped to (user, video): one favorite and one note per video per user.
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -16,7 +16,12 @@ from app.core.database import Base
 
 class UserFavorite(Base):
     __tablename__ = "user_favorites"
-    __table_args__ = (UniqueConstraint("user_id", "video_id", name="uq_user_favorite_user_video"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "video_id", name="uq_user_favorite_user_video"),
+        # Weekly favorites (ranking + browse sort=weekly_favorite) filter by
+        # created_at; the single-column user/video indexes cannot serve it.
+        Index("ix_user_favorites_created_at", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(

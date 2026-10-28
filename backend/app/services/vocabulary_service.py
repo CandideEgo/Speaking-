@@ -11,13 +11,42 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import commit_refresh
+from app.core.exam_levels import max_level
 from app.models.learning import Vocabulary
 from app.models.preferences import UserPreferences
+from app.schemas.vocabulary import VocabularyResponse
 from app.services.ai_service import get_ai_service
 from app.services.local_time import resolve_user_timezone
 from app.services.sr_service import calculate_review_interval
 
 logger = logging.getLogger(__name__)
+
+# ECDICT's pos field carries frequency codes ("v:2/n:98") and can exceed the
+# Vocabulary.part_of_speech column width — truncate defensively.
+_POS_MAX_LEN = 20
+
+
+def apply_ecdict_fields(vocab: Vocabulary, entry: dict) -> None:
+    """Copy ECDICT fields onto a Vocabulary row.
+
+    The single home for this mapping: 收词（观看页点词入库）、考试/视频词单建档
+    两条路径都走它，否则同一个词在不同入口会拿到不同完整度的释义。
+
+    ``exam_level`` takes the highest tagged level (a word tagged both cet4 and
+    cet6 is a 六级 word — the question is "how hard is it", not "where did it
+    first appear"). ``part_of_speech`` stores ECDICT's raw ``pos`` code
+    (``n:100``); ``partOfSpeechLabel`` on the frontend renders the label.
+    """
+    vocab.definition = entry.get("definition")
+    vocab.translation = entry.get("translation")
+    pos = entry.get("pos")
+    vocab.part_of_speech = pos[:_POS_MAX_LEN] if pos else None
+    vocab.ipa = entry.get("phonetic")
+    levels = entry.get("levels")
+    if levels:
+        vocab.exam_level = max_level(list(levels))
+    if entry.get("example_sentences"):
+        vocab.example_sentences = entry["example_sentences"]
 
 
 def _get_ai():
@@ -99,6 +128,10 @@ def apply_review(vocab: Vocabulary, quality: int, now: datetime | None = None) -
     """
     now = now or datetime.now(UTC)
     correct = quality >= 3
+    # Three-level self-rating: quality 5 = 认识, 3 = 模糊, 1 = 不认识.
+    # The middle bucket is still "correct" for mastery/wrong_count purposes,
+    # but schedules its own two-day interval instead of climbing the ladder.
+    hard = quality == 3
     wrong_count = vocab.wrong_count or 0
 
     wrong_recent = False
@@ -114,6 +147,7 @@ def apply_review(vocab: Vocabulary, quality: int, now: datetime | None = None) -
         wrong_count=wrong_count,
         interval_days=vocab.interval_days or 0,
         wrong_recent=wrong_recent,
+        hard=hard,
     )
     next_review_at = now + timedelta(days=interval_days)
 
@@ -176,7 +210,7 @@ async def get_stats(db: AsyncSession, user_id: str) -> dict:
         .group_by(Vocabulary.mastery_level)
     )
     result = await db.execute(stmt)
-    level_counts = dict(result.all())
+    level_counts: dict[str, int] = {level: count for level, count in result.all()}
 
     # Mastered words have exited review (tri-state semantics) and don't
     # count toward the due queue.
@@ -188,6 +222,17 @@ async def get_stats(db: AsyncSession, user_id: str) -> dict:
     due_result = await db.execute(due_stmt)
     due_count = due_result.scalar() or 0
 
+    # Same filter as build_daily_session's review queue: new words are the
+    # learn queue, not review. The top-bar chip and the vocabulary page both
+    # read this number so "N 词待复习" means one thing everywhere.
+    due_review_stmt = select(func.count(Vocabulary.id)).where(
+        Vocabulary.user_id == user_id,
+        (Vocabulary.next_review_at == None) | (Vocabulary.next_review_at <= now),
+        Vocabulary.mastery_level != MASTERY_MASTERED,
+        Vocabulary.mastery_level != MASTERY_NEW,
+    )
+    due_review_count = (await db.execute(due_review_stmt)).scalar() or 0
+
     total = sum(level_counts.values())
 
     return {
@@ -197,7 +242,43 @@ async def get_stats(db: AsyncSession, user_id: str) -> dict:
         "reviewing_count": level_counts.get(MASTERY_REVIEWING, 0),
         "mastered_count": level_counts.get(MASTERY_MASTERED, 0),
         "due_count": due_count,
+        "due_review_count": due_review_count,
     }
+
+
+async def attach_word_sources(db: AsyncSession, words: list[Vocabulary]) -> list[dict]:
+    """Serialize vocabulary rows with their video title and sentence time.
+
+    The word table only stores ``video_id`` / ``subtitle_id``; the row wants
+    "来源视频 · mm:ss". Two batch queries (no N+1) fill the display fields.
+    Missing/deleted sources stay ``None`` — the UI shows the generic source
+    link instead of inventing a title.
+    """
+    if not words:
+        return []
+    from app.models.subtitle import Subtitle
+    from app.models.video import Video
+
+    video_ids = {w.video_id for w in words if w.video_id}
+    subtitle_ids = {w.subtitle_id for w in words if w.subtitle_id}
+    titles: dict[str, str] = {}
+    if video_ids:
+        rows = (await db.execute(select(Video.id, Video.title, Video.title_zh).where(Video.id.in_(video_ids)))).all()
+        titles = {vid: (zh or en or "") for vid, en, zh in rows}
+    starts: dict[str, float] = {}
+    if subtitle_ids:
+        subtitle_rows = (
+            await db.execute(select(Subtitle.id, Subtitle.start_time).where(Subtitle.id.in_(subtitle_ids)))
+        ).all()
+        starts = {sid: float(start) for sid, start in subtitle_rows}
+
+    payloads: list[dict] = []
+    for word in words:
+        item = VocabularyResponse.model_validate(word).model_dump()
+        item["video_title"] = titles.get(word.video_id or "")
+        item["subtitle_start_time"] = starts.get(word.subtitle_id or "")
+        payloads.append(item)
+    return payloads
 
 
 async def build_daily_session(

@@ -12,10 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
-from app.core.database import commit_refresh, get_db
+from app.core.database import commit_refresh, get_async_session_maker, get_db
 from app.core.limiter import rate_limit
-from app.core.security import decode_token
-from app.core.token_blacklist import is_token_blacklisted
 from app.models.notification import Notification
 from app.models.preferences import UserPreferences
 from app.models.user import User
@@ -240,36 +238,21 @@ async def notification_websocket(websocket: WebSocket):
     """
     protocols = _requested_subprotocols(websocket)
     token = _ws_token(websocket)
-    payload = decode_token(token) if token else None
-    if not payload:
+    if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    user_id = payload.get("sub")
-    if not user_id:
+    # Same auth chain as HTTP (token type, blacklist, password-change
+    # revocation, user existence, ban) — the WS handshake used to duplicate a
+    # weaker subset and let tokens issued before a password change stay alive.
+    from app.api.dependencies import resolve_token_user
+
+    async with get_async_session_maker()() as db:
+        ws_user = await resolve_token_user(token, db)
+    if ws_user is None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-
-    # Verify token type is access (not refresh)
-    if payload.get("type") == "refresh":
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    # Check token blacklist (same as get_current_user)
-    settings = get_settings()
-    if settings.jwt_blacklist_enabled and await is_token_blacklisted(payload.get("jti")):
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    # Check if user is banned (same as get_current_user)
-    from app.core.database import get_session_maker
-
-    async with get_session_maker()() as db:
-        result = await db.execute(select(User).where(User.id == user_id))
-        ws_user = result.scalar_one_or_none()
-    if not ws_user or ws_user.is_banned:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
+    user_id = ws_user.id
 
     await ws_manager.connect(
         user_id,
@@ -351,12 +334,17 @@ async def mark_as_read(
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a single notification as read. Only the owner can do this."""
-    result = await db.execute(select(Notification).where(Notification.id == notification_id))
+    result = await db.execute(
+        select(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == current_user.id,
+        )
+    )
     notification = result.scalar_one_or_none()
     if not notification:
+        # Same convention as the rest of the API: "not visible" == "not found",
+        # so a probe cannot distinguish someone else's id from a missing one.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
-    if notification.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your notification")
     notification.is_read = True
     await commit_refresh(db, notification)
     return notification

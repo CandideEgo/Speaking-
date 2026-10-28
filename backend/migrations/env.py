@@ -8,9 +8,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.database import Base
 from app.models.channel import Channel
-from app.models.learning import LearningRecord, SpeakingAttempt, Vocabulary
+from app.models.learning import LearningRecord, Vocabulary
 from app.models.order import Order
-from app.models.redeem import RedeemCode
 from app.models.subtitle import Subtitle
 from app.models.user import User
 from app.models.video import Video

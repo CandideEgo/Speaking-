@@ -27,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 设计系统门（`npm run check` 的第一关）
 
-`frontend/scripts/check-design-system.mjs` 是**九条设计不变量唯一的机器执行点**。它扫原始文本（**注释里也扫**，故意的：假阳性只是改个措辞，假阴性会真的放行）：
+`frontend/scripts/check-design-system.mjs` 是**九条设计不变量唯一的机器执行点**。取值与组件用法见 [`DESIGN.md`](DESIGN.md)——本文件只讲门禁怎么拦、为什么拦。它扫原始文本（**注释里也扫**，故意的：假阳性只是改个措辞，假阴性会真的放行）：
 
 1. `src/app` 下**不得**出现 `container-page` / `container-wide`——容器归壳层所有
 2. `src` 下 `.ts`/`.tsx` **不得**出现原始调色板工具类（`bg-blue-100`、`text-slate-700` 之类）——用语义 token
@@ -54,9 +54,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **容器归属**：全站唯一的 `.container-page` 在 [`src/app/(main)/MainLayoutInner.tsx`](<src/app/(main)/MainLayoutInner.tsx>) 渲染一次。页面**不得**自己再加容器——这正是设计系统第 1 条拦的东西。
 
-**用户端与观看页导航**：用户端视觉变量放在 `.user-ui` 作用域（`src/app/user-ui.css`），避免调整学习页面时改变管理端。观看页与其他用户页面共享导航；播放、逐句跳转与本句重听位于页面内容中。手机词卡以全站底部导航为下边界，短视口至少保留 240px 操作空间。修改播放布局时同时运行 `mobile-*.spec.ts` 的行为与遮挡检查。
+**用户端与观看页导航**：用户端视觉变量放在 `.user-ui` 作用域（`src/app/user-ui.css`），避免调整学习页面时改变管理端。观看页共享全站导航；手机播放栏由 `WatchChromeProvider` 接入壳层，在五项底部导航上方以常规流常驻。词卡下边界取播放栏上沿，短视口保留 240px 操作空间。修改播放布局时同时运行 `mobile-*.spec.ts` 的行为与遮挡检查。
 
-桌面播放器的高度预算跟随当前句与操作区实际尺寸。调整观看动作时同时运行 `watch-desktop-stage.spec.ts`；观看闭环与四种浏览器的隔离测试见 `e2e/watch-baseline-mobile.spec.ts`。旧录音表和文件只供历史数据保留、导出与注销清理，观看页不再读取录音记录。
+观看页以 1024/1025px 区分手机与桌面，桌面是否分栏再由实际内容宽度决定。画框尺寸独立于当前句、操作和笔记；布局约束与本机偏好契约在 `src/lib/watchLayout.ts`。调整布局时运行 `watch-desktop-stage.spec.ts` 与 `watch-layout.mobile.spec.ts`；观看闭环与四种浏览器的隔离测试见 `e2e/watch-baseline-mobile.spec.ts`。旧录音表已在 2026-10-26 清理迁移 `c3d4e5f6a7b8` 中删除，观看页不再读取录音记录；历史录音文件仍留在媒体目录，仅旧媒体路由的 token 鉴权可读。
 
 **`devIndicators: false` 是故意的，不是随手关的**（[`next.config.js`](next.config.js)）：Next 的 dev 徽标正好压在观看页底栏「上一句」的中心点上（实测 `elementFromPoint(52, 868)` 命中 `NEXTJS-PORTAL`），挪到右下角又压「跟读」，而底栏四角没有一个位置不压按钮——所以唯一能同时保住真机可点性与自动化判据的取值是整个关掉。编译/运行时错误浮层不受影响。
 
@@ -77,6 +77,8 @@ Windows 的生产验收把参考词典原样复制到专用 Linux 卷再只读�
 [`playwright.config.ts`](playwright.config.ts)：`testDir: ./e2e`，baseURL 取 `PLAYWRIGHT_BASE_URL` 否则 `http://localhost:3000`，四个 project：`chromium` / `firefox` / `mobile-chrome` / `mobile-iphone`。非 CI 环境下有 `webServer` 会自动拉起 backend（uvicorn :8000）+ `npm run dev`。
 
 **CI 只跑 `--project=chromium`，并且必须先把库迁到 head 再 `python scripts/seed_e2e.py` 播种**——否则首页没有视频，观看页那批 spec 会整片 `skip()`（看着绿，其实一条没跑）。
+
+**本地跑全量 e2e 要用 testing 形态的后端**：`ENV=testing` 会把限流装饰器变成 no-op。用 dev 形态的后端起 e2e 时，并行 worker 撞上注册/登录 `20/minute` 会整片 `429`（看起来像认证坏了，实际一条业务请求都没进去）。所以后端要显式给 `ENV=testing` 与 `DATABASE_URL`（非 development 环境缺它会 fail closed、启动失败）；启动命令见 `/dev` skill，只换这两个环境变量。`playwright.config.ts` 自动拉起的 backend 已带 `--timeout-keep-alive 120`，手工起后端时不要省——原因写在该文件注释里。
 
 <!-- BEGIN:nextjs-agent-rules -->
 

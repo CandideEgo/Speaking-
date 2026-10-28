@@ -12,6 +12,9 @@ from app.models.learning import Vocabulary
 from app.models.user import User
 from app.schemas.pagination import PaginatedResponse, PaginationParams, paginated
 from app.schemas.vocabulary import (
+    DailySessionResponse,
+    LearningWordsResponse,
+    PracticeItem,
     StudySessionAnswerRequest,
     StudySessionAnswerResponse,
     StudySessionEnvelope,
@@ -19,13 +22,18 @@ from app.schemas.vocabulary import (
     StudySessionResponse,
     StudySessionStartRequest,
     TodayTrainingSummary,
+    VocabularyAddResponse,
+    VocabularyDeleteResponse,
     VocabularyEnrichResponse,
+    VocabularyMasteredResponse,
+    VocabularyPracticeResponse,
     VocabularyPreferencesResponse,
     VocabularyPreferencesUpdate,
     VocabularyResponse,
+    VocabularyReviewResponse,
     VocabularyStatsResponse,
 )
-from app.services import practice_service, study_session_service, vocabulary_service
+from app.services import ecdict, practice_service, study_session_service, vocabulary_service
 
 router = APIRouter(prefix="/vocabulary", tags=["vocabulary"])
 
@@ -108,7 +116,7 @@ async def vocabulary_stats(
     return await vocabulary_service.get_stats(db, current_user.id)
 
 
-@router.get("/daily-session")
+@router.get("/daily-session", response_model=DailySessionResponse)
 @rate_limit("30/minute")
 async def get_daily_session(
     request: Request,
@@ -134,9 +142,21 @@ async def get_daily_session(
         new_count if new_count is not None else prefs["daily_new_target"],
         review_count if review_count is not None else prefs["daily_review_target"],
     )
+    active_id, training_new = await study_session_service.preview_new_words(
+        db, current_user.id, prefs["daily_new_target"]
+    )
+    active_word_ids = set()
+    if active_id:
+        active_word_ids = {word.id for _, word in await study_session_service.session_rows(db, active_id)}
+    review_words = [w for w in session["review_words"] if w.id not in active_word_ids]
     return {
-        "new_words": [VocabularyResponse.model_validate(w) for w in session["new_words"]],
-        "review_words": [VocabularyResponse.model_validate(w) for w in session["review_words"]],
+        "training_preview": {
+            "active_session_id": active_id,
+            "new_words": await vocabulary_service.attach_word_sources(db, training_new),
+            "review_words": await vocabulary_service.attach_word_sources(db, review_words),
+        },
+        "new_words": await vocabulary_service.attach_word_sources(db, session["new_words"]),
+        "review_words": await vocabulary_service.attach_word_sources(db, session["review_words"]),
         "totals": session["totals"],
         "preferences": VocabularyPreferencesResponse(
             **prefs,
@@ -298,7 +318,7 @@ async def finish_study_session(
     )
 
 
-@router.get("/practice")
+@router.get("/practice", response_model=VocabularyPracticeResponse)
 @rate_limit("10/minute")
 async def get_vocabulary_practice(
     request: Request,
@@ -352,7 +372,7 @@ async def submit_vocabulary_practice(
 # ---------------------------------------------------------------------------
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=VocabularyAddResponse)
 @rate_limit("20/minute")
 async def add_word(
     request: Request,
@@ -384,6 +404,12 @@ async def add_word(
         video_id=video_id,
         subtitle_id=subtitle_id,
     )
+    # 收词时就把 ECDICT 的释义/音标/词性/级别写进去（与词单建档同口径）。
+    # 不在这里填，词库卡片和训练题会一直是「释义待补充」——收词那一刻用户其实
+    # 已经看过释义，丢掉它等于让词库变成一张只有拼写的表。
+    entry = ecdict.lookup(vocab.word)
+    if entry:
+        vocabulary_service.apply_ecdict_fields(vocab, entry)
     db.add(vocab)
     await commit_refresh(db, vocab)
 
@@ -451,9 +477,9 @@ async def list_vocabulary(
     total = (await db.execute(count_stmt)).scalar() or 0
 
     stmt = stmt.order_by(Vocabulary.created_at.desc()).offset(pagination.offset).limit(pagination.page_size)
-    words = (await db.execute(stmt)).scalars().all()
+    words = list((await db.execute(stmt)).scalars().all())
 
-    items = [VocabularyResponse.model_validate(w) for w in words]
+    items = await vocabulary_service.attach_word_sources(db, words)
     return paginated(items, pagination, total=total)
 
 
@@ -477,7 +503,7 @@ async def enrich_word(
     return vocab
 
 
-@router.post("/{word_id}/review")
+@router.post("/{word_id}/review", response_model=VocabularyReviewResponse)
 @rate_limit("20/minute")
 async def review_word(
     request: Request,
@@ -527,7 +553,7 @@ async def review_word(
     }
 
 
-@router.post("/{word_id}/mastered")
+@router.post("/{word_id}/mastered", response_model=VocabularyMasteredResponse)
 @rate_limit("20/minute")
 async def mark_word_mastered(
     request: Request,
@@ -574,7 +600,7 @@ async def mark_word_mastered(
     }
 
 
-@router.delete("/{word_id}")
+@router.delete("/{word_id}", response_model=VocabularyDeleteResponse)
 @rate_limit("20/minute")
 async def remove_word(
     request: Request,
@@ -598,7 +624,7 @@ async def remove_word(
     return {"success": True}
 
 
-@router.get("/words")
+@router.get("/words", response_model=LearningWordsResponse)
 @rate_limit("30/minute")
 async def list_learning_words(
     request: Request,

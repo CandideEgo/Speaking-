@@ -160,6 +160,10 @@ async def run_steps(ctx: PipelineCtx, steps: tuple[Step, ...]) -> None:
         body = step.run
         if body is None:
             continue
+        # Keep the processing lock alive across long pipelines: the lock TTL
+        # covers the declared budgets, but a run near the limit (or settings
+        # changed mid-run) should still hold it through every step boundary.
+        refresh_lock(ctx.video_id)
         if step.resumable:
             ctx.current_step = step.name
             if await is_step_done(ctx.video_id, step.name):
@@ -176,7 +180,20 @@ async def run_steps(ctx: PipelineCtx, steps: tuple[Step, ...]) -> None:
 # Redis key TTLs
 # ---------------------------------------------------------------------------
 
-LOCK_TTL_SECONDS = 60 * 60  # 60 minutes (per-task; not held across the GPU gap)
+
+def lock_ttl_seconds() -> int:
+    """Lock TTL long enough to cover the whole tail, plus a cushion.
+
+    The old fixed 60-minute TTL was shorter than the watchdog budgets of the
+    steps it protects (translating 30 + prewarm_notes 30 + downloading 60 +
+    transcoding 30 = 150+ minutes), so a legitimate long run could lose its
+    lock mid-flight and let a second trigger start the same steps. The TTL is
+    now the sum of every step budget plus 10 minutes (minimum 60 minutes).
+    ``run_steps`` also refreshes the TTL at each step boundary.
+    """
+    return max(60 * 60, sum(get_step_timeouts().values()) + 10 * 60)
+
+
 STEPS_TTL_SECONDS = 3 * 60 * 60  # 3 hours (long videos need more time)
 
 # ---------------------------------------------------------------------------
@@ -265,7 +282,7 @@ def acquire_lock(video_id: str) -> bool:
     try:
         r = get_pipeline_redis()
         lock_key = f"video:processing:{video_id}"
-        acquired = r.set(lock_key, "1", nx=True, ex=LOCK_TTL_SECONDS)
+        acquired = r.set(lock_key, "1", nx=True, ex=lock_ttl_seconds())
         return bool(acquired)
     except Exception:
         logger.warning(
@@ -314,6 +331,19 @@ def touch_step_started_at(video) -> None:
     from datetime import UTC, datetime
 
     video.step_started_at = datetime.now(UTC)
+
+
+def refresh_lock(video_id: str) -> None:
+    """Extend the processing lock's TTL at a step boundary (best-effort).
+
+    Only extends an existing key — if the lock is already gone this is a no-op
+    (the step will fail/be recovered rather than resurrecting a lost lock).
+    """
+    try:
+        r = get_pipeline_redis()
+        r.expire(f"video:processing:{video_id}", lock_ttl_seconds())
+    except Exception:
+        logger.warning("Failed to refresh lock for video %s", video_id, exc_info=True)
 
 
 def is_lock_held(video_id: str) -> bool:

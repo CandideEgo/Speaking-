@@ -166,6 +166,46 @@ async def test_complete_mirrors_view_count_and_learning_event(client, auth_heade
         assert ev.video_id == vid
 
 
+async def test_duplicate_complete_is_idempotent(client, auth_headers, db_session):
+    """Repeated `complete` for one playback session counts once.
+
+    The analytics client can flush the same event twice; without the Redis
+    dedupe guard every repeat also bumped view_count and emitted another
+    completed_video event (and ran the cache invalidation).
+    """
+    from datetime import UTC, datetime
+
+    from app.models.user import User
+
+    vid = "00000000-0000-4000-8000-000000000012"
+    await _video(db_session, vid)
+    user = (await db_session.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
+    db_session.add(
+        LearningRecord(user_id=user.id, video_id=vid, time_spent_seconds=0, last_accessed_at=datetime.now(UTC))
+    )
+    await db_session.commit()
+
+    payload = {"event_type": "complete", "video_id": vid, "event_payload": {}, "session_id": "play-1"}
+    first = await client.post("/api/v1/behavior/events", headers=auth_headers, json=payload)
+    second = await client.post("/api/v1/behavior/events", headers=auth_headers, json=payload)
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert first.json()["ingested"] == 1
+    # The raw analytics row is still appended; only the side-effects are
+    # deduped, so the endpoint keeps its "ingested" count.
+    assert second.json()["ingested"] == 1
+
+    async with _session_maker()() as db:
+        video_row = (await db.execute(select(Video).where(Video.id == vid))).scalars().first()
+        assert video_row is not None and video_row.view_count == 1
+        events = (
+            (await db.execute(select(LearningEvent).where(LearningEvent.event_type == "completed_video")))
+            .scalars()
+            .all()
+        )
+        assert len(events) == 1
+
+
 async def test_complete_without_learning_record_does_not_inflate_view_count(client, auth_headers, db_session):
     """A `complete` event only counts when the user actually had the video open.
 

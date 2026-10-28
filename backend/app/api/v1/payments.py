@@ -24,12 +24,15 @@ from app.core.time_utils import to_aware_utc
 from app.models.order import Order, OrderStatus
 from app.models.user import PlanType, User
 from app.schemas.payment import (
+    AlipayCallbackResponse,
     CreateOrderRequest,
     CreateOrderResponse,
     JinshujuPurchaseLinkResponse,
     JinshujuPurchaseTier,
+    JinshujuWebhookResponse,
     OrderStatusResponse,
     PaymentStatusResponse,
+    WechatCallbackResponse,
 )
 from app.services.payment_provider import PLAN_DEFINITIONS, PLAN_DURATIONS, get_payment_provider
 
@@ -100,7 +103,7 @@ async def _process_successful_payment(db: AsyncSession, order: Order) -> None:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/create-order")
+@router.post("/create-order", response_model=CreateOrderResponse)
 @rate_limit("5/minute")
 async def create_order(
     request: Request,
@@ -165,7 +168,7 @@ async def create_order(
     )
 
 
-@router.post("/callback/alipay")
+@router.post("/callback/alipay", response_model=AlipayCallbackResponse)
 @rate_limit("30/minute")
 async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """Alipay payment callback handler."""
@@ -207,7 +210,7 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     return {"status": "success", "message": "OK"}
 
 
-@router.post("/callback/wechat")
+@router.post("/callback/wechat", response_model=WechatCallbackResponse)
 @rate_limit("30/minute")
 async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """WeChat Pay v3 callback handler."""
@@ -276,7 +279,7 @@ async def jinshuju_purchase_link(request: Request, current_user: User = Depends(
     return JinshujuPurchaseLinkResponse(url=url, expires_in_seconds=ttl_seconds, tiers=tiers)
 
 
-@router.post("/jinshuju/webhook")
+@router.post("/jinshuju/webhook", response_model=JinshujuWebhookResponse)
 @rate_limit("30/minute")
 async def jinshuju_webhook(request: Request):
     """金数据「数据推送」回调：验签 + 转投 Celery，迅速返回 2XX。
@@ -339,7 +342,7 @@ async def jinshuju_webhook(request: Request):
     return {"code": 0, "message": "ok"}
 
 
-@router.get("/status")
+@router.get("/status", response_model=PaymentStatusResponse)
 @rate_limit("30/minute")
 async def payment_status(request: Request, current_user: User = Depends(get_current_user)):
     """Return the current user's plan/payment status."""
@@ -352,7 +355,7 @@ async def payment_status(request: Request, current_user: User = Depends(get_curr
     )
 
 
-@router.get("/order/{order_id}")
+@router.get("/order/{order_id}", response_model=OrderStatusResponse)
 @rate_limit("30/minute")
 async def get_order_status(
     request: Request,

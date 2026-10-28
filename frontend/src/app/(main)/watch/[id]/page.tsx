@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type CSSProperties,
+} from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -22,16 +30,20 @@ import { track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { resolveWatchReturn, watchFocusIssue, watchHref } from "@/lib/watchEntry";
 import type { Subtitle, VideoDetail, VocabSet, VocabSetCreateResponse } from "@/types";
-import { formatDuration, formatTime } from "@/lib/format";
+import { formatDuration, formatTime, formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import SubtitleModeTabs, { SubtitleModeRail } from "@/components/subtitle/SubtitleModeTabs";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { WordCardSheet } from "@/components/watch/WordCardSheet";
 import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
-import { WatchBottomBar } from "@/components/watch/WatchBottomBar";
+import { WatchDivider } from "@/components/watch/WatchDivider";
 import { SaveSentenceButton } from "@/components/watch/SaveSentenceButton";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useWatchStageWidth } from "@/hooks/useWatchStageWidth";
+import { VideoTitle } from "@/components/video/VideoTitle";
+import { WatchSourceCard } from "@/components/watch/WatchSourceCard";
+import { RelatedVideos } from "@/components/watch/RelatedVideos";
+import { VideoStats } from "@/components/video/VideoStats";
+import { PublishedVideoEditorial } from "@/components/watch/PublishedVideoEditorial";
+import { useWatchLayout } from "@/hooks/useWatchLayout";
 import { CurrentSentenceCard } from "@/components/watch/CurrentSentenceCard";
 import { LearningActions } from "@/components/watch/LearningActions";
 import { WatchMoreSheet } from "@/components/watch/WatchMoreSheet";
@@ -40,6 +52,7 @@ import { reducedAid, validInterval } from "@/lib/watchSession";
 import { cefrWithExamHint } from "@/lib/cefrLevels";
 import {
   ArrowLeft,
+  ArrowRight,
   Loader2,
   Play,
   Bookmark,
@@ -47,7 +60,13 @@ import {
   Pencil,
   X,
   AlertCircle,
-  ChevronRight,
+  FileText,
+  PanelTop,
+  RotateCcw,
+  Maximize,
+  PictureInPicture2,
+  RectangleHorizontal,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
@@ -110,56 +129,96 @@ function VideoActions({
   onToggleFavorite: () => void;
   onNotes: () => void;
 }) {
-  // 移动端一律 44px 触控目标（#24/#28 的触控基线），桌面端维持原有的 36px 紧凑档。
-  const box = compact ? "w-11 h-11" : "w-9 h-9";
+  // 移动端一律 44px 触控目标（#24/#28 的触控基线）；桌面端是带文字的 pill，
+  // 与首页/频道页的描边按钮同一套语言。
+  if (compact) {
+    const box = "w-11 h-11";
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          className={cn(
+            box,
+            "px-2 rounded-lg flex items-center gap-1 text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+          )}
+          onClick={onToggleLike}
+          aria-label={isLiked ? `取消点赞（${likeCount}）` : `点赞（${likeCount}）`}
+          title={isLiked ? "取消点赞" : "点赞"}
+        >
+          <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
+        </button>
+        <button
+          className={cn(
+            box,
+            "rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+          )}
+          onClick={onToggleFavorite}
+          aria-label={isFavorited ? "取消收藏" : "收藏视频"}
+          title={isFavorited ? "取消收藏" : "收藏"}
+        >
+          <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
+        </button>
+        <button
+          className={cn(
+            box,
+            "rounded-lg flex items-center justify-center transition-colors cursor-pointer",
+            noteOpen
+              ? "bg-brand-50 text-brand-500"
+              : "text-muted hover:bg-surface-card hover:text-ink"
+          )}
+          onClick={onNotes}
+          aria-label="笔记"
+          title="笔记"
+        >
+          <Pencil size={18} />
+        </button>
+      </div>
+    );
+  }
+
+  const pill =
+    "inline-flex h-8 items-center gap-1.5 rounded-pill border px-3 text-meta font-semibold transition-colors cursor-pointer";
   return (
-    <div className={cn("flex items-center", compact ? "gap-1" : "gap-1 shrink-0")}>
+    <div className="flex flex-wrap items-center gap-2">
       <button
         className={cn(
-          box,
-          "px-2 rounded-lg flex items-center gap-1 text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer",
-          !compact && "h-9 w-auto"
+          pill,
+          isLiked
+            ? "border-error/30 bg-red-soft text-error"
+            : "border-hairline text-body hover:border-ink hover:text-ink"
         )}
         onClick={onToggleLike}
+        aria-pressed={isLiked}
         aria-label={isLiked ? `取消点赞（${likeCount}）` : `点赞（${likeCount}）`}
-        title={isLiked ? "取消点赞" : "点赞"}
       >
-        <Heart size={18} className={cn(isLiked && "fill-current text-error")} />
-        {!compact && (
-          <span
-            className={cn(
-              "text-meta font-semibold tabular-nums",
-              isLiked ? "text-error" : "text-muted"
-            )}
-          >
-            {likeCount > 0 ? likeCount : "点赞"}
-          </span>
-        )}
+        <Heart size={14} className={cn(isLiked && "fill-current")} />
+        {likeCount > 0 ? formatCount(likeCount) : "点赞"}
       </button>
       <button
         className={cn(
-          box,
-          "rounded-lg flex items-center justify-center text-muted hover:bg-surface-card hover:text-ink transition-colors cursor-pointer"
+          pill,
+          isFavorited
+            ? "border-brand-200 bg-brand-50 text-brand-700"
+            : "border-hairline text-body hover:border-ink hover:text-ink"
         )}
         onClick={onToggleFavorite}
         aria-label={isFavorited ? "取消收藏" : "收藏视频"}
-        title={isFavorited ? "取消收藏" : "收藏"}
+        aria-pressed={isFavorited}
       >
-        <Bookmark size={18} className={cn(isFavorited && "fill-current text-brand-500")} />
+        <Bookmark size={14} className={cn(isFavorited && "fill-current")} />
+        {isFavorited ? "已收藏" : "收藏"}
       </button>
       <button
         className={cn(
-          box,
-          "rounded-lg flex items-center justify-center transition-colors cursor-pointer",
+          pill,
           noteOpen
-            ? "bg-brand-50 text-brand-500"
-            : "text-muted hover:bg-surface-card hover:text-ink"
+            ? "border-brand-200 bg-brand-50 text-brand-700"
+            : "border-hairline text-body hover:border-ink hover:text-ink"
         )}
         onClick={onNotes}
-        aria-label="笔记"
-        title="笔记"
+        aria-expanded={noteOpen}
       >
-        <Pencil size={18} />
+        <Pencil size={14} />
+        笔记
       </button>
     </div>
   );
@@ -181,6 +240,19 @@ export default function WatchPage() {
   // ⋯ 面板（DEC-069 / #31）：来源/版权/语言/字号/倍速/动作行全收进这里，首屏那 355px
   // 次要信息归零。面板由页面渲染（在滚动容器里），开关状态经壳顶栏的 ⋯ 来回。
   const [moreOpen, setMoreOpen] = useState(false);
+  const immersive = useWatchStore((s) => s.immersive);
+  const videoAspectRatio = useWatchStore((s) => s.videoAspectRatio);
+  const setImmersive = useWatchStore((s) => s.setImmersive);
+  const keyboardActions = useRef({ previous: () => {}, next: () => {}, replay: () => {} });
+  const previousSentence = useCallback(() => keyboardActions.current.previous(), []);
+  const nextSentence = useCallback(() => keyboardActions.current.next(), []);
+  const replayCurrentSentence = useCallback(() => keyboardActions.current.replay(), []);
+  const toggleImmersive = useCallback(() => {
+    setMoreOpen(false);
+    const state = useWatchStore.getState();
+    state.setImmersive(!state.immersive);
+  }, []);
+  const exitImmersive = useCallback(() => useWatchStore.getState().setImmersive(false), []);
   const moreTriggerRef = useRef<HTMLButtonElement>(null);
   const [titleExpanded, setTitleExpanded] = useState(false);
 
@@ -262,6 +334,11 @@ export default function WatchPage() {
     fullscreenElRef,
     toggleFullscreen,
   } = useVideoPlayer({
+    onPreviousSentence: previousSentence,
+    onNextSentence: nextSentence,
+    onReplaySentence: replayCurrentSentence,
+    onToggleImmersive: toggleImmersive,
+    onExitImmersive: exitImmersive,
     playbackRange: clipRange
       ? { start: clipRange.start_time, end: clipRange.end_time, onEnd: () => setEndedClip(clipId) }
       : null,
@@ -272,6 +349,9 @@ export default function WatchPage() {
     subtitleModeOverride: subtitleMode,
     onUserIntent: handleUserIntent,
   });
+  useEffect(() => {
+    if (playbackMode !== "ready") setImmersive(false);
+  }, [playbackMode, setImmersive]);
 
   useEffect(() => {
     if (!clipId) {
@@ -305,13 +385,23 @@ export default function WatchPage() {
   // #30 决议：移动端滚过画框之后，画面**贴顶常驻**（不是缩成右下角小窗）。
   // 桌面端保持常规流里的 sticky 版式。
   const slotRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
-  const isMobile = useMediaQuery("(max-width: 1023px)");
-  const stageWidth = useWatchStageWidth(stageRef, slotRef, !isMobile && playbackMode === "ready");
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const leftPanelWidth = useWatchStore((s) => s.leftPanelWidth);
+  const setLeftPanelWidth = useWatchStore((s) => s.setLeftPanelWidth);
+  const mobileFrameSize = useWatchStore((s) => s.mobileFrameSize);
+  const setMobileFrameSize = useWatchStore((s) => s.setMobileFrameSize);
+  const hydrateLayout = useWatchStore((s) => s.hydrateLayout);
+  const { split, asideHeight } = useWatchLayout(
+    workspaceRef,
+    playbackMode === "ready",
+    isMobile,
+    leftPanelWidth
+  );
   // #30：移动端滚过画框之后画面贴顶常驻；DEC-069 之后钉住位置从壳顶变成**顶栏下沿**
   // （`main` 上沿，顶栏是 main 之上的常规流行）。`dismiss` 已随画面内的退出 X 一起删除
   // —— 退出跟随 = 滚回顶部（`useStickyPip` 的 `!out → setDismissed(false)` 本来就这么做）。
-  const { isStuck } = useStickyPip(slotRef, isMobile && playbackMode === "ready");
+  const { isStuck } = useStickyPip(slotRef, isMobile && !immersive && playbackMode === "ready");
   const { subtitleListRef, resumeFollow, followEnabled, setFollowEnabled } = useSubtitleFollow({
     currentSubtitleIndex,
     isMobile,
@@ -323,13 +413,14 @@ export default function WatchPage() {
     isFavorited,
     isLiked,
     likeCount,
+    favoriteCount,
     noteDraft,
     setNoteDraft,
     toggleFavorite,
     toggleLike,
     saveNote,
     clearNote,
-  } = useVideoMeta(id, video?.like_count ?? 0);
+  } = useVideoMeta(id, video?.like_count ?? 0, video?.favorite_count ?? 0);
   const {
     selectedWord,
     wordGloss,
@@ -403,7 +494,9 @@ export default function WatchPage() {
     if (!target) return;
     resumeFollow();
     requestAnimationFrame(() => {
-      const row = document.getElementById(`subtitle-${target.index}`);
+      const row = immersive
+        ? document.querySelector('[data-testid="current-sentence-card"]')
+        : document.getElementById(`subtitle-${target.index}`);
       if (!row) return;
       if (isMobile) {
         row.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -418,7 +511,7 @@ export default function WatchPage() {
         12;
       scroller.scrollTo({ top, behavior: "smooth" });
     });
-  }, [wordSource, closeWordCard, resumeFollow, isMobile]);
+  }, [wordSource, closeWordCard, resumeFollow, isMobile, immersive]);
 
   const wordSourceLabel = wordSource
     ? `《${video?.title ?? "本视频"}》第 ${wordSource.line} 句 · ${wordContext?.text_en ?? ""}`
@@ -459,7 +552,7 @@ export default function WatchPage() {
     setTemporaryMode(null);
   }, [preferredMode]);
   function handleReplay(reduce = false) {
-    const source = replayTarget ?? wordContext ?? video?.subtitles[currentIndexRef.current];
+    const source = replayTarget ?? wordContext ?? video?.subtitles[currentSubtitleIndex];
     if (!source) return;
     clearWord();
     closeHelp(false);
@@ -469,12 +562,10 @@ export default function WatchPage() {
     }
   }
   const replayRef = useRef(handleReplay);
-  useEffect(() => {
+  useLayoutEffect(() => {
     replayRef.current = handleReplay;
   });
   const replayStable = useCallback(() => replayRef.current(), []);
-  const panelCollapsed = useWatchStore((s) => s.panelCollapsed);
-  const setPanelCollapsed = useWatchStore((s) => s.setPanelCollapsed);
   const selectedExamLevel = useWatchStore((s) => s.selectedExamLevel);
   const setSelectedExamLevel = useWatchStore((s) => s.setSelectedExamLevel);
   const hydrateSubtitleMode = useWatchStore((s) => s.hydrateSubtitleMode);
@@ -483,7 +574,11 @@ export default function WatchPage() {
   // localStorage 会让服务端渲染与客户端首帧不一致。
   useEffect(() => {
     hydrateSubtitleMode();
-  }, [hydrateSubtitleMode]);
+    hydrateLayout();
+    useWatchStore.getState().setVideoAspectRatio(16 / 9);
+    setImmersive(false);
+    return () => setImmersive(false);
+  }, [id, hydrateSubtitleMode, hydrateLayout, setImmersive]);
 
   // D1：字幕字号（小/中/大）持久化到用户偏好。
   const [subtitleFontSize, setSubtitleFontSize] = useState<SubtitleFontSize>("medium");
@@ -652,10 +747,20 @@ export default function WatchPage() {
   // （第一版把 handleNextSubtitle 直接塞进 store：它闭包里的 currentSubtitleIndex 冻结在
   //  memo 上次重算的那一刻，实测「下一句」会往回跳，然后彻底不动。见 INV-025。）
   const nextRef = useRef(handleNextSubtitle);
-  useEffect(() => {
+  useLayoutEffect(() => {
     nextRef.current = handleNextSubtitle;
   });
   const onNextStable = useCallback(() => nextRef.current(), []);
+  useLayoutEffect(() => {
+    keyboardActions.current = {
+      previous: () => {
+        resumeFollow();
+        navigateSubtitle(-1);
+      },
+      next: onNextStable,
+      replay: replayStable,
+    };
+  }, [resumeFollow, navigateSubtitle, onNextStable, replayStable]);
 
   // 考试词高亮 —— DEC-073 的四档，从强到弱：
   //   ① learning/reviewing（正在学）→ 品牌实底 + 实线（Sprint 3 语义不变，最强档）
@@ -692,6 +797,7 @@ export default function WatchPage() {
   // 「Rendered fewer hooks than expected」并把整棵页面树卸载 —— 实测表现是只剩壳、
   // 页面内容整块消失（这个坑真踩过）。
   const chrome = useWatchChromeBridge({
+    enabled: playbackMode === "ready",
     video,
     videoRef,
     moreOpen,
@@ -832,57 +938,114 @@ export default function WatchPage() {
     </Card>
   ) : null;
 
+  const learningPlaybackActions = (
+    <>
+      <Button
+        variant="text"
+        onClick={() => {
+          setMoreOpen(false);
+          play();
+        }}
+      >
+        继续播放
+      </Button>
+      {currentSubtitle && <SaveSentenceButton subtitleId={currentSubtitle.id} />}
+      {temporaryMode !== null && (
+        <Button variant="outline" onClick={() => setTemporaryMode(null)}>
+          恢复辅助
+        </Button>
+      )}
+    </>
+  );
+
   return (
-    // 自然流布局：顶部 header + 双列（视频/字幕）+ 下方练习区，整页自然滚动。
-    // 容器由壳层提供（DEC-075：全站唯一容器在 MainLayoutInner 渲染一次），这里只留纵向留白。
-    // 原先的 1280 封顶是为了宽屏不把视频列拉过头，那件事现在交给画框的高度护栏（.watch-stage-cap）。
-    <div className="pt-4 sm:pt-6 pb-16">
-      {isMobile && (
-        <div className="mb-3">
-          <div className="flex items-center justify-between gap-3">
+    <div
+      className={cn(
+        "watch-page pb-8",
+        immersive && "is-immersive",
+        immersive && selectedWord && "has-word-card"
+      )}
+      style={{ "--watch-media-aspect": videoAspectRatio } as CSSProperties}
+    >
+      <div className="watch-heading">
+        <div className="flex min-h-9 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2 text-meta text-muted">
             <button
               type="button"
               onClick={back.go}
-              className="text-meta text-muted"
               aria-label={back.label}
+              className="inline-flex min-h-11 shrink-0 items-center gap-1 font-semibold hover:text-ink"
             >
-              ← {back.label}
+              <ArrowLeft size={14} />
+              {back.label}
             </button>
-            <div className="flex items-center gap-2">
-              {chrome.levelSelector}
-              <Button
-                variant="text"
-                size="sm"
-                data-testid="watch-more-button"
-                ref={moreTriggerRef}
-                onClick={chrome.onMore}
-                aria-expanded={chrome.moreOpen}
+            <span aria-hidden>·</span>
+            {video.channel_slug ? (
+              <Link
+                href={`/channels/${video.channel_slug}`}
+                className="truncate hover:text-brand-700"
               >
-                更多设置
-              </Button>
-            </div>
+                {video.channel_name || "SeeWord"}
+              </Link>
+            ) : (
+              <span className="truncate">{video.channel_name || "SeeWord"}</span>
+            )}
           </div>
-          <PageHeader
-            className="watch-mobile-heading"
-            title={
-              <span className="flex items-start gap-2">
-                <span className={cn("min-w-0 flex-1", !titleExpanded && "line-clamp-1")}>
-                  {video.title}
-                </span>
-                <button
-                  type="button"
-                  className="shrink-0 text-meta font-normal text-muted"
-                  aria-expanded={titleExpanded}
-                  onClick={() => setTitleExpanded((v) => !v)}
-                >
-                  {titleExpanded ? "收起" : "展开标题"}
-                </button>
-              </span>
-            }
-            description={`${video.difficulty_level || "难度待评估"} · ${video.subtitles.length} 句字幕 · ${formatDuration(video.duration)}`}
-          />
+          {isMobile ? (
+            <Button
+              variant="text"
+              size="sm"
+              data-testid="watch-more-button"
+              aria-label="更多设置"
+              title="更多设置"
+              ref={moreTriggerRef}
+              onClick={chrome.onMore}
+              aria-expanded={moreOpen}
+            >
+              <MoreHorizontal size={20} aria-hidden />
+            </Button>
+          ) : (
+            <VideoActions
+              compact
+              isLiked={isLiked}
+              likeCount={likeCount}
+              isFavorited={isFavorited}
+              noteOpen={noteOpen}
+              onToggleLike={toggleLike}
+              onToggleFavorite={toggleFavorite}
+              onNotes={() => setNoteOpen((v) => !v)}
+            />
+          )}
         </div>
-      )}
+        <PageHeader
+          className="watch-page-heading"
+          title={
+            <VideoTitle
+              video={video}
+              as="span"
+              clampZh={titleExpanded ? 0 : 1}
+              clampEn={!titleExpanded}
+            />
+          }
+          meta={
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span>
+                {video.difficulty_level ? cefrWithExamHint(video.difficulty_level) : "难度待评估"}
+              </span>
+              <span>{formatDuration(video.duration)}</span>
+              <span>{video.subtitles.length} 句字幕</span>
+              <button
+                type="button"
+                aria-expanded={titleExpanded}
+                onClick={() => setTitleExpanded((v) => !v)}
+                className="text-muted hover:text-ink"
+              >
+                {titleExpanded ? "收起标题" : "展开标题"}
+              </button>
+            </div>
+          }
+        />
+      </div>
       {clipId && (
         <section
           aria-label="片段任务"
@@ -939,7 +1102,7 @@ export default function WatchPage() {
           ) : (
             <p role="status">
               {invalidClip === clipId
-                ? "字幕位置已变化，片段已失效。请回首页选择新片段，或打开完整视频。"
+                ? "字幕位置已变化，片段已失效。请展开“片段与表达”查看当前内容，或打开完整视频。"
                 : (clipResult?.error ?? "正在验证片段信息…")}
             </p>
           )}
@@ -956,323 +1119,356 @@ export default function WatchPage() {
           </div>
         </section>
       )}
-      {/* 移动端页头整块不渲染（#24/#28 乙 → DEC-069）：标题/返回/级别进壳顶栏，
-          动作行进 ⋯ 面板，首屏不再有这块 355px 的次要信息；桌面端原样保留。 */}
-      <div className={cn("mb-4", isMobile && "hidden")}>
-        {/* 顶部细行：返回 + 标题 + 操作图标 */}
-        <div className="flex items-center gap-3">
-          <button
-            className="inline-flex items-center gap-1.5 text-copy font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
-            onClick={back.go}
-          >
-            <ArrowLeft size={14} />
-            {back.label}
-          </button>
-          <div className="h-4 w-px bg-hairline shrink-0" />
-          <h1 className="text-copy-lg font-semibold text-ink truncate flex-1 min-w-0">
-            {video.title}
-          </h1>
-          <VideoActions
-            compact={false}
-            isLiked={isLiked}
-            likeCount={likeCount}
-            isFavorited={isFavorited}
-            noteOpen={noteOpen}
-            onToggleLike={toggleLike}
-            onToggleFavorite={toggleFavorite}
-            onNotes={() => setNoteOpen((v) => !v)}
-          />
-        </div>
-
-        {/* meta 细行：作者名链到作者页（ADR-0014 修订），未挂频道显示 SeeWord */}
-        <div className="mt-2 flex items-center gap-2 text-meta text-muted">
-          {video.channel_name ? (
-            video.channel_slug ? (
-              <Link
-                href={`/channels/${video.channel_slug}`}
-                className="inline-flex items-center gap-1 rounded-full border border-hairline px-2.5 py-0.5 font-semibold text-ink hover:border-brand-500/40 hover:text-brand-700 transition-colors"
-              >
-                {video.channel_name}
-                <ChevronRight size={12} />
-              </Link>
-            ) : (
-              <span className="font-semibold text-ink">{video.channel_name}</span>
-            )
-          ) : (
-            <span className="font-semibold text-ink">SeeWord</span>
-          )}
-          <span>·</span>
-          {/* CEFR 附考试体系对照，与引导/筛选统一语言；难度为 null 时显示「难度待评估」
-             而不是硬回退 B2（与移动端 PageHeader 同口径，audit D-watch P1 #12）。 */}
-          <span>
-            {video.difficulty_level ? cefrWithExamHint(video.difficulty_level) : "难度待评估"}
-          </span>
-          <span>·</span>
-          {/* 设计 meta 有「句字幕」这一项；subtitles.length 是公共数据（移动端 description 已用）。 */}
-          <span>{video.subtitles.length} 句字幕</span>
-          <span>·</span>
-          <span>{formatDuration(video.duration)}</span>
-        </div>
-
-        {/* 笔记抽屉 */}
-        {notesPanel}
-      </div>
-
-      {/* ===== 双列：左视频+当前句，右字幕面板（可折叠） ===== */}
       <div
+        ref={workspaceRef}
+        data-testid="watch-workspace"
+        data-layout={immersive ? "immersive" : isMobile ? "mobile" : split ? "split" : "stacked"}
         className={cn(
-          "grid grid-cols-1 items-start transition-[grid-template-columns] duration-200",
-          // #30：移动端左列用 `display: contents` 消掉自己的盒子（见下），
-          // 画框因此成为 grid item —— 列内间距由各自 margin 负责，这里不能再叠 gap。
-          isMobile ? "gap-0" : "gap-5",
-          // S4：展开态右栏不再是 1fr —— S2 放宽容器后它在宽屏被拉成 600px+。
-          // 固定区间 360–420：下界低于 360 会让 1024–1700 主流宽度上右栏反而变窄
-          // （1280 屏实测 401 → 写 320 就是 320），字幕行换行更多。折叠态不动。
-          panelCollapsed
-            ? "lg:grid-cols-[1fr_56px]"
-            : "lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]"
+          "watch-workspace",
+          isMobile && "is-mobile",
+          !isMobile && !!split && !immersive && "is-split"
         )}
+        style={
+          {
+            "--watch-video-width": split ? `${split.left}px` : undefined,
+            "--watch-aside-height": asideHeight ? `${asideHeight}px` : undefined,
+          } as CSSProperties
+        }
       >
-        {/* ========== LEFT COLUMN ========== */}
-        {/* #30 贴顶常驻挂在这一层，但**移动端这一层不产生盒子**（`display: contents`）：
-            它的子元素直接成为 grid item，于是被粘的是**画框自己** —— 这正是原型
-            `S-scroll.html` 里 `.player{position: sticky}` 的语义，包含块也从「490px 高的列」
-            变成「整个网格容器」（≈1170px）。
-            两处代价都是实测出来的，别再改回去：
-              · 粘在**列**上（前一版）：包含块只有列那么高，余量 635px < 滚动上限 727px ——
-                页面最后 92px 里画面被包含块底边推着走（实测滚到上限时画框顶 y=-28，
-                壳顶是 64）；而且把列里的字幕卡/行动行/来源卡一起钉住 490px，
-                703px 可视高只剩 189px 给文稿；列自身没有背景，缝隙还透出下面滑过的文稿。
-              · 粘在**内层 absolute div** 上：父级只有 490px 且 `items-start` 不拉伸，
-                元素跟着一起滚走（实测滚 600px 时画框顶 y=-232.8，等于没粘）。
-            `top-0`：画框的 `-mt-6` 已经把它拎到壳顶（INV-024 实测 y=64），贴顶位就是滚动容器上沿。 */}
-        <div className={cn(isMobile ? "contents" : "min-w-0")}>
-          {/* S4 高度护栏：桌面端把「画框 + 当前句卡」包进 .watch-stage-cap
-              （夹宽 → 16:9 联动夹高 → 句卡留在首屏）；移动端这层 `contents` 消盒，
-              画框仍是 grid item，出血与贴顶几何零变化。只包这两件 —— 桌面字幕卡
-              （下方 mt-3 那张）不在护栏内，S5 会把它整体搬进句卡。 */}
-          <div
-            ref={stageRef}
-            className={cn(isMobile ? "contents" : "watch-stage-cap")}
-            style={{ maxWidth: stageWidth }}
-          >
-            {/* Video player —— 宽高比驱动（不依赖父级高度链，避免塌缩黑屏）。
-              `<video>` 节点不换父，所以内联 ↔ 贴顶常驻切换不丢播放进度。
-              移动端**出血满宽 + 顶到壳顶**（#24/#28 乙，原型 B2-tap 实测：画框 x=0
-              w=375 顶部 y=壳顶高）：-mx-4/-mt-6 抵消容器的 px-4/pt-6，桌面端不加。 */}
-            <div
-              ref={slotRef}
-              data-testid="video-frame"
-              className={cn(
-                "relative aspect-video bg-surface-dark overflow-hidden shadow-lift",
-                // 移动端出血：w-full 是按列宽（343）算的，负外边距只挪位置不改宽，
-                // 所以宽度必须显式给 w-screen（= 视口宽）才对上原型的 375×210.9。
-                "w-full rounded-lg",
-                // #30：滚过之后**画框自己**贴顶常驻（不缩、不飞、不消失）。
-                // 它是 grid item（左列在移动端 `display: contents`），包含块是整个网格容器。
-                // DEC-069：钉住位置 = `main#main-scroll` 的上沿 = 观看页 44px 顶栏的下沿。
-                // DEC-073：贴顶时补一条下边线 —— 文稿文字是从画框下沿**穿过**去的，
-                // 没有这条边，被遮住的那半行字读起来就像"被切掉了"（真机截图实测）。
-                isMobile && isStuck && "sticky top-0 z-40 border-b border-hairline"
-              )}
-            >
-              <div
-                ref={(el) => {
-                  // D1：F 全屏的目标容器（播放器外壳）。
-                  fullscreenElRef.current = el;
-                }}
-                className="absolute inset-0 transition-all duration-300"
+        <div id="watch-video-column" className={cn("watch-video-column", isMobile && "contents")}>
+          <div className={cn("watch-stage", isMobile && "contents")}>
+            {immersive && !isMobile && (
+              <button
+                type="button"
+                onClick={toggleImmersive}
+                aria-label="退出沉浸"
+                aria-keyshortcuts="t"
+                title="退出沉浸（T / Esc）"
+                className="watch-immersive-exit"
               >
-                {playbackMode === "ready" && bestVideoUrl(video) ? (
-                  <>
-                    <video
-                      ref={chrome.attachVideo ?? videoRef}
-                      // iOS Safari 对无 playsinline 的 <video> 会强制系统全屏播放，
-                      // 页面字幕被遮盖；必须内联播放才能字幕/视频同屏。
-                      playsInline
-                      webkit-playsinline="true"
-                      x5-playsinline="true"
-                      src={mediaUrl(bestVideoUrl(video)!, {
-                        // /media 需要可识别的观看者，<video> 无法带 Authorization
-                        // 头，统一用 ?token= 携带。
-                        withToken: true,
-                      })}
-                      className="h-full w-full object-contain"
-                      // 不再挂 onTimeUpdate（BUG-14）：250ms 轮询已是唯一 tick 源，
-                      // 两条路径各跑一遍二分查找属冗余。轮询同时负责 iOS 的
-                      // isPlaying 校正，摘掉原生事件不会丢同步或播放态。
-                      onPlay={() =>
-                        track("play", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                      }
-                      onPause={() =>
-                        track("pause", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                      }
-                      onSeeked={() =>
-                        track("seek", { position_s: videoRef.current?.currentTime ?? 0 }, id)
-                      }
-                      onEnded={() => {
-                        track("complete", { position_s: videoRef.current?.currentTime ?? 0 }, id);
-                      }}
-                    />
-                    {/* DEC-069：画面内**零覆盖物** —— 标题/返回键/退出 X/级别药丸/入画字幕
+                <X size={16} aria-hidden />
+                退出沉浸
+                <kbd className="watch-key" aria-hidden>
+                  T
+                </kbd>
+              </button>
+            )}
+            <div className="watch-viewing-group">
+              <div className="watch-picture-slot">
+                <div
+                  ref={slotRef}
+                  data-testid="video-frame"
+                  data-frame-size={isMobile ? mobileFrameSize : "desktop"}
+                  className={cn(
+                    "watch-video-frame relative w-full bg-surface-dark overflow-hidden rounded-lg",
+                    isMobile && "is-mobile",
+                    isMobile && isStuck && "is-stuck"
+                  )}
+                >
+                  <div
+                    ref={(el) => {
+                      // D1：F 全屏的目标容器（播放器外壳）。
+                      fullscreenElRef.current = el;
+                    }}
+                    className="watch-media absolute inset-0"
+                  >
+                    {playbackMode === "ready" && bestVideoUrl(video) ? (
+                      <>
+                        <video
+                          ref={chrome.attachVideo ?? videoRef}
+                          // iOS Safari 对无 playsinline 的 <video> 会强制系统全屏播放，
+                          // 页面字幕被遮盖；必须内联播放才能字幕/视频同屏。
+                          playsInline
+                          webkit-playsinline="true"
+                          x5-playsinline="true"
+                          src={mediaUrl(bestVideoUrl(video)!, {
+                            // /media 需要可识别的观看者，<video> 无法带 Authorization
+                            // 头，统一用 ?token= 携带。
+                            withToken: true,
+                          })}
+                          // 首帧解码前显示封面，避免加载瞬间是一块黑屏。
+                          poster={video.thumbnail_url ? mediaUrl(video.thumbnail_url) : undefined}
+                          className="h-full w-full object-contain"
+                          onLoadedMetadata={(event) => {
+                            const { videoWidth, videoHeight } = event.currentTarget;
+                            if (videoWidth > 0 && videoHeight > 0)
+                              useWatchStore
+                                .getState()
+                                .setVideoAspectRatio(videoWidth / videoHeight);
+                          }}
+                          // 不再挂 onTimeUpdate（BUG-14）：250ms 轮询已是唯一 tick 源，
+                          // 两条路径各跑一遍二分查找属冗余。轮询同时负责 iOS 的
+                          // isPlaying 校正，摘掉原生事件不会丢同步或播放态。
+                          onPlay={() =>
+                            track("play", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                          }
+                          onPause={() =>
+                            track("pause", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                          }
+                          onSeeked={() =>
+                            track("seek", { position_s: videoRef.current?.currentTime ?? 0 }, id)
+                          }
+                          onEnded={() => {
+                            track(
+                              "complete",
+                              { position_s: videoRef.current?.currentTime ?? 0 },
+                              id
+                            );
+                          }}
+                        />
+                        {/* DEC-069：画面内**零覆盖物** —— 标题/返回键/退出 X/级别药丸/入画字幕
                       全部搬走（标题与返回进壳顶栏、级别进壳顶栏、字幕进画面正下方的当前句卡）。
                       桌面端只有 D1 控制条这一层，移动端连它也不在画面里（底栏接管）。 */}
-                    {!isMobile && (
-                      <VideoControls
-                        videoRef={videoRef}
-                        isPlaying={isPlaying}
-                        duration={video.duration}
-                        rate={rate}
-                        setRate={setRate}
-                        muted={muted}
-                        toggleMute={toggleMute}
-                        setVolume={setVolume}
-                        subtitleMode={subtitleMode}
-                        onCycleSubtitleMode={cycleSubtitleMode}
-                        subtitleFontSize={subtitleFontSize}
-                        onFontSizeChange={handleFontSizeChange}
-                        toggleFullscreen={toggleFullscreen}
-                        onTogglePlay={togglePlayPause}
-                        onSeek={(t) => seekTo(t, isPlaying)}
-                      />
+                        {!isMobile && (
+                          <VideoControls
+                            videoRef={videoRef}
+                            isPlaying={isPlaying}
+                            duration={video.duration}
+                            rate={rate}
+                            setRate={setRate}
+                            muted={muted}
+                            toggleMute={toggleMute}
+                            setVolume={setVolume}
+                            subtitleMode={subtitleMode}
+                            onCycleSubtitleMode={cycleSubtitleMode}
+                            subtitleFontSize={subtitleFontSize}
+                            onFontSizeChange={handleFontSizeChange}
+                            toggleFullscreen={toggleFullscreen}
+                            onTogglePlay={togglePlayPause}
+                            onSeek={(t) => seekTo(t, isPlaying)}
+                            immersive={immersive}
+                            onToggleImmersive={toggleImmersive}
+                          />
+                        )}
+                      </>
+                    ) : playbackMode === "ready" && isYtMode && youtubeId(video) ? (
+                      <div ref={ytContainerRef} className="h-full w-full" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <div className="text-center">
+                          <Play size={40} className="mx-auto text-white/30" />
+                          <p className="mt-3 text-copy text-white/40">视频未就绪</p>
+                        </div>
+                      </div>
                     )}
-                  </>
-                ) : playbackMode === "ready" && isYtMode && youtubeId(video) ? (
-                  <div ref={ytContainerRef} className="h-full w-full" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <div className="text-center">
-                      <Play size={40} className="mx-auto text-white/30" />
-                      <p className="mt-3 text-copy text-white/40">视频未就绪</p>
-                    </div>
                   </div>
-                )}
+                  {/* DEC-069：级别药丸搬进壳顶栏（移动端）；画面里不再有任何可点覆盖物 */}
+                </div>
               </div>
-              {/* DEC-069：级别药丸搬进壳顶栏（移动端）；画面里不再有任何可点覆盖物 */}
-            </div>
 
-            {/* 当前句卡：**画面正下方**，移动端与桌面端唯一的一份当前句（INV-021）。
-              点词打开帮助；点卡片空白播放/暂停；主操作位于卡片下方。
-              R5「齐平字幕带」（DEC-070）：≤1023px 卡顶 = 画框下沿（`mt-0`，0 断层）、无外框
-              （`border-0`）、无圆角，于是「画框下沿」成为这一段唯一的边；桌面端一个字不改
-              （仍是 12px + 圆角 + 边框）。twMerge 里后写的工具类覆盖 `CurrentSentenceCard`
-              基类的 `mt-3 / border / rounded-lg`。 */}
-            {currentSubtitle && (
-              <CurrentSentenceCard
-                // DEC-074：移动端是齐平字幕带（无外框、计数与展开开关进元信息行），
-                // 桌面端仍是卡片（12px 间距 + 圆角 + 边框、计数在右上角）。
-                variant={isMobile ? "band" : "card"}
-                // 移动端与画框同一个槽位、同一条左右边界（画框 `-mx-4 sm:-mx-7` 出血满宽，
-                // 卡跟着出血；桌面端两者都留在容器内）。
-                className={cn(isMobile && "mt-0 rounded-none border-0 px-0")}
-                textEn={currentSubtitle.text_en}
-                textZh={currentSubtitle.text_zh ?? null}
-                wordLevels={currentSubtitle.word_levels ?? null}
-                subtitleMode={subtitleMode}
-                fontSize={subtitleFontSize}
-                isSelected={isSelectedWord}
-                levelClassFor={levelClassFor}
-                onWordClick={openWordCard}
-                onTogglePlay={togglePlayPause}
-                counter={`${displayedIndex + 1} / ${video.subtitles.length}`}
-              />
-            )}
-            {isMobile && <WatchBottomBar chrome={chrome} inline />}
-            {currentSubtitle && (
-              <div className="flex items-center justify-between border-t border-hairline py-1.5">
-                <span className="text-meta text-muted">
-                  当前句 · {displayedIndex + 1} / {video.subtitles.length}
-                  {" · "}
-                  {formatTime(currentSubtitle.start_time)}
-                </span>
-                <SaveSentenceButton subtitleId={currentSubtitle.id} />
-              </div>
-            )}
+              {/* Current sentence shares the full frame width in both layouts. */}
+              {currentSubtitle && (
+                <CurrentSentenceCard
+                  variant={isMobile || immersive ? "band" : "card"}
+                  className={cn(isMobile && "mt-0 rounded-none border-0 px-0")}
+                  textEn={currentSubtitle.text_en}
+                  textZh={currentSubtitle.text_zh ?? null}
+                  wordLevels={currentSubtitle.word_levels ?? null}
+                  subtitleMode={subtitleMode}
+                  fontSize={subtitleFontSize}
+                  isSelected={isSelectedWord}
+                  levelClassFor={levelClassFor}
+                  onWordClick={openWordCard}
+                  onTogglePlay={togglePlayPause}
+                  counter={`${displayedIndex + 1} / ${video.subtitles.length}`}
+                />
+              )}
+            </div>
+            <div className="watch-word-space" aria-hidden />
             {isMobile && (
-              <div className="flex flex-wrap items-center gap-3 py-2 text-meta">
-                <label>
-                  倍速{" "}
+              <div
+                data-immersive-tools={immersive ? "true" : undefined}
+                className="watch-mobile-tools flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-hairline py-2 text-meta"
+              >
+                <div
+                  role="group"
+                  aria-label="画面大小"
+                  className={cn(
+                    "inline-flex rounded-pill bg-surface-soft p-1",
+                    immersive && "hidden"
+                  )}
+                >
+                  {(["standard", "compact"] as const).map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      aria-pressed={mobileFrameSize === size}
+                      onClick={() => setMobileFrameSize(size)}
+                      aria-label={size === "standard" ? "标准" : "紧凑"}
+                      title={size === "standard" ? "标准画面" : "紧凑画面"}
+                      className={cn(
+                        "inline-flex h-11 w-11 items-center justify-center rounded-pill font-medium",
+                        mobileFrameSize === size && "bg-canvas text-brand-700"
+                      )}
+                    >
+                      {size === "standard" ? (
+                        <RectangleHorizontal size={18} aria-hidden />
+                      ) : (
+                        <PictureInPicture2 size={18} aria-hidden />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <label className="inline-flex items-center gap-1">
+                  <span className="sr-only">倍速</span>
                   <select
                     aria-label="播放倍速"
                     value={rate}
                     onChange={(e) => setRate(Number(e.target.value))}
-                    className="bg-canvas border border-hairline rounded-sm px-2 py-1"
+                    className="min-h-11 bg-canvas text-ink"
                   >
-                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map((n) => (
+                    {PLAYBACK_RATES.map((n) => (
                       <option key={n} value={n}>
                         {n}×
                       </option>
                     ))}
                   </select>
                 </label>
-                <Button variant="text" size="sm" onClick={cycleSubtitleMode}>
+                <button type="button" onClick={cycleSubtitleMode} className="min-h-11 text-body">
                   字幕：
                   {
-                    {
-                      bilingual: "双语",
-                      english: "英文",
-                      chinese: "中文",
-                      off: "隐藏",
-                      hidden: "隐藏",
-                    }[subtitleMode]
+                    { bilingual: "双语", english: "英文", chinese: "中文", hidden: "隐藏" }[
+                      subtitleMode
+                    ]
                   }
+                </button>
+                <Button
+                  variant="text"
+                  size="icon"
+                  onClick={toggleFullscreen}
+                  aria-label="全屏"
+                  title="全屏"
+                >
+                  <Maximize size={18} aria-hidden />
                 </Button>
-                <Button variant="text" size="sm" onClick={toggleFullscreen}>
-                  全屏
+                <Button
+                  variant="text"
+                  size="sm"
+                  icon={PanelTop}
+                  onClick={toggleImmersive}
+                  aria-pressed={immersive}
+                  aria-keyshortcuts="t"
+                  aria-label={immersive ? "退出沉浸" : "沉浸观看"}
+                  title={immersive ? "退出沉浸（T / Esc）" : "沉浸观看（T）"}
+                  className={cn(
+                    "watch-mobile-immersive",
+                    !immersive && "watch-mobile-immersive-entry"
+                  )}
+                >
+                  <span>{immersive ? "退出沉浸" : "沉浸观看"}</span>
+                  <kbd className="watch-key" aria-hidden>
+                    T
+                  </kbd>
                 </Button>
               </div>
             )}
-            <div
-              className="flex flex-wrap items-center gap-2 border-y border-hairline py-2"
-              data-testid="sentence-actions"
-            >
-              <div className="hidden lg:contents">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    resumeFollow();
-                    navigateSubtitle(-1);
-                  }}
-                  disabled={!video.subtitles.length}
-                >
-                  上一句
-                </Button>
-                <Button
-                  onClick={() => handleReplay()}
-                  disabled={
-                    !currentSubtitle ||
-                    !validInterval(
-                      currentSubtitle.start_time,
-                      currentSubtitle.end_time,
-                      video.duration
-                    )
-                  }
-                >
-                  重听本句
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    resumeFollow();
-                    navigateSubtitle(1);
-                  }}
-                  disabled={!video.subtitles.length}
-                >
-                  下一句
-                </Button>
+            {!isMobile && (
+              <div
+                className="watch-sentence-actions flex flex-wrap items-center gap-2 border-y border-hairline py-2"
+                data-immersive-tools={immersive ? "true" : undefined}
+                data-testid="sentence-actions"
+              >
+                <div className="watch-sentence-group" role="group" aria-label="逐句播放">
+                  <Button
+                    variant="text"
+                    icon={ArrowLeft}
+                    size="sm"
+                    onClick={previousSentence}
+                    aria-label="上一句"
+                    aria-keyshortcuts="a"
+                    disabled={!video.subtitles.length}
+                  >
+                    上一句
+                    <kbd className="watch-key" aria-hidden>
+                      A
+                    </kbd>
+                  </Button>
+                  <Button
+                    variant="tonal"
+                    icon={RotateCcw}
+                    size="sm"
+                    className="watch-replay-primary"
+                    title="重听本句（R），到句末暂停"
+                    onClick={replayCurrentSentence}
+                    aria-label="重听本句"
+                    aria-keyshortcuts="r"
+                    disabled={
+                      !currentSubtitle ||
+                      !validInterval(
+                        currentSubtitle.start_time,
+                        currentSubtitle.end_time,
+                        video.duration
+                      )
+                    }
+                  >
+                    重听本句
+                    <kbd className="watch-key" aria-hidden>
+                      R
+                    </kbd>
+                  </Button>
+                  <Button
+                    variant="text"
+                    icon={ArrowRight}
+                    size="sm"
+                    iconRight
+                    onClick={nextSentence}
+                    aria-label="下一句"
+                    aria-keyshortcuts="d"
+                    disabled={!video.subtitles.length}
+                  >
+                    下一句
+                    <kbd className="watch-key" aria-hidden>
+                      D
+                    </kbd>
+                  </Button>
+                </div>
+                <div className="watch-learning-actions">{learningPlaybackActions}</div>
+                {isYtMode && !immersive && (
+                  <Button
+                    variant="text"
+                    size="sm"
+                    icon={PanelTop}
+                    onClick={toggleImmersive}
+                    aria-pressed={immersive}
+                    aria-keyshortcuts="t"
+                  >
+                    {immersive ? "退出沉浸" : "沉浸观看"}
+                    <kbd className="watch-key" aria-hidden>
+                      T
+                    </kbd>
+                  </Button>
+                )}
               </div>
-              <Button variant="text" onClick={() => handleReplay(true)} disabled={!currentSubtitle}>
-                少一点辅助再听
-              </Button>
-              <Button variant="text" onClick={play}>
-                继续播放
-              </Button>
-              {temporaryMode !== null && (
-                <Button variant="outline" onClick={() => setTemporaryMode(null)}>
-                  恢复辅助
-                </Button>
-              )}
-            </div>
+            )}
+            {!isMobile && (
+              <section
+                aria-label="我的笔记"
+                className="watch-notes mt-4 border-t border-hairline pt-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-copy font-semibold text-ink">我的笔记</h2>
+                  <Button
+                    variant="text"
+                    size="sm"
+                    onClick={() => setNoteOpen((v) => !v)}
+                    aria-expanded={noteOpen}
+                  >
+                    {noteOpen ? "收起" : noteDraft.trim() ? "编辑" : "记一条"}
+                  </Button>
+                </div>
+                {noteOpen ? (
+                  notesPanel
+                ) : noteDraft.trim() ? (
+                  <p className="mt-2 whitespace-pre-line text-copy leading-relaxed text-body">
+                    {noteDraft}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-meta text-muted">
+                    还没有笔记。记下重点句型、生词或心得，存成整段视频的笔记。
+                  </p>
+                )}
+              </section>
+            )}
             {focusIssue && (
               <div role="alert" className="py-2 text-meta text-muted">
                 {focusIssue.message}
@@ -1330,166 +1526,145 @@ export default function WatchPage() {
           {/* 来源声明（ICP 合规）也已并入 ⋯ 面板：原视频来源 + 版权声明。 */}
         </div>
 
-        {/* ========== RIGHT COLUMN：字幕面板，可折叠为图标栏 ========== */}
-        <aside className="bg-canvas border border-hairline rounded-lg lg:sticky lg:top-4 overflow-hidden min-w-0">
-          {/* 折叠态在移动端到不了：折叠键已 `hidden lg:flex`（移动端不渲染）、
-              `panelCollapsed` 也不持久化 —— 这个守卫只是把「到不了的状态」堵死，
-              免得将来有人把折叠键放回移动端时，页面直接落进窄轨分支（DEC-070 T4d）。 */}
-          {panelCollapsed && !isMobile ? (
-            // 收起态：只显示垂直图标栏，hover 看标签，点击展开切到该模式
-            <SubtitleModeRail
-              mode={subtitleMode}
-              onModeChange={setSubtitleMode}
-              onExpand={() => setPanelCollapsed(false)}
-            />
-          ) : (
-            <>
-              {/* 设计 .w-aside-head：标题 + 句数 + 跟随开关。桌面放在模式行之上（设计的
-                  顺序）；移动端放到模式行之下（下一块），避免把 48px 模式行推出首屏预算。 */}
-              <div className="hidden items-center justify-between gap-3 border-b border-hairline px-3 py-2 lg:flex">
-                <div className="min-w-0">
-                  <h2 className="text-copy font-bold text-ink">文稿</h2>
-                  <p className="text-caption text-muted">{video.subtitles.length} 句 · 整段</p>
-                </div>
-                <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted">
-                  <input
-                    type="checkbox"
-                    checked={followEnabled}
-                    onChange={(e) => setFollowEnabled(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-brand-500"
-                  />
-                  跟随
-                </label>
-              </div>
-              {/* 头部：模式切换 + 折叠按钮 常驻同一行，切换模式不跳位 */}
-              <div className="border-b border-hairline">
-                <SubtitleModeTabs
-                  mode={subtitleMode}
-                  onModeChange={setSubtitleMode}
-                  collapsed={false}
-                  onToggleCollapse={() => setPanelCollapsed(true)}
+        {!isMobile && split && !immersive && (
+          <WatchDivider split={split} onChange={setLeftPanelWidth} />
+        )}
+        <aside
+          id="watch-transcript"
+          data-testid="watch-transcript"
+          hidden={immersive}
+          className="watch-transcript bg-canvas border border-hairline rounded-lg overflow-hidden min-w-0"
+        >
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-hairline px-3 py-2">
+            <div className="min-w-0">
+              <h2 className="text-copy font-bold text-ink">文稿</h2>
+              <p className="text-caption text-muted">{video.subtitles.length} 句 · 整段</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              {/* 右栏文稿是跟随播放的窄列表；通读整段、按考试词定位在文档视图里
+                      更顺手。带上 id 过去，文稿页的「回到视频」才能按 from=transcript
+                      回到本页（而不是丢回首页）。 */}
+              <Link
+                href={`/watch/${id}/transcript`}
+                className="inline-flex items-center gap-0.5 whitespace-nowrap text-caption font-semibold text-brand-700 transition-colors hover:text-brand-800"
+              >
+                <FileText size={13} aria-hidden />
+                看全文
+              </Link>
+              <label className="flex min-h-11 shrink-0 cursor-pointer select-none items-center gap-1.5 px-1 text-caption text-muted">
+                <input
+                  type="checkbox"
+                  checked={followEnabled}
+                  onChange={(e) => setFollowEnabled(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-brand-500"
                 />
-              </div>
-              {/* 移动端标题行：放在模式行之后，不占首屏高度预算（设计移动端文稿头在
-                  844px，本来就在首屏之外）。 */}
-              <div className="flex items-center justify-between gap-3 border-b border-hairline px-3 py-2 lg:hidden">
-                <div className="min-w-0">
-                  <h2 className="text-copy font-bold text-ink">文稿</h2>
-                  <p className="text-caption text-muted">{video.subtitles.length} 句 · 整段</p>
-                </div>
-                <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted">
-                  <input
-                    type="checkbox"
-                    checked={followEnabled}
-                    onChange={(e) => setFollowEnabled(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-brand-500"
-                  />
-                  跟随
-                </label>
-              </div>
-
-              {/* 字幕列表 —— 隐藏模式时提示，其余按模式渲染 */}
-              {subtitleMode === "hidden" ? (
-                <div className="p-8 text-center text-meta text-muted">
-                  字幕已关闭，按 S 键或控制条切换显示模式
-                </div>
-              ) : (
-                <div
-                  ref={subtitleListRef}
-                  data-coach="subtitles"
-                  // DEC-073：移动端文稿**页级滚动**（去掉 max-h + 内部滚动条）——
-                  // 卡内再套一层滚动会让"滚到底了吗"不可知，列表顶部还常留半截行。
-                  // 桌面端保持卡内滚动：右栏本身就是 sticky 的，内部滚动才是对的。
-                  // 顶部 4px 让被画框下沿压住的第一行不至于贴着切边。
-                  className={cn(
-                    "subtitle-scroll",
-                    isMobile ? "pt-1" : "max-h-[560px] overflow-y-auto p-1.5"
-                  )}
-                >
-                  <div className="flex flex-col gap-0.5">
-                    {video.subtitles.map((sub, i) => (
-                      <button
-                        key={sub.id}
-                        id={`subtitle-${i}`}
-                        aria-current={i === currentSubtitleIndex ? "true" : undefined}
-                        onClick={() => {
-                          resumeFollow(); // 点文稿行是显式导航：恢复跟随
-                          setCurrentSubtitleIndex(i);
-                          seekTo(sub.start_time);
-                        }}
-                        className={cn(
-                          "flex w-full items-start gap-2 rounded-lg border-l-[3px] border-transparent cursor-pointer text-left transition-colors duration-100 hover:bg-surface-soft p-3",
-                          // R5（DEC-070 定案②）：文稿里的当前项**降级**为淡底 + 保留 3px 橙色左
-                          // 竖线，文字回到 ink —— 「正在读的那一句」的唯一橙色锚点留给字幕带。
-                          i === currentSubtitleIndex && "bg-surface-soft border-l-brand-500"
+                跟随
+              </label>
+            </div>
+          </div>
+          {/* 字幕列表 —— 隐藏模式时提示，其余按模式渲染 */}
+          {subtitleMode === "hidden" ? (
+            <div className="p-8 text-center text-meta text-muted">
+              字幕已关闭，按 S 键或控制条切换显示模式
+            </div>
+          ) : (
+            <div
+              ref={subtitleListRef}
+              data-coach="subtitles"
+              className={cn("subtitle-scroll", isMobile ? "pt-1" : "min-h-0 overflow-y-auto p-1.5")}
+            >
+              <div className="flex flex-col gap-0.5">
+                {video.subtitles.map((sub, i) => (
+                  <button
+                    key={sub.id}
+                    id={`subtitle-${i}`}
+                    aria-current={i === currentSubtitleIndex ? "true" : undefined}
+                    onClick={() => {
+                      resumeFollow(); // 点文稿行是显式导航：恢复跟随
+                      setCurrentSubtitleIndex(i);
+                      seekTo(sub.start_time);
+                    }}
+                    className={cn(
+                      "flex w-full items-start gap-2 rounded-lg border-l-[3px] border-transparent cursor-pointer text-left transition-colors duration-100 hover:bg-surface-soft p-3",
+                      // R5（DEC-070 定案②）：当前项用淡蓝底 + 3px 蓝色左竖线，
+                      // 文字回到 ink；「正在读的那一句」的唯一强调色留给当前句卡。
+                      i === currentSubtitleIndex && "bg-brand-50 border-l-brand-500"
+                    )}
+                  >
+                    <span className="min-w-0 flex-1">
+                      {subtitleMode !== "chinese" && (
+                        // 橙色只留给字幕带：当前项不再染 `text-brand-500`（DEC-070 定案②）。
+                        <div className="font-medium text-copy leading-relaxed text-ink">
+                          {sub.text_en.split(" ").map((word, wi) => (
+                            <span key={wi} className={levelClassFor(word, sub.word_levels)}>
+                              {word}{" "}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
+                        sub.text_zh && (
+                          <div className="text-muted mt-0.5 text-meta">{sub.text_zh}</div>
                         )}
-                      >
-                        {/* 设计 .w-sub-time：每行左侧时间点（12px 等宽、tabular-nums）。
-                            没有它时「跳到某句」只能靠猜（audit D-watch P1 #5）。 */}
-                        <span className="w-10 shrink-0 pt-0.5 text-caption font-mono tabular-nums text-muted">
-                          {formatTime(sub.start_time)}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          {subtitleMode !== "chinese" && (
-                            // 橙色只留给字幕带：当前项不再染 `text-brand-500`（DEC-070 定案②）。
-                            <div className="font-medium text-copy leading-relaxed text-ink">
-                              {sub.text_en.split(" ").map((word, wi) => (
-                                <span key={wi} className={levelClassFor(word, sub.word_levels)}>
-                                  {word}{" "}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {(subtitleMode === "bilingual" || subtitleMode === "chinese") &&
-                            sub.text_zh && (
-                              <div className="text-muted mt-0.5 text-meta">{sub.text_zh}</div>
-                            )}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </aside>
       </div>
 
-      {/* 学习后的常用入口 */}
-      <section aria-labelledby="watch-after-title" className="mt-8 border-t border-hairline pt-6">
-        <div className="flex flex-wrap items-end justify-between gap-5">
-          <div className="min-w-0 max-w-xl">
-            <p className="text-caption font-bold uppercase tracking-[0.12em] text-muted">
-              这段之后
+      <WatchSourceCard video={{ ...video, favorite_count: favoriteCount }} />
+      <details open className="mt-4 border-t border-hairline py-3">
+        <summary className="cursor-pointer text-copy font-semibold text-ink">视频信息</summary>
+        <div className="mt-3 space-y-3">
+          {video.description?.trim() && (
+            <p className="whitespace-pre-line break-words text-copy leading-relaxed text-body">
+              {video.description}
             </p>
-            <h2
-              id="watch-after-title"
-              className="mt-2 text-title font-bold tracking-tight text-ink"
+          )}
+          {video.source_url && (
+            <a
+              href={video.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-meta text-brand-700"
             >
-              把刚才点过的词带回词汇页
-            </h2>
-            <p className="mt-1 text-meta leading-relaxed text-muted">
-              不强制复习。想继续看、只想看词、想去做题，都可以从各自的入口走。
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" onClick={() => router.push("/vocabulary")}>
-              去词汇页
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.push("/#feed")}>
-              换一段
-            </Button>
-            <Button type="button" variant="text" onClick={() => router.push("/")}>
-              回首页
-            </Button>
-          </div>
+              查看原始来源 ↗
+            </a>
+          )}
+          <VideoStats
+            likeCount={likeCount}
+            viewCount={video.view_count}
+            favoriteCount={favoriteCount}
+          />
+          <LearningActions
+            compact={isMobile}
+            vocabSet={vocabSet}
+            addingVocabSet={addingVocabSet}
+            onVocabSet={handleVocabSetClick}
+            onDrill={() => router.push("/vocabulary")}
+          />
         </div>
+      </details>
+      <PublishedVideoEditorial key={video.id} video={video} />
+      <RelatedVideos videoId={video.id} />
+
+      <section
+        aria-label="接着看"
+        className="mt-6 flex flex-wrap items-center gap-3 border-t border-hairline pt-4"
+      >
+        <Button onClick={() => router.push("/#feed")}>继续选片</Button>
+        <Button variant="text" onClick={() => router.push("/vocabulary")}>
+          复习已保存的词
+        </Button>
       </section>
 
       {/* Word tooltip overlay —— 桌面：可拖动浮动卡；移动端：贴画面下沿升起的浮层（#27 决议乙） */}
       {selectedWord && (
         <div data-coach="word-card">
-          {isMobile ? (
+          {isMobile || immersive ? (
             <WordCardSheet
               key={selectedWord}
               anchorRef={slotRef}
@@ -1527,8 +1702,7 @@ export default function WatchPage() {
         </div>
       )}
 
-      {/* ⋯ 面板（DEC-069 第 6 条）：来源 / 版权 / 语言 / 字号 / 倍速 / 动作行全部搬进来。
-          入口是壳顶栏的 ⋯（44×44），开关状态经 `WatchChromeStore` 来回。 */}
+      {/* 手机设置、次要学习操作与笔记集中在同一张抽屉。 */}
       <WatchMoreSheet
         triggerRef={moreTriggerRef}
         open={moreOpen}
@@ -1541,18 +1715,26 @@ export default function WatchPage() {
         rate={rate}
         onRateChange={setRate}
         sourceUrl={video.source_url ?? null}
+        extra={isMobile && noteOpen ? notesPanel : undefined}
         actions={
-          <div className="flex items-center gap-1">
-            <VideoActions
-              compact
-              isLiked={isLiked}
-              likeCount={likeCount}
-              isFavorited={isFavorited}
-              noteOpen={noteOpen}
-              onToggleLike={toggleLike}
-              onToggleFavorite={toggleFavorite}
-              onNotes={() => setNoteOpen((v) => !v)}
-            />
+          <div className="space-y-3">
+            {isMobile && (
+              <>
+                <div data-testid="sentence-actions" className="flex flex-wrap gap-2">
+                  {learningPlaybackActions}
+                </div>
+                <VideoActions
+                  compact
+                  isLiked={isLiked}
+                  likeCount={likeCount}
+                  isFavorited={isFavorited}
+                  noteOpen={noteOpen}
+                  onToggleLike={toggleLike}
+                  onToggleFavorite={toggleFavorite}
+                  onNotes={() => setNoteOpen((v) => !v)}
+                />
+              </>
+            )}
             <LearningActions
               compact
               vocabSet={vocabSet}
@@ -1562,7 +1744,6 @@ export default function WatchPage() {
             />
           </div>
         }
-        extra={noteOpen ? notesPanel : null}
       />
     </div>
   );

@@ -44,6 +44,12 @@ const GOAL_TYPE_LABELS: Record<string, string> = {
   words: "复习单词数",
 };
 
+/** 数值后的量词：直接拼「复习单词数」会读成「每天 5 复习单词数」。 */
+const GOAL_UNIT_LABELS: Record<string, string> = {
+  minutes: "分钟",
+  words: "个词",
+};
+
 /** 每日提醒时间档（设计稿 profile.html「提醒时间」的固定档位）。 */
 const REMINDER_TIMES = ["07:30", "12:30", "18:00", "20:30", "22:00"];
 
@@ -140,10 +146,12 @@ export default function SettingsTab({
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-3xl space-y-6">
       {section !== "account" && (
         <>
-          <InterestPicker value={interests} onChange={setInterests} disabled={saving} />
+          <Card as="section" padding={5}>
+            <InterestPicker value={interests} onChange={setInterests} disabled={saving} />
+          </Card>
           {/* Learning group */}
           <Card as="section" padding={5} className="space-y-4">
             <h2 className="user-sec-title">学习</h2>
@@ -175,7 +183,7 @@ export default function SettingsTab({
                   className="w-24"
                 />
                 <span className="text-meta text-muted">
-                  每天 {goalValue} {GOAL_TYPE_LABELS[goalType]}
+                  每天 {goalValue} {GOAL_UNIT_LABELS[goalType] ?? ""}
                 </span>
               </div>
             </FormField>

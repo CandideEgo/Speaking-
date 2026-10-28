@@ -105,6 +105,9 @@ class UserResponse(BaseModel):
     timezone: str | None = None
     last_active_at: datetime | None = None
     onboarding_completed: bool = False
+    # Computed from the model property: false for phone-only accounts, which is
+    # what lets /set-password choose first-setup vs change-password UX.
+    has_password: bool = False
     created_at: datetime
 
     @field_serializer("plan_expires_at", "last_active_at", "created_at")

@@ -7,42 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 
-class SpeakingAttempt(Base):
-    """Frozen — AI speaking scoring was removed (ADR-0002, 2026-07). Kept for
-    historical data only; no new rows are written. Recording is now playback-
-    only with zero persistence. The ``rubric_id`` FK and the underlying
-    ``speaking_rubrics`` / ``rubric_criteria`` / ``speaking_attempt_scores``
-    tables are also frozen (their SQLAlchemy models were deleted)."""
-
-    __tablename__ = "speaking_attempts"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    subtitle_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("subtitles.id", ondelete="SET NULL"), nullable=True
-    )
-    audio_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
-    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
-    accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)
-    fluency: Mapped[float | None] = mapped_column(Float, nullable=True)
-    completeness: Mapped[float | None] = mapped_column(Float, nullable=True)
-    feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
-    word_scores: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    audio_duration: Mapped[float | None] = mapped_column(Float, nullable=True)
-    mode: Mapped[str] = mapped_column(String(20), default="read_aloud")  # read_aloud/shadowing/free_speaking
-    # Frozen historical column — the FK to speaking_rubrics was dropped from the
-    # model when the rubric models were deleted (ADR-0002). The DB table still
-    # holds the constraint; the model omits it so metadata.create_all doesn't
-    # require the frozen speaking_rubrics table to be present in the metadata.
-    rubric_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
-
-    user = relationship("User", back_populates="speaking_attempts")
-    subtitle = relationship("Subtitle", back_populates="speaking_attempts")
-
-
 class LearningRecord(Base):
     __tablename__ = "learning_records"
     __table_args__ = (UniqueConstraint("user_id", "video_id", name="uq_learning_record_user_video"),)
@@ -60,6 +24,9 @@ class LearningRecord(Base):
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Enhanced tracking
+    # Cumulative per record — never slice this by last_accessed_at. Daily /
+    # weekly watched-minute aggregates come from behavior_events.watch_time
+    # (see app/api/v1/learning.py::stats_weekly, BE-08).
     time_spent_seconds: Mapped[int] = mapped_column(Integer, default=0)
     last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     progress_percentage: Mapped[float] = mapped_column(Float, default=0.0)

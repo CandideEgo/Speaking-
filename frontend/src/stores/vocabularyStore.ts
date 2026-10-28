@@ -9,7 +9,10 @@ export interface VocabStats {
   learning_count: number;
   reviewing_count: number;
   mastered_count: number;
+  /** Legacy badge count (folds new words in). UI should use due_review_count. */
   due_count: number;
+  /** Canonical review queue (excludes new/mastered). */
+  due_review_count: number;
 }
 
 interface VocabularyState {
@@ -37,6 +40,7 @@ const INITIAL_STATE: VocabularyState = {
     reviewing_count: 0,
     mastered_count: 0,
     due_count: 0,
+    due_review_count: 0,
   },
 };
 
@@ -51,7 +55,14 @@ export const useVocabularyStore = create<VocabularyStore>((set) => ({
     try {
       const data = await api<VocabStats>("/api/v1/vocabulary/stats");
       if (gen !== generation) return;
-      set({ stats: data });
+      set({
+        stats: {
+          ...data,
+          // Older backends only ship due_count; fall back so the badge is not
+          // stuck at 0 during a rolling deploy.
+          due_review_count: data.due_review_count ?? data.due_count,
+        },
+      });
     } catch (err) {
       if (gen !== generation) return;
       console.error("[vocabularyStore] fetchStats failed", err);

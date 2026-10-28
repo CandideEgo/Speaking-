@@ -3,12 +3,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Eye, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { formatDuration } from "@/lib/format";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { Image } from "@/components/ui/Image";
 import { Card } from "@/components/ui/Card";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
-import { cn, formatCount } from "@/lib/utils";
+import { VideoDescription } from "@/components/video/VideoDescription";
+import { VideoTitle } from "@/components/video/VideoTitle";
+import { cn } from "@/lib/utils";
 import { trackClick } from "@/lib/analytics";
 import { topicLabel } from "@/lib/topicCategories";
 import { watchHref, type WatchEntry } from "@/lib/watchEntry";
@@ -27,18 +30,26 @@ import type { VideoCard as VideoCardDTO } from "@/types";
  * 也不保证 `storage_mode` 之类的站内字段。`id`/`video_id` 二者其一即可。
  */
 export type VideoCardData = Pick<VideoCardDTO, "title" | "thumbnail_url" | "duration"> & {
+  /** 中文展示标题；平台条目没有该字段，回退英文 title。 */
+  title_zh?: string | null;
   id?: string; // optional for VideoItem
   video_id?: string; // VideoItem uses this as primary key
   difficulty_level?: string | null;
   topic_tags?: string | null;
   channel_title?: string;
+  channel_name?: string | null;
   /** 作者页 slug（ADR-0014 修订）：非空时频道名可点跳转。 */
   channel_slug?: string | null;
   is_demo?: boolean;
   /** 内容三态（需求 §5.1）：offline 时卡片显示「已下架」角标。 */
   storage_mode?: string | null;
+  /** 站内总点赞数。 */
+  like_count?: number | null;
   /** 站内总播放量（complete 计数，区别于 YouTube 侧 ext_view_count）。 */
   view_count?: number | null;
+  upload_date?: string | null;
+  published_at?: string | null;
+  created_at?: string | null;
   /** 站内总收藏数。 */
   favorite_count?: number | null;
   /** 视频简介（列表接口已截断到 200 字符）；本地视频可能为 null。 */
@@ -48,6 +59,7 @@ export type VideoCardData = Pick<VideoCardDTO, "title" | "thumbnail_url" | "dura
   exam_word_count?: number | null;
   sample_text_en?: string | null;
   sample_text_zh?: string | null;
+  status?: string | null;
 };
 
 export interface VideoCardProps {
@@ -63,8 +75,15 @@ export interface VideoCardProps {
   footer?: ReactNode;
   /** Additional className for the outer link. */
   className?: string;
+  /** 当前筛选已说明主题时，省略重复主题标签。 */
+  showTopic?: boolean;
   /** 来源标记：播放页据此回到本页（连同 URL 状态）。不传则 href 不带参数。 */
   entry?: WatchEntry;
+  /**
+   * `default`：带卡面/简介的行内卡；`poster`：设计稿首页的封面网格卡
+   * （16:9 封面 + 频道/主题行 + 中英标题 + 站内互动数）。
+   */
+  variant?: "default" | "poster";
 }
 
 function clickSource(): string {
@@ -84,6 +103,8 @@ export function VideoCard({
   footer,
   className,
   entry,
+  showTopic = true,
+  variant = "default",
 }: VideoCardProps) {
   const router = useRouter();
   // topic_tags 存 canonical id（LLM 分类产出），展示时映射为中文标签；
@@ -93,12 +114,106 @@ export function VideoCard({
 
   // 频道名跳作者页：外层卡片是 Card as={Link}，不能嵌套 <a>，用受控 span 拦截冒泡。
   // 未挂频道的视频（channel_slug 为空）保持纯文本。
+  const channelName = video.channel_title?.trim() || video.channel_name?.trim();
   const channelLink = video.channel_slug ? `/channels/${video.channel_slug}` : null;
 
   function onChannelClick(e: React.MouseEvent | React.KeyboardEvent) {
     e.preventDefault();
     e.stopPropagation();
     if (channelLink) router.push(channelLink);
+  }
+
+  if (variant === "poster") {
+    return (
+      <Card
+        as={Link}
+        href={watchHref(videoId, entry)}
+        onClick={() => trackClick(videoId, clickSource())}
+        padding={0}
+        className={cn(
+          "video-poster group min-w-0 border-0 bg-transparent transition-none",
+          className
+        )}
+      >
+        <div className="relative aspect-video overflow-hidden rounded-md bg-surface-card">
+          <Image
+            src={video.thumbnail_url}
+            alt=""
+            sizes="(min-width: 2100px) 25vw, (min-width: 768px) 33vw, 100vw"
+            imgClassName="transition-transform duration-500 ease-out group-hover:scale-[1.025]"
+            fallback={
+              <div className="absolute inset-0 flex items-center justify-center bg-surface-card">
+                <Play className="size-7 text-muted" aria-hidden />
+              </div>
+            }
+          />
+          {video.difficulty_level && (
+            <span className="absolute top-2 left-2 inline-flex h-6 items-center rounded-sm bg-ink/72 px-1.5 text-caption font-semibold tabular-nums text-canvas backdrop-blur-sm">
+              {video.difficulty_level}
+            </span>
+          )}
+          {video.status === "ready" && (
+            <span className="absolute top-2 right-2 inline-flex h-6 items-center rounded-sm bg-ink/72 px-1.5 text-caption font-semibold text-canvas backdrop-blur-sm">
+              双语
+            </span>
+          )}
+          {video.storage_mode === "offline" && (
+            <span className="absolute bottom-2 left-2 inline-flex h-6 items-center rounded-sm bg-ink/85 px-1.5 text-caption font-semibold text-canvas">
+              已下架
+            </span>
+          )}
+          {video.duration != null && video.duration > 0 && (
+            <span className="absolute right-2 bottom-2 inline-flex h-6 items-center rounded-sm bg-ink/80 px-1.5 font-mono text-caption font-semibold tabular-nums text-canvas">
+              {formatDuration(video.duration)}
+            </span>
+          )}
+        </div>
+
+        <div className="video-poster-copy min-w-0 pt-2.5">
+          <p className="flex min-w-0 items-center gap-1.5 text-caption text-muted">
+            {channelName && (
+              <span
+                role={channelLink ? "link" : undefined}
+                tabIndex={channelLink ? 0 : undefined}
+                onClick={channelLink ? onChannelClick : undefined}
+                onKeyDown={
+                  channelLink
+                    ? (e) => {
+                        if (e.key === "Enter") onChannelClick(e);
+                      }
+                    : undefined
+                }
+                className={cn("max-w-[10rem] truncate", channelLink && "hover:text-ink")}
+                title={channelName}
+              >
+                {channelName}
+              </span>
+            )}
+            {showTopic && video.topic_tags?.trim() && (
+              <>
+                <span aria-hidden className="text-hairline-strong">
+                  ·
+                </span>
+                <span className="truncate">{category}</span>
+              </>
+            )}
+          </p>
+          <p
+            lang="en"
+            className="video-poster-title mt-1 line-clamp-2 text-copy font-semibold leading-snug tracking-tight text-ink transition-colors group-hover:text-brand-700"
+            title={video.title}
+          >
+            {video.title}
+          </p>
+          {video.title_zh?.trim() && video.title_zh.trim() !== video.title.trim() && (
+            <p className="mt-0.5 line-clamp-1 text-meta leading-snug text-muted">
+              {video.title_zh}
+            </p>
+          )}
+          <VideoMetadata video={video} className="mt-1.5" />
+        </div>
+      </Card>
+    );
   }
 
   return (
@@ -109,7 +224,7 @@ export function VideoCard({
       padding={0}
       className={cn(
         "overflow-hidden cursor-pointer",
-        "hover:-translate-y-1.5 hover:shadow-xl hover:shadow-black/[0.08] hover:border-transparent",
+        "hover:border-hairline-strong",
         "transition-all duration-200 ease-out group",
         className
       )}
@@ -137,13 +252,6 @@ export function VideoCard({
         />
         {/* 等级徽标：S8-1 起走中性 token（自带不透明底），不再内联白色背景——
             深色模式下白底会与暗色卡片脱节，且内联色违反 INV-017。 */}
-        {video.difficulty_level && (
-          <DifficultyBadge
-            level={video.difficulty_level}
-            size="sm"
-            className="absolute left-2 top-2"
-          />
-        )}
         {/* Duration badge */}
         {durationLabel ? (
           <span
@@ -181,72 +289,44 @@ export function VideoCard({
 
       {/* Meta */}
       <div className="p-4">
-        <p
-          className={cn(
-            "text-copy font-semibold leading-snug text-ink line-clamp-2 mb-2 tracking-tight group-hover:text-brand-600 transition-colors duration-150",
+        <VideoTitle
+          video={video}
+          zhClassName={cn(
+            "text-copy font-semibold leading-snug text-ink mb-2 tracking-tight group-hover:text-brand-600 transition-colors duration-150",
             feat && "text-copy-lg min-h-[50px]"
           )}
-        >
-          {video.title}
-        </p>
-        {/* 简介：YouTube 侧描述（列表已截断），最多两行，帮用户判断内容。 */}
-        {video.sample_text_en && (
-          <p className="text-meta text-muted line-clamp-2 mb-2">“{video.sample_text_en}”</p>
-        )}
-        {video.subtitle_count != null && (
-          <p className="text-meta text-muted mb-2">
-            {video.subtitle_count} 句字幕 ·{" "}
-            {video.exam_word_count == null ? "考试词待统计" : `${video.exam_word_count} 个考试词`}
-            {video.wpm ? ` · ${Math.round(video.wpm)} wpm` : " · 语速待评估"}
-          </p>
-        )}
-        {video.description && (
-          // DEC-073：卡片摘要跟着移动端基线走 13px（卡内嵌摘要允许 11–13px，正文才要求 ≥14px）
-          <p className="text-copy leading-relaxed text-muted line-clamp-2 mb-2">
-            {video.description}
-          </p>
-        )}
-        {/* 站内总播放 / 收藏（需求 §3.3）：独立一行，自定义 footer 时也保留。 */}
-        {(video.view_count != null || video.favorite_count != null) && (
-          <div className="flex items-center gap-3 text-caption text-muted mb-2.5">
-            {video.view_count != null && (
-              <span className="inline-flex items-center gap-1" title="播放量">
-                <Eye size={13} className="text-muted-soft" />
-                {formatCount(Number(video.view_count))}
-              </span>
-            )}
-            {video.favorite_count != null && (
-              <span className="inline-flex items-center gap-1" title="收藏数">
-                <Bookmark size={12} className="text-muted-soft" />
-                {formatCount(Number(video.favorite_count))}
-              </span>
-            )}
-          </div>
-        )}
+          enClassName="mb-2"
+        />
+        <VideoDescription description={video.description} className="mb-2" />
+        <VideoMetadata video={video} className="mb-2" />
         {footer ?? (
-          <div className="flex items-center gap-2 text-meta text-muted">
-            {channelLink ? (
-              <span
-                role="link"
-                tabIndex={0}
-                onClick={onChannelClick}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") onChannelClick(e);
-                }}
-                className="hover:text-ink transition-colors cursor-pointer truncate max-w-[9rem]"
-                title={video.channel_title}
-              >
-                {video.channel_title || "SeeWord"}
-              </span>
-            ) : (
-              <span className="truncate max-w-[9rem]" title={video.channel_title}>
-                {video.channel_title || "SeeWord"}
+          <div className="flex flex-wrap items-center gap-2 text-meta text-muted">
+            {channelName &&
+              (channelLink ? (
+                <span
+                  role="link"
+                  tabIndex={0}
+                  onClick={onChannelClick}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") onChannelClick(e);
+                  }}
+                  className="hover:text-ink transition-colors cursor-pointer truncate max-w-[9rem]"
+                  title={channelName}
+                >
+                  {channelName}
+                </span>
+              ) : (
+                <span className="truncate max-w-[9rem]" title={channelName}>
+                  {channelName}
+                </span>
+              ))}
+
+            {showTopic && video.topic_tags?.trim() && (
+              <span className="text-caption font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
+                {category}
               </span>
             )}
-            <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />
-            <span className="text-caption font-semibold text-body bg-surface-card px-2 py-0.5 rounded-pill">
-              {category}
-            </span>
+            {video.difficulty_level && <DifficultyBadge level={video.difficulty_level} size="sm" />}
             {feat && progress !== undefined && (
               <>
                 <span className="w-[3px] h-[3px] rounded-full bg-muted-soft" />

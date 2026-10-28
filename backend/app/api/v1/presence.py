@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from app.api.dependencies import get_current_user
 from app.core.limiter import rate_limit
 from app.models.user import User
+from app.schemas.common import OkResponse
 
 # presence:{uid} TTL. Must exceed the frontend's heartbeat interval (60s) so a
 # briefly-delayed heartbeat doesn't flap the user offline, but short enough that
@@ -23,7 +24,7 @@ PRESENCE_TTL_SECONDS = 300  # 5 minutes
 router = APIRouter(prefix="/presence", tags=["presence"])
 
 
-@router.post("/heartbeat")
+@router.post("/heartbeat", response_model=OkResponse)
 @rate_limit("60/minute")
 async def heartbeat(
     request: Request,

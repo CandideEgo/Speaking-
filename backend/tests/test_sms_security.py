@@ -17,10 +17,11 @@ import pytest
 import app.services.sms_service as sms_svc
 
 
-def _settings(env: str, sms_enabled: bool, ak: str, sk: str):
+def _settings(env: str, sms_enabled: bool, ak: str, sk: str, dev_fake: bool = False):
     return types.SimpleNamespace(
         env=env,
         sms_login_enabled=sms_enabled,
+        sms_dev_fake_enabled=dev_fake,
         aliyun_sms_access_key=ak,
         aliyun_sms_secret_key=sk,
         aliyun_sms_sign_name="速通互联验证码",
@@ -91,7 +92,14 @@ def prod_sms_ok(monkeypatch):
 
 @pytest.fixture
 def dev_no_sms(monkeypatch):
-    """Development without credentials — dev-fake is legitimately on."""
+    """Development without credentials and with the fake explicitly enabled."""
+    monkeypatch.setattr(sms_svc, "get_settings", lambda: _settings("development", False, "", "", dev_fake=True))
+    yield
+
+
+@pytest.fixture
+def dev_no_sms_fake_off(monkeypatch):
+    """Development with ENV forgotten but the explicit opt-in missing."""
     monkeypatch.setattr(sms_svc, "get_settings", lambda: _settings("development", False, "", ""))
     yield
 
@@ -100,8 +108,18 @@ async def test_dev_fake_disabled_in_production(prod_no_sms):
     assert sms_svc._dev_fake_enabled() is False
 
 
+async def test_dev_fake_disabled_without_explicit_opt_in(dev_no_sms_fake_off):
+    """ENV defaulting to development must not be enough to enable the fake."""
+    assert sms_svc._dev_fake_enabled() is False
+
+
 async def test_dev_fake_enabled_in_dev(dev_no_sms):
     assert sms_svc._dev_fake_enabled() is True
+
+
+async def test_verify_requires_a_real_send_even_in_dev(dev_no_sms):
+    """Fixed code without a preceding send must not verify."""
+    assert await sms_svc.verify_code("13800138001", "1234", purpose="register") is False
 
 
 async def test_verify_rejects_fixed_code_in_production(prod_no_sms):
@@ -113,8 +131,9 @@ async def test_verify_rejects_wrong_code_in_production(prod_no_sms):
     assert await sms_svc.verify_code("13800138000", "482913", purpose="register") is False
 
 
-async def test_verify_accepts_fixed_code_in_dev(dev_no_sms):
-    # Dev-fake regression guard: local dev still works.
+async def test_verify_accepts_fixed_code_in_dev(dev_no_sms, fake_redis):
+    # Dev-fake regression guard: local dev still works after a real send.
+    await sms_svc.send_verify_code("13800138000", purpose="register")
     assert await sms_svc.verify_code("13800138000", "1234", purpose="register") is True
 
 

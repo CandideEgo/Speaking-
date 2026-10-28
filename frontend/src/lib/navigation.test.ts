@@ -20,7 +20,7 @@ function allScopes(): string[] {
   return Object.values(ACTIVE_SCOPE).flat();
 }
 
-describe("导航项：一级 5 项 + 次级 4 项", () => {
+describe("导航项：一级 5 项 + 资料库 4 项", () => {
   it("MAIN_NAV 恰好 5 项，href 顺序固定", () => {
     expect(MAIN_NAV).toHaveLength(5);
     expect(MAIN_NAV.map((item) => item.href)).toEqual([
@@ -158,7 +158,7 @@ describe("navigationActive：不双高亮", () => {
   });
 
   it("无归属路径命中 0 项", () => {
-    for (const pathname of ["/search", "/pricing", "/checkout", "/redeem"]) {
+    for (const pathname of ["/search", "/pricing", "/checkout"]) {
       expect(activeHrefs(pathname), `${pathname} 不该高亮`).toEqual([]);
     }
   });

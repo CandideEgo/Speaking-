@@ -42,7 +42,7 @@ def _force_dev_fake_sms(monkeypatch):
     """Force the SMS service into dev-fake mode (accept code '1234')."""
     import app.services.sms_service as sms_svc
 
-    monkeypatch.setattr(sms_svc, "_real_send_enabled", lambda: False)
+    monkeypatch.setattr(sms_svc, "_dev_fake_enabled", lambda: True)
 
 
 class TestAvatarUpload:

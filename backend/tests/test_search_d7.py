@@ -4,12 +4,16 @@ import json
 
 import pytest
 
+from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 
 
-async def _make_video(db, *, title: str, official=True, published=True, ready=True) -> Video:
+async def _make_video(
+    db, *, title: str, title_zh: str | None = None, official=True, published=True, ready=True
+) -> Video:
     video = Video(
         title=title,
+        title_zh=title_zh,
         source_url=f"https://example.com/{title}.mp4",
         video_source=VideoSource.imported,
         status=VideoStatus.ready if ready else VideoStatus.processing,
@@ -103,6 +107,18 @@ async def test_search_empty_query_returns_empty(client):
     assert resp.json() == []
 
 
+async def test_search_matches_chinese_title(client, db_session):
+    """The search box promises Chinese titles; title_zh is searchable too."""
+    await _make_video(db_session, title="How to Be a Good Listener", title_zh="如何成为好的倾听者")
+    await _make_video(db_session, title="Unrelated Cooking Show", title_zh="无关的烹饪节目")
+
+    resp = await client.get("/api/v1/videos/search", params={"q": "倾听"})
+    assert resp.status_code == 200
+    cards = resp.json()
+    assert [v["title"] for v in cards] == ["How to Be a Good Listener"]
+    assert cards[0]["title_zh"] == "如何成为好的倾听者"
+
+
 # ── hot searches ────────────────────────────────────────────────────────
 
 
@@ -176,6 +192,67 @@ async def test_record_search_query_counts_and_skips_noise(fake_redis):
     await record_search_query("面试")
     await record_search_query("面试")
     await record_search_query("  ")  # blank → skipped
+    await record_search_query("x")  # 单字符（打字半截）→ skipped
     await record_search_query("x" * 51)  # over-long → skipped
 
     assert fake_redis.zset == {"面试": 2.0}
+
+
+async def test_search_records_hot_only_when_it_returns_results(client, db_session, fake_redis):
+    """搜不到东西的词不进热搜：否则热搜栏会被拼错与爬虫探测占满。"""
+    await _make_video(db_session, title="Listen Closely: A Speaking Lesson")
+
+    hit = await client.get("/api/v1/videos/search", params={"q": "Listen"})
+    assert hit.status_code == 200
+    assert hit.json()
+
+    miss = await client.get("/api/v1/videos/search", params={"q": "qwertyuiop"})
+    assert miss.status_code == 200
+    assert miss.json() == []
+
+    assert fake_redis.zset == {"Listen": 1.0}
+
+
+# ── subtitle search ──────────────────────────────────────────────────────
+#
+# Regression: ``plainto_tsquery`` was applied unconditionally, so this endpoint
+# raised "no such function" on the default in-memory SQLite test engine and had
+# zero coverage. It is also user-visible: sentence search on the search page.
+
+
+async def _add_subtitle(db, video: Video, *, text_en: str, index: int) -> Subtitle:
+    sub = Subtitle(
+        video_id=video.id,
+        start_time=float(index * 2),
+        end_time=float(index * 2 + 2),
+        text_en=text_en,
+        sentence_index=index,
+    )
+    db.add(sub)
+    await db.commit()
+    return sub
+
+
+async def test_subtitle_search_returns_matching_sentences(client, db_session):
+    video = await _make_video(db_session, title="Subtitle Search Demo")
+    await _add_subtitle(db_session, video, text_en="The quick brown fox jumps.", index=0)
+    await _add_subtitle(db_session, video, text_en="An unrelated sentence.", index=1)
+
+    resp = await client.get("/api/v1/videos/search/subtitles", params={"q": "quick brown"})
+    assert resp.status_code == 200
+    results = resp.json()
+    assert len(results) == 1
+    assert results[0]["video"]["id"] == video.id
+    assert [s["text_en"] for s in results[0]["matching_subtitles"]] == ["The quick brown fox jumps."]
+
+
+async def test_subtitle_search_excludes_unpublished_and_non_official(client, db_session):
+    visible = await _make_video(db_session, title="Visible Subtitle Source")
+    hidden = await _make_video(db_session, title="Hidden Subtitle Source", published=False)
+    await _add_subtitle(db_session, visible, text_en="Needle sentence for visible video.", index=0)
+    await _add_subtitle(db_session, hidden, text_en="Needle sentence for hidden video.", index=0)
+
+    resp = await client.get("/api/v1/videos/search/subtitles", params={"q": "Needle"})
+    assert resp.status_code == 200
+    ids = [item["video"]["id"] for item in resp.json()]
+    assert ids == [visible.id]

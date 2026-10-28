@@ -49,6 +49,7 @@ export async function setupWatch(
     title?: string;
     longSentence?: boolean;
     richGloss?: boolean;
+    cues?: typeof subtitles;
   } = {}
 ) {
   const token = `fixture.${Buffer.from(JSON.stringify({ sub: "watch-test-user", exp: 4102444800 })).toString("base64url")}.fixture`;
@@ -147,7 +148,7 @@ export async function setupWatch(
                       }
                     : cue
                 )
-              : subtitles,
+              : (options.cues ?? subtitles),
       };
     else if (path === `/api/v1/learning/progress/${VIDEO_ID}`) {
       if (options.delayProgress) await new Promise((r) => setTimeout(r, options.delayProgress));
@@ -201,7 +202,7 @@ export async function setupWatch(
 
 export async function openWatch(page: Page, query = "") {
   await page.goto(`/watch/${VIDEO_ID}${query}`, { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("sentence-actions")).toBeVisible();
+  await expect(page.getByTestId("video-frame")).toBeVisible();
   try {
     await expect
       .poll(() => page.locator("video").evaluate((el: HTMLVideoElement) => el.readyState))
@@ -290,4 +291,10 @@ export async function clickReplay(page: Page) {
       .getByTestId("sentence-actions")
       .getByRole("button", { name: "重听本句", exact: true })
       .click();
+}
+
+export async function clickLearningAction(page: Page, name: string) {
+  if ((page.viewportSize()?.width ?? 1280) <= 1024)
+    await page.getByTestId("watch-more-button").click();
+  await page.getByTestId("sentence-actions").getByRole("button", { name, exact: true }).click();
 }

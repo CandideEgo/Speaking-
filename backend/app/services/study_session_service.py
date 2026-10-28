@@ -28,7 +28,7 @@ studies is more moving parts than the problem needs.
 import logging
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
@@ -222,6 +222,17 @@ async def _pick_new_words(
     return list((await db.execute(stmt)).scalars().all())
 
 
+async def preview_new_words(db: AsyncSession, user_id: str, limit: int) -> tuple[str | None, list[Vocabulary]]:
+    """Read the next round without creating it or changing existing progress."""
+    active = await get_active_session(db, user_id)
+    if active is not None:
+        rows = await session_rows(db, active.id)
+        return active.id, [word for item, word in rows if item.status != ITEM_GRADUATED]
+    today = await get_user_local_date(db, user_id)
+    excluded = await _recent_session_vocab_ids(db, user_id, today)
+    return None, await _pick_new_words(db, user_id, limit, excluded)
+
+
 async def start_session(db: AsyncSession, user_id: str, kind: str = KIND_DAILY) -> dict:
     """Get the resumable round, or open a new one.
 
@@ -234,6 +245,19 @@ async def start_session(db: AsyncSession, user_id: str, kind: str = KIND_DAILY) 
     ``session`` is ``None`` when the pool of unlearned words is empty (nothing
     to train), which is a normal state, not an error.
     """
+    # 「取或建」必须对同一用户串行：两个并发 POST（StrictMode 双挂载、两个
+    # 标签页、或前端两个 hook 同时首访）都会先读到「没有进行中的一轮」，
+    # 然后各自开一轮，留下两条 active 记录。用事务级 advisory lock 把
+    # check-then-create 变成临界区——不能锁 users 行：插入档案行时外键要拿
+    # 该行的 KEY SHARE，会和 FOR UPDATE 互相等待成死锁。锁随本次事务提交
+    # 释放；SQLite（单测）没有这把锁，也不需要。
+    bind = db.get_bind() if hasattr(db, "get_bind") else getattr(db, "bind", None)
+    if getattr(getattr(bind, "dialect", None), "name", "") == "postgresql":
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:uid, 0))"),
+            {"uid": user_id},
+        )
+
     today = await get_user_local_date(db, user_id)
 
     active = await get_active_session(db, user_id)

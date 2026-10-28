@@ -12,8 +12,7 @@ const TABS = MAIN_NAV;
 
 export function MobileTabBar() {
   const pathname = usePathname();
-  const fetchStats = useVocabularyStore((s) => s.fetchStats);
-  const dueCount = useVocabularyStore((s) => s.stats.due_count);
+  const dueCount = useVocabularyStore((s) => s.stats.due_review_count);
   const [mounted, setMounted] = useState(false);
 
   // 作答流程为全屏考试模式：ExamRunner 自带底部交卷栏，
@@ -31,10 +30,6 @@ export function MobileTabBar() {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
   function isActive(href: string) {
     return navigationActive(pathname, href);
   }
@@ -50,9 +45,9 @@ export function MobileTabBar() {
     <nav
       data-testid="mobile-tab-bar"
       aria-label="底部导航"
-      className="z-40 shrink-0 border-t border-hairline bg-canvas md:hidden"
+      className="user-mobile-tabs z-40 shrink-0 border-t border-hairline bg-canvas"
     >
-      <div className="flex items-center justify-around">
+      <div className="grid grid-cols-5">
         {TABS.map((tab) => {
           const active = isActive(tab.href);
           return (
@@ -61,7 +56,7 @@ export function MobileTabBar() {
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[60px] transition-colors",
+                "relative flex min-h-[60px] flex-col items-center justify-center gap-0.5 transition-colors",
                 active ? "text-brand-700" : "text-muted hover:text-ink"
               )}
             >

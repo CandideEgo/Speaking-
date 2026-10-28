@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Radio, Search } from "lucide-react";
+import { Radio, Search, X } from "lucide-react";
 import { ChannelCard } from "@/components/channels/ChannelCard";
 import { SubscribedChannels } from "@/components/channels/SubscribedChannels";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -173,6 +173,17 @@ export default function ChannelsPage() {
     [subscriptions]
   );
 
+  // 卡片内直接订阅/取消后，重新拉一次订阅集合：摘要里还有未学数量、最近视频等
+  // 卡片不需要但列表顶部会展示的字段，按服务端形状刷新比本地拼一份更可靠。
+  const refreshSubscriptions = useCallback(() => {
+    api<ChannelSubscriptionSummary[]>("/api/v1/discovery/subscriptions")
+      .then((items) => {
+        setSubscriptions(Array.isArray(items) ? items : []);
+        setSubscriptionStatus("ready");
+      })
+      .catch(() => setSubscriptionStatus("failed"));
+  }, []);
+
   const activeDirectionLabel =
     directionOptions.find((option) => option.id === direction)?.label ?? "";
   const trimmedQuery = query.trim();
@@ -192,8 +203,19 @@ export default function ChannelsPage() {
     <PageTransition>
       <div className="user-page">
         <PageHeader
+          crumb="频道"
           title="全部频道"
-          description="按学习方向挑一个能长期跟学的来源；难度、口音与收录数量都来自本站真实视频。"
+          variant="eyebrow"
+          actions={
+            <div className="flex items-center gap-2">
+              {subscriptionStatus === "ready" && subscriptions.length > 0 && (
+                <span className="text-caption text-muted">已订阅 {subscriptions.length}</span>
+              )}
+              <LinkButton href="/" variant="outline" size="sm">
+                去发现
+              </LinkButton>
+            </div>
+          }
         />
 
         {/* 一行事实：加载完成前用占位条，不闪「0 个频道」 */}
@@ -245,14 +267,29 @@ export default function ChannelsPage() {
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="h-10 w-full rounded-md border border-hairline-strong bg-surface-soft pl-9 pr-3 text-copy text-ink placeholder:text-muted focus:border-ink focus:bg-canvas focus:outline-none"
+                  className="h-10 w-full rounded-md border border-hairline-strong bg-surface-soft pl-9 pr-10 text-copy text-ink placeholder:text-muted focus:border-ink focus:bg-canvas focus:outline-none"
                   placeholder="搜索频道、方向或视频标题"
                 />
+                {query.trim() && (
+                  <button
+                    type="button"
+                    aria-label="清空频道搜索"
+                    onClick={() => setQuery("")}
+                    className="absolute right-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-sm text-muted transition-colors hover:bg-surface-card hover:text-ink"
+                  >
+                    <X size={15} aria-hidden />
+                  </button>
+                )}
               </div>
               {isFiltered && (
-                <span className="text-meta tabular-nums text-muted" aria-live="polite">
-                  显示 {visibleChannels.length} / {channelTotal}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-meta tabular-nums text-muted" aria-live="polite">
+                    显示 {visibleChannels.length} / {channelTotal}
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    清空筛选
+                  </Button>
+                </div>
               )}
             </div>
             {directionOptions.length > 0 && (
@@ -271,23 +308,14 @@ export default function ChannelsPage() {
           {error && <ErrorState title={error} onRetry={() => load(1, false)} className="py-8" />}
 
           {!error && loading && channels.length === 0 && (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-hidden>
+            <div className="mt-5 grid gap-4 md:grid-cols-2" aria-hidden>
               {Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i} padding={0} className="animate-pulse overflow-hidden">
-                  <div className="flex items-start gap-3 p-4">
-                    <div className="h-11 w-11 shrink-0 rounded-pill bg-surface-card" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="h-4 w-2/3 rounded-sm bg-surface-card" />
-                      <div className="h-3 w-full rounded-sm bg-surface-card" />
-                    </div>
-                  </div>
-                  <div className="mt-2 flex gap-1.5 px-4">
-                    <div className="h-6 w-16 rounded-pill bg-surface-card" />
-                    <div className="h-6 w-14 rounded-pill bg-surface-card" />
-                  </div>
-                  <div className="mt-3 space-y-2 px-4 pb-4">
+                  <div className="aspect-[8/5] w-full bg-surface-card" />
+                  <div className="space-y-2 p-4">
+                    <div className="h-4 w-2/3 rounded-sm bg-surface-card" />
+                    <div className="h-3 w-full rounded-sm bg-surface-card" />
                     <div className="h-3 w-1/2 rounded-sm bg-surface-card" />
-                    <div className="h-3 w-2/3 rounded-sm bg-surface-card" />
                   </div>
                 </Card>
               ))}
@@ -308,12 +336,13 @@ export default function ChannelsPage() {
           )}
 
           {!error && visibleChannels.length > 0 && (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
               {visibleChannels.map((channel) => (
                 <ChannelCard
                   key={channel.id}
                   channel={channel}
                   subscribed={subscribedSlugs.has(channel.slug)}
+                  onSubscriptionChange={refreshSubscriptions}
                 />
               ))}
             </div>

@@ -4,9 +4,8 @@ conftest stubs ``.delay`` / ``.apply_async`` so tasks never dispatch through a
 broker; these tests call the task functions directly. The body runs through
 ``run_async`` on the shared celery-asyncio loop against the test database
 (conftest routes ``async_session`` to the test session maker), so the
-monetization / data-integrity logic (Pro downgrade, code expiry, order expiry,
-reconciliation, scoring) is actually exercised instead of only existing in
-production.
+monetization / data-integrity logic (order expiry, reconciliation, scoring) is
+actually exercised instead of only existing in production.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -16,11 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.database import get_async_session_maker
 from app.models.order import Order, OrderStatus
-from app.models.redeem import RedeemCode, RedeemStatus
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoSource, VideoStatus
 from app.tasks.order_tasks import expire_pending_orders, reconcile_pending_orders
-from app.tasks.redeem_tasks import downgrade_expired_pro, expire_unused_redeem_codes
 from app.tasks.scoring_tasks import compute_top_scores
 
 
@@ -48,64 +45,6 @@ async def _make_user(db, phone: str, *, plan=PlanType.free, expires_at=None):
     await db.commit()
     await db.refresh(user)
     return user
-
-
-async def test_downgrade_expired_pro_downgrades_only_expired():
-    now = datetime.now(UTC)
-    async with _session_maker()() as db:
-        expired = await _make_user(db, "13800000001", plan=PlanType.pro, expires_at=now - timedelta(days=1))
-        active = await _make_user(db, "13800000002", plan=PlanType.pro, expires_at=now + timedelta(days=1))
-        free = await _make_user(db, "13800000003")
-        ids = (expired.id, active.id, free.id)
-
-    count = downgrade_expired_pro()
-
-    async with _session_maker()() as db:
-        users = {u.id: u for u in (await db.execute(select(User).where(User.id.in_(ids)))).scalars()}
-        assert users[expired.id].plan == PlanType.free
-        assert users[expired.id].plan_expires_at is None
-        assert users[active.id].plan == PlanType.pro
-        assert users[active.id].plan_expires_at is not None
-        assert users[free.id].plan == PlanType.free
-        assert count == 1
-
-
-async def test_expire_unused_redeem_codes_only_stale_unused():
-    now = datetime.now(UTC)
-    async with _session_maker()() as db:
-        stale = RedeemCode(
-            code="STALE001",
-            plan="pro",
-            duration_days=30,
-            status=RedeemStatus.unused,
-            expires_at=now - timedelta(days=1),
-        )
-        fresh = RedeemCode(
-            code="FRESH001",
-            plan="pro",
-            duration_days=30,
-            status=RedeemStatus.unused,
-            expires_at=now + timedelta(days=1),
-        )
-        used = RedeemCode(
-            code="USED0001",
-            plan="pro",
-            duration_days=30,
-            status=RedeemStatus.redeemed,
-            expires_at=now - timedelta(days=1),
-        )
-        db.add_all([stale, fresh, used])
-        await db.commit()
-        codes = [c.code for c in (stale, fresh, used)]
-
-    count = expire_unused_redeem_codes()
-
-    async with _session_maker()() as db:
-        rows = {c.code: c for c in (await db.execute(select(RedeemCode).where(RedeemCode.code.in_(codes)))).scalars()}
-        assert rows["STALE001"].status == RedeemStatus.expired
-        assert rows["FRESH001"].status == RedeemStatus.unused
-        assert rows["USED0001"].status == RedeemStatus.redeemed
-        assert count == 1
 
 
 async def test_expire_pending_orders_only_stale_pending():

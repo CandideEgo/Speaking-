@@ -48,11 +48,13 @@ function PickOption({
   label,
   description,
   onClick,
+  className,
 }: {
   selected: boolean;
   label: string;
   description: string;
   onClick: () => void;
+  className?: string;
 }) {
   return (
     <button
@@ -63,7 +65,8 @@ function PickOption({
         "flex w-full flex-col items-start gap-0.5 rounded-md border px-4 py-3 text-left transition-colors",
         selected
           ? "border-brand-500 bg-brand-50 text-ink"
-          : "border-hairline text-ink hover:bg-surface-soft"
+          : "border-hairline text-ink hover:bg-surface-soft",
+        className
       )}
     >
       <span className="text-copy font-semibold">{label}</span>
@@ -253,18 +256,17 @@ export default function OnboardingPage() {
         <div className="mt-6 space-y-6">
           <div>
             <h2 className="text-title font-semibold text-ink">欢迎来到 SeeWord 👋</h2>
-            <p className="mt-1 text-copy text-muted">
-              选择最接近你水平的级别，我们为你定制学习路线。
-            </p>
           </div>
+          {/* CEFR 五档在两列里会剩一个孤格：让最后一档横跨整行，而不是留半张空白。 */}
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {LEVELS.map((item) => (
+            {LEVELS.map((item, i) => (
               <PickOption
                 key={item.value}
                 selected={level === item.value}
                 label={item.label}
                 description={`${item.description}${cefrExamHint(item.value) ? ` · ≈${cefrExamHint(item.value)}` : ""}`}
                 onClick={() => setLevel(item.value)}
+                className={i === LEVELS.length - 1 ? "md:col-span-2" : undefined}
               />
             ))}
           </div>
@@ -284,7 +286,6 @@ export default function OnboardingPage() {
         <div className="mt-6 space-y-6">
           <div>
             <h2 className="text-title font-semibold text-ink">学习目标</h2>
-            <p className="mt-1 text-copy text-muted">你想准备哪个考试或目标？</p>
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {EXAMS.map((item) => (
@@ -324,9 +325,6 @@ export default function OnboardingPage() {
           <div className="space-y-4">
             <div>
               <h2 className="text-title font-semibold text-ink">学习节奏</h2>
-              <p className="mt-1 text-copy text-muted">
-                每日目标是「今天到期多少」的计算口径，不做打卡惩罚。
-              </p>
             </div>
             <div>
               <p className="mb-2 text-copy font-medium text-ink">每日学习时长</p>

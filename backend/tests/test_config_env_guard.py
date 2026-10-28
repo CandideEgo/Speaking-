@@ -11,6 +11,15 @@ import pytest
 
 from app.core.config import Settings
 
+_STRONG_SECRET = "x" * 32
+
+
+@pytest.fixture(autouse=True)
+def _clear_sms_fake_env(monkeypatch):
+    """conftest enables the dev SMS fake suite-wide; these tests assert the
+    production guards, so the opt-in must not leak in from the environment."""
+    monkeypatch.delenv("SMS_DEV_FAKE_ENABLED", raising=False)
+
 
 def _settings(**overrides) -> Settings:
     """Build ``Settings`` from the explicit kwargs only.
@@ -36,7 +45,7 @@ class TestEnvValueGuard:
         """A casing slip must not skip every downstream ``env == "production"`` check."""
         s = _settings(
             env="Production",
-            jwt_secret="s",
+            jwt_secret=_STRONG_SECRET,
             database_url="postgresql+asyncpg://u:p@localhost/db",
             redis_url="redis://localhost:6379/0",
             openai_api_key="k",
@@ -48,7 +57,7 @@ class TestEnvValueGuard:
         """``prod`` is accepted because payment_provider already treats it as production."""
         s = _settings(
             env="prod",
-            jwt_secret="s",
+            jwt_secret=_STRONG_SECRET,
             database_url="postgresql+asyncpg://u:p@localhost/db",
             redis_url="redis://localhost:6379/0",
             openai_api_key="k",
@@ -64,13 +73,23 @@ class TestSecretGuards:
 
     def test_production_rejects_empty_database_url(self):
         with pytest.raises(RuntimeError, match="DATABASE_URL"):
-            _settings(env="production", jwt_secret="s", database_url="")
+            _settings(env="production", jwt_secret=_STRONG_SECRET, database_url="")
+
+    def test_production_rejects_sms_dev_fake(self):
+        """The fixed code '1234' must never be enabled on a production box."""
+        with pytest.raises(RuntimeError, match="SMS_DEV_FAKE_ENABLED"):
+            _settings(
+                env="production",
+                jwt_secret=_STRONG_SECRET,
+                database_url="postgresql+asyncpg://u:p@localhost/db",
+                sms_dev_fake_enabled=True,
+            )
 
     def test_production_rejects_missing_transcription_callback_secret(self):
         with pytest.raises(RuntimeError, match="TRANSCRIPTION_CALLBACK_SECRET"):
             _settings(
                 env="production",
-                jwt_secret="s",
+                jwt_secret=_STRONG_SECRET,
                 database_url="postgresql+asyncpg://u:p@localhost/db",
                 redis_url="redis://localhost:6379/0",
                 openai_api_key="k",
@@ -87,7 +106,7 @@ class TestSecretGuards:
         with pytest.raises(RuntimeError, match="REDIS_URL"):
             _settings(
                 env="production",
-                jwt_secret="s",
+                jwt_secret=_STRONG_SECRET,
                 database_url="postgresql+asyncpg://u:p@localhost/db",
                 openai_api_key="k",
                 transcription_callback_secret="c",
@@ -97,7 +116,7 @@ class TestSecretGuards:
         """生产可以只用 Command Code 供应商：守卫是「有 LLM key」，不是「有 OpenAI key」。"""
         s = _settings(
             env="production",
-            jwt_secret="s",
+            jwt_secret=_STRONG_SECRET,
             database_url="postgresql+asyncpg://u:p@localhost/db",
             redis_url="redis://localhost:6379/0",
             openai_api_key="",
@@ -112,7 +131,7 @@ class TestSecretGuards:
         with pytest.raises(RuntimeError, match="COMMANDCODE_API_KEY"):
             _settings(
                 env="production",
-                jwt_secret="s",
+                jwt_secret=_STRONG_SECRET,
                 database_url="postgresql+asyncpg://u:p@localhost/db",
                 redis_url="redis://localhost:6379/0",
                 openai_api_key="",
@@ -127,7 +146,7 @@ class TestSecretGuards:
 
     def test_testing_rejects_empty_database_url(self):
         with pytest.raises(RuntimeError, match="DATABASE_URL"):
-            _settings(env="testing", jwt_secret="s", database_url="")
+            _settings(env="testing", jwt_secret=_STRONG_SECRET, database_url="")
 
     def test_development_keeps_the_local_defaults(self):
         s = _settings(env="development", jwt_secret="", database_url="")
@@ -137,6 +156,69 @@ class TestSecretGuards:
     def test_development_keeps_explicit_values(self):
         s = _settings(env="development", jwt_secret="mine", database_url="postgresql+asyncpg://u:p@db/x")
         assert (s.jwt_secret, s.database_url) == ("mine", "postgresql+asyncpg://u:p@db/x")
+
+
+class TestJwtSecretStrength:
+    """A non-empty secret is not enough: short HS256 keys are brute-forceable.
+
+    Losing this guard means anyone who guesses ``JWT_SECRET`` can mint an access
+    token for any ``sub`` (admins included), so both guards are pinned.
+    """
+
+    @staticmethod
+    def _base() -> dict:
+        return {
+            "database_url": "postgresql+asyncpg://u:p@db/x",
+            "redis_url": "redis://localhost:6379/0",
+            "openai_api_key": "k",
+            "transcription_callback_secret": "c",
+        }
+
+    def test_production_rejects_short_jwt_secret(self):
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            _settings(env="production", jwt_secret="x", **self._base())
+
+    def test_testing_rejects_short_jwt_secret(self):
+        """ENV=testing must not become the weak-secret loophole either."""
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            _settings(
+                env="testing",
+                jwt_secret="short",
+                database_url="postgresql+asyncpg://u:p@db/x",
+            )
+
+    def test_production_rejects_development_default_secret(self):
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            _settings(env="production", jwt_secret="dev_secret_change_in_production", **self._base())
+
+    def test_strong_secret_is_accepted(self):
+        s = _settings(env="production", jwt_secret="y" * 32, **self._base())
+        assert s.jwt_secret == "y" * 32
+
+    def test_algorithm_is_normalized_to_uppercase(self):
+        s = _settings(env="production", jwt_secret="y" * 32, jwt_algorithm="hs256", **self._base())
+        assert s.jwt_algorithm == "HS256"
+
+    def test_unsupported_algorithm_is_rejected(self):
+        for algorithm in ("none", "RS256", ""):
+            with pytest.raises(RuntimeError, match="JWT_ALGORITHM"):
+                _settings(env="development", jwt_algorithm=algorithm)
+
+
+class TestStubPaymentGuard:
+    """The WeChat/Alipay callbacks are stubs; production must not boot with them."""
+
+    def test_production_rejects_enabled_legacy_payments(self):
+        with pytest.raises(RuntimeError, match="PAYMENTS_ENABLED"):
+            _settings(
+                env="production",
+                jwt_secret="y" * 32,
+                database_url="postgresql+asyncpg://u:p@db/x",
+                redis_url="redis://localhost:6379/0",
+                openai_api_key="k",
+                transcription_callback_secret="c",
+                payments_enabled=True,
+            )
 
 
 class TestPaymentSignatureDefault:

@@ -10,12 +10,30 @@ from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
+from app.schemas.discovery import (
+    ChannelSubscriptionCard,
+    DailyPreviewResponse,
+    DailyStartResponse,
+    DictionaryResponse,
+    LearningMetadataItem,
+    PracticeSummaryResponse,
+    SearchResponse,
+    SentenceFavoriteItem,
+    SentenceFavoriteStatus,
+    SetCreatedResponse,
+    SetDeletedResponse,
+    SetRenamedResponse,
+    SetWordRemovedResponse,
+    SetWordsAddedResponse,
+    SubscriptionState,
+)
+from app.schemas.pagination import PaginatedResponse
 from app.services import discovery_service
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 
 
-@router.get("/learning-metadata")
+@router.get("/learning-metadata", response_model=dict[str, LearningMetadataItem])
 @rate_limit("60/minute")
 async def learning_metadata(
     request: Request, ids: str = Query(..., max_length=4000), db: AsyncSession = Depends(get_db)
@@ -23,7 +41,7 @@ async def learning_metadata(
     return await discovery_service.learning_metadata(db, list(dict.fromkeys(ids.split(",")))[:100])
 
 
-@router.get("/dictionary")
+@router.get("/dictionary", response_model=DictionaryResponse)
 @rate_limit("60/minute")
 async def dictionary(
     request: Request,
@@ -36,7 +54,7 @@ async def dictionary(
     return discovery_service.dictionary_words(q, exam_level, page, page_size)
 
 
-@router.get("/search")
+@router.get("/search", response_model=SearchResponse, response_model_exclude_unset=True)
 @rate_limit("60/minute")
 async def search(
     request: Request,
@@ -50,12 +68,12 @@ async def search(
     return await discovery_service.search(db, q.strip(), group, page, page_size, user)
 
 
-@router.get("/subscriptions")
+@router.get("/subscriptions", response_model=list[ChannelSubscriptionCard])
 async def subscriptions(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     return await discovery_service.channel_subscriptions(db, user)
 
 
-@router.put("/subscriptions/{slug}")
+@router.put("/subscriptions/{slug}", response_model=SubscriptionState)
 @rate_limit("30/minute")
 async def subscribe(
     request: Request, slug: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -80,7 +98,7 @@ class RenameSet(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
 
-@router.post("/sets", status_code=201)
+@router.post("/sets", status_code=201, response_model=SetCreatedResponse)
 @rate_limit("20/minute")
 async def create_set(
     request: Request, payload: CreateSet, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -92,7 +110,7 @@ async def create_set(
     return {"id": row.id}
 
 
-@router.patch("/sets/{set_id}")
+@router.patch("/sets/{set_id}", response_model=SetRenamedResponse)
 async def rename_set(
     set_id: str, payload: RenameSet, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
@@ -107,7 +125,7 @@ async def rename_set(
     return {"id": row.id, "name": row.name}
 
 
-@router.delete("/sets/{set_id}")
+@router.delete("/sets/{set_id}", response_model=SetDeletedResponse)
 async def delete_set(set_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from sqlalchemy import delete
 
@@ -121,7 +139,7 @@ async def delete_set(set_id: str, user: User = Depends(get_current_user), db: As
     return {"deleted": True}
 
 
-@router.post("/sets/{set_id}/words")
+@router.post("/sets/{set_id}/words", response_model=SetWordsAddedResponse)
 @rate_limit("30/minute")
 async def add_words(
     request: Request,
@@ -137,7 +155,7 @@ async def add_words(
     return result
 
 
-@router.delete("/sets/{set_id}/words/{set_word_id}")
+@router.delete("/sets/{set_id}/words/{set_word_id}", response_model=SetWordRemovedResponse)
 async def remove_word(
     set_id: str, set_word_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
@@ -152,7 +170,7 @@ class DailyStart(BaseModel):
     token: str = Field(min_length=1, max_length=20000)
 
 
-@router.get("/daily")
+@router.get("/daily", response_model=DailyPreviewResponse)
 @rate_limit("30/minute")
 async def daily_preview(
     request: Request,
@@ -166,14 +184,14 @@ async def daily_preview(
     return await daily_recommendation_service.preview(db, user, variant, question_type)
 
 
-@router.get("/practice-summary")
+@router.get("/practice-summary", response_model=PracticeSummaryResponse)
 async def practice_summary(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from app.services import daily_recommendation_service
 
     return await daily_recommendation_service.summary(db, user)
 
 
-@router.post("/daily/start")
+@router.post("/daily/start", response_model=DailyStartResponse)
 @rate_limit("20/minute")
 async def daily_start(
     request: Request, payload: DailyStart, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -194,7 +212,7 @@ async def daily_start(
     }
 
 
-@router.delete("/subscriptions/{slug}")
+@router.delete("/subscriptions/{slug}", response_model=SubscriptionState)
 @rate_limit("30/minute")
 async def unsubscribe(
     request: Request, slug: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -204,7 +222,7 @@ async def unsubscribe(
     return result
 
 
-@router.get("/sentence-favorites")
+@router.get("/sentence-favorites", response_model=PaginatedResponse[SentenceFavoriteItem])
 async def sentence_favorites(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -214,7 +232,7 @@ async def sentence_favorites(
     return await discovery_service.sentence_favorites(db, user, page, page_size)
 
 
-@router.get("/sentence-favorites/{subtitle_id}")
+@router.get("/sentence-favorites/{subtitle_id}", response_model=SentenceFavoriteStatus)
 async def sentence_status(subtitle_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from sqlalchemy import select
 
@@ -230,7 +248,7 @@ async def sentence_status(subtitle_id: str, user: User = Depends(get_current_use
     return {"saved": value is not None}
 
 
-@router.put("/sentence-favorites/{subtitle_id}")
+@router.put("/sentence-favorites/{subtitle_id}", response_model=SentenceFavoriteStatus)
 @rate_limit("60/minute")
 async def save_sentence(
     request: Request, subtitle_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -240,7 +258,7 @@ async def save_sentence(
     return result
 
 
-@router.delete("/sentence-favorites/{subtitle_id}")
+@router.delete("/sentence-favorites/{subtitle_id}", response_model=SentenceFavoriteStatus)
 @rate_limit("60/minute")
 async def remove_sentence(
     request: Request, subtitle_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)

@@ -6,6 +6,9 @@ import { Card } from "@/components/ui/Card";
 import { Image } from "@/components/ui/Image";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { DifficultyBadge } from "@/components/video/DifficultyBadge";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
+import { VideoDescription } from "@/components/video/VideoDescription";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { watchHref } from "@/lib/watchEntry";
@@ -19,8 +22,6 @@ export interface ChannelStartCardProps {
   basis: ChannelStartBasis;
   /** 频道 slug：播放页据此回到本频道。 */
   slug: string;
-  /** 可选学习信息（字幕句数 / 考试词数），拼在依据行。 */
-  learningHint?: string | null;
 }
 
 /**
@@ -30,7 +31,7 @@ export interface ChannelStartCardProps {
  *（全频道难度最低 · A2）；`basis=latest` 只写「最近收录」，绝不冒充推荐入门。
  * 封面/标题/难度/时长全部来自详情响应里的真实视频字段，缺字段就省略。
  */
-export function ChannelStartCard({ video, basis, slug, learningHint }: ChannelStartCardProps) {
+export function ChannelStartCard({ video, basis, slug }: ChannelStartCardProps) {
   const videoId = String(video.id || video.video_id || "");
   if (!videoId) return null;
 
@@ -52,16 +53,18 @@ export function ChannelStartCard({ video, basis, slug, learningHint }: ChannelSt
         isIntro ? "border-brand-200 bg-brand-50" : "bg-surface-soft"
       )}
     >
-      <div className="grid grid-cols-[7rem_minmax(0,1fr)] sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
+      {/* 手机整宽 16:9 + 下方正文：7rem 的侧栏裁出来只剩一条竖窄带，
+          封面里的标题字被切掉一半，读不出这是什么视频。宽屏回到左右分栏。 */}
+      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
         <Link
           href={href}
           aria-label={`打开《${video.title}》`}
-          className="group relative block h-full min-h-[4.5rem] overflow-hidden bg-surface-card"
+          className="group relative block aspect-video overflow-hidden bg-surface-card sm:aspect-auto sm:h-full sm:min-h-[4.5rem]"
         >
           <Image
             src={video.thumbnail_url}
             alt=""
-            sizes="(max-width: 639px) 112px, 272px"
+            sizes="(max-width: 639px) 100vw, 272px"
             loading="eager"
             fallback={
               <span className="absolute inset-0 flex items-center justify-center">
@@ -96,12 +99,17 @@ export function ChannelStartCard({ video, basis, slug, learningHint }: ChannelSt
           <Link
             href={href}
             title={video.title}
-            className="line-clamp-3 break-words text-copy-lg font-bold leading-snug text-ink transition-colors hover:text-brand-700"
+            className="block transition-colors hover:text-brand-700"
           >
-            {video.title}
+            <VideoTitle
+              video={video}
+              as="span"
+              zhClassName="break-words text-copy-lg font-bold leading-snug text-ink"
+            />
           </Link>
 
-          {learningHint && <p className="text-meta text-muted">{learningHint}</p>}
+          <VideoDescription description={video.description} />
+          <VideoMetadata video={video} />
 
           <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
             <LinkButton href={href} size="sm" icon={Play}>

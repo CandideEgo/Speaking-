@@ -53,3 +53,32 @@ class JinshujuPurchaseLinkResponse(BaseModel):
     url: str
     expires_in_seconds: int
     tiers: list[JinshujuPurchaseTier]
+
+
+class AlipayCallbackResponse(BaseModel):
+    """Alipay notifies with plain text; this is our local ack envelope."""
+
+    status: str
+    message: str
+
+
+class WechatCallbackResponse(BaseModel):
+    """WeChat Pay v3 expects this JSON ack shape."""
+
+    code: str
+    message: str
+
+
+class JinshujuWebhookResponse(BaseModel):
+    """Jinshuju data-push ack (0 = accepted, 1 = accepted but defer to cron)."""
+
+    code: int
+    message: str
+
+
+class MockPaymentResponse(BaseModel):
+    """Development-only payment simulation result."""
+
+    success: bool
+    message: str
+    redirect: str

@@ -70,16 +70,6 @@ test.describe("Mobile - Login Form", () => {
   });
 });
 
-test.describe("Mobile - Redeem Page", () => {
-  test("redeem page is public, then redirects to the home URL", async ({ page }) => {
-    await page.goto("/redeem");
-    // D0 白名单：/redeem 对未登录开放（墙放行），退役后的页面 redirect("/")；
-    // 随后的登录墙是 "/" 触发的 —— next 参数为 "/" 而不是 "/redeem"。
-    await page.waitForURL(/\/login/, { timeout: 10000 });
-    expect(new URL(page.url()).searchParams.get("next")).toBe("/");
-  });
-});
-
 test.describe("Mobile - Navigation (authenticated)", () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUi(page, MOBILE_PHONE);

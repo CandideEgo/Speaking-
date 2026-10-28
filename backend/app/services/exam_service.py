@@ -163,13 +163,20 @@ async def create_daily_session(
     stmt = select(ExamQuestion)
     if level:
         stmt = stmt.join(ExamQuestion.paper).where(ExamPaper.level == level)
-    pool = (await db.execute(stmt)).scalars().all()
+    # Draw a bounded random sample first so a large question bank is not fully
+    # materialised on every daily-check start. If the sample is too sparse
+    # (most rows unanswerable), fall back to the full pool — correctness first.
+    sample_size = max(count * 5, count)
+    pool = list((await db.execute(stmt.order_by(func.random()).limit(sample_size))).scalars())
     if not pool:
         # Level filter matched nothing (e.g. user target_exam has no bank yet):
         # fall back to any available question so the daily check still works.
-        pool = (await db.execute(select(ExamQuestion))).scalars().all()
+        pool = list((await db.execute(select(ExamQuestion).order_by(func.random()).limit(sample_size))).scalars())
     # Never draw unanswerable questions (client would render no options).
-    pool = _answerable_questions(list(pool))
+    pool = _answerable_questions(pool)
+    if len(pool) < count:
+        fallback = (await db.execute(select(ExamQuestion))).scalars().all()
+        pool = _answerable_questions(list(fallback))
     if not pool:
         raise NotFoundError("题库为空，请先导入真题")
     picked = random.sample(pool, min(count, len(pool)))
@@ -203,39 +210,60 @@ async def create_daily_session(
     return session, picked
 
 
-async def _graded_answer_rows(db: AsyncSession, user_id: str) -> list[ExamAnswer]:
-    """All answered rows across the user's submitted attempts, newest first."""
+async def _latest_wrong_answers(db: AsyncSession, user_id: str) -> list[ExamAnswer]:
+    """Latest graded answer per question, only where that answer is wrong.
+
+    Uses a window function instead of loading the user's entire answer history
+    into Python: the result is bounded by the number of distinct questions the
+    user has answered, not by every attempt since signup.
+    """
+    ranked = (
+        select(
+            ExamAnswer.id.label("answer_id"),
+            func.row_number()
+            .over(
+                partition_by=ExamAnswer.question_id,
+                order_by=(ExamAnswer.answered_at.desc(), ExamAnswer.id.desc()),
+            )
+            .label("rank"),
+        )
+        .join(ExamSession, ExamAnswer.session_id == ExamSession.id)
+        .where(
+            ExamSession.user_id == user_id,
+            ExamSession.submitted_at.is_not(None),
+            ExamAnswer.user_answer.is_not(None),
+            ExamAnswer.question_id.is_not(None),
+        )
+        .subquery()
+    )
     rows = (
         await db.execute(
             select(ExamAnswer)
-            .join(ExamSession, ExamAnswer.session_id == ExamSession.id)
-            .where(
-                ExamSession.user_id == user_id,
-                ExamSession.submitted_at.is_not(None),
-                ExamAnswer.user_answer.is_not(None),
-                ExamAnswer.question_id.is_not(None),
-            )
+            .join(ranked, ExamAnswer.id == ranked.c.answer_id)
+            .where(ranked.c.rank == 1, ExamAnswer.correct.is_(False))
             .order_by(ExamAnswer.answered_at.desc())
         )
     ).scalars()
     return list(rows)
 
 
-def _aggregate_by_question(rows: list[ExamAnswer]) -> dict[str, dict]:
-    """Latest graded answer + wrong count per question.
-
-    A question is in the wrong book when its most recent graded answer is
-    wrong — answering it correctly later (e.g. a wrong-redo pass) clears it.
-    """
-    latest: dict[str, ExamAnswer] = {}
-    wrong_counts: dict[str, int] = {}
-    for answer in rows:
-        qid = answer.question_id or ""
-        if answer.correct is False:
-            wrong_counts[qid] = wrong_counts.get(qid, 0) + 1
-        if qid not in latest:
-            latest[qid] = answer
-    return {"latest": latest, "wrong_counts": wrong_counts}
+async def _wrong_counts(db: AsyncSession, user_id: str) -> dict[str, int]:
+    """How many times each question was answered wrong (SQL GROUP BY)."""
+    rows = (
+        await db.execute(
+            select(ExamAnswer.question_id, func.count())
+            .join(ExamSession, ExamAnswer.session_id == ExamSession.id)
+            .where(
+                ExamSession.user_id == user_id,
+                ExamSession.submitted_at.is_not(None),
+                ExamAnswer.user_answer.is_not(None),
+                ExamAnswer.question_id.is_not(None),
+                ExamAnswer.correct.is_(False),
+            )
+            .group_by(ExamAnswer.question_id)
+        )
+    ).all()
+    return {qid: count for qid, count in rows if qid}
 
 
 async def list_wrong_questions(
@@ -250,8 +278,9 @@ async def list_wrong_questions(
     ``wrong_count`` and the source paper's title/level. Only answered rows
     count; unanswered questions are excluded.
     """
-    agg = _aggregate_by_question(await _graded_answer_rows(db, user_id))
-    latest = {qid: a for qid, a in agg["latest"].items() if a.correct is False}
+    latest_rows = await _latest_wrong_answers(db, user_id)
+    wrong_counts = await _wrong_counts(db, user_id)
+    latest = {a.question_id: a for a in latest_rows if a.question_id}
 
     question_ids = list(latest.keys())
     papers: dict[str, ExamPaper] = {}
@@ -278,7 +307,7 @@ async def list_wrong_questions(
                 "passage": snap.get("passage"),
                 "question": snap.get("question"),
                 "options": snap.get("options"),
-                "wrong_count": agg["wrong_counts"].get(qid, 1),
+                "wrong_count": wrong_counts.get(qid, 1),
                 "last_wrong_at": answer.answered_at,
                 "paper_id": paper.id if paper else None,
                 "paper_title": paper.title if paper else None,
@@ -313,8 +342,8 @@ async def create_wrong_redo_session(
     Mirrors ``create_daily_session``: question set locked via placeholder
     ExamAnswer rows so submissions can't enumerate arbitrary ids.
     """
-    agg = _aggregate_by_question(await _graded_answer_rows(db, user_id))
-    wrong_ids = sorted(qid for qid, a in agg["latest"].items() if a.correct is False)
+    latest_rows = await _latest_wrong_answers(db, user_id)
+    wrong_ids = sorted(a.question_id for a in latest_rows if a.question_id)
     if question_ids:
         allowed = set(question_ids)
         wrong_ids = [qid for qid in wrong_ids if qid in allowed]
@@ -360,34 +389,46 @@ async def exam_stats(db: AsyncSession, user_id: str) -> dict:
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
 
-    submitted = list(
-        (
-            await db.execute(
-                select(ExamSession).where(
-                    ExamSession.user_id == user_id,
-                    ExamSession.submitted_at.is_not(None),
-                )
+    month_completed, month_score_sum = (
+        await db.execute(
+            select(
+                func.count(ExamSession.id),
+                func.coalesce(func.sum(ExamSession.score), 0.0),
+            ).where(
+                ExamSession.user_id == user_id,
+                ExamSession.submitted_at.is_not(None),
+                ExamSession.submitted_at >= month_start,
             )
-        ).scalars()
+        )
+    ).one()
+    avg_score = round(float(month_score_sum) / month_completed, 4) if month_completed else None
+
+    last_daily_score = await db.scalar(
+        select(ExamSession.score)
+        .where(
+            ExamSession.user_id == user_id,
+            ExamSession.mode == MODE_DAILY,
+            ExamSession.submitted_at.is_not(None),
+        )
+        .order_by(ExamSession.submitted_at.desc())
+        .limit(1)
     )
-
-    month_sessions = [s for s in submitted if _as_naive_utc(s.submitted_at) >= month_start]
-    avg_score = None
-    if month_sessions:
-        avg_score = round(sum(s.score or 0 for s in month_sessions) / len(month_sessions), 4)
-
-    daily = [s for s in submitted if s.mode == MODE_DAILY]
-    week_daily_count = sum(1 for s in daily if _as_naive_utc(s.submitted_at) >= week_start)
-    last_daily = max(
-        daily,
-        key=lambda s: _as_naive_utc(s.submitted_at) or datetime.min,
-        default=None,
+    week_daily_count = int(
+        await db.scalar(
+            select(func.count(ExamSession.id)).where(
+                ExamSession.user_id == user_id,
+                ExamSession.mode == MODE_DAILY,
+                ExamSession.submitted_at.is_not(None),
+                ExamSession.submitted_at >= week_start,
+            )
+        )
+        or 0
     )
 
     return {
-        "month_completed": len(month_sessions),
+        "month_completed": int(month_completed),
         "avg_score": avg_score,
-        "last_daily_score": last_daily.score if last_daily else None,
+        "last_daily_score": last_daily_score,
         "week_daily_count": week_daily_count,
     }
 
@@ -524,6 +565,8 @@ async def list_papers(
     level: str | None = None,
     page: int = 1,
     page_size: int = 12,
+    year: int | None = None,
+    status: str = "all",
 ) -> tuple[list[dict], int]:
     """List papers (newest first) with the current user's attempt stats."""
     stmt = select(ExamPaper)
@@ -531,8 +574,26 @@ async def list_papers(
     if level:
         stmt = stmt.where(ExamPaper.level == level)
         count_stmt = count_stmt.where(ExamPaper.level == level)
+    filters = []
+    if year is not None:
+        filters.append(ExamPaper.year == year)
+    submitted = (
+        select(ExamSession.id)
+        .where(
+            ExamSession.paper_id == ExamPaper.id,
+            ExamSession.user_id == user_id,
+            ExamSession.submitted_at.is_not(None),
+        )
+        .exists()
+    )
+    if status == "submitted":
+        filters.append(submitted)
+    elif status == "unsubmitted":
+        filters.append(~submitted)
+    stmt = stmt.where(*filters)
+    count_stmt = count_stmt.where(*filters)
     total = (await db.execute(count_stmt)).scalar() or 0
-    stmt = stmt.order_by(ExamPaper.year.desc(), ExamPaper.month.desc(), ExamPaper.set_no.asc())
+    stmt = stmt.order_by(ExamPaper.year.desc(), ExamPaper.month.desc(), ExamPaper.set_no.asc(), ExamPaper.id)
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     papers = (await db.execute(stmt)).scalars().all()
 
@@ -555,10 +616,40 @@ async def list_papers(
     for a in attempts:
         by_paper.setdefault(a.paper_id or "", []).append(a)
 
+    last_by_paper = {
+        paper_id: max(mine, key=lambda a: (_as_naive_utc(a.submitted_at), a.id)) for paper_id, mine in by_paper.items()
+    }
+    correct_counts: dict[str, int] = {}
+    if last_by_paper:
+        rows = await db.execute(
+            select(ExamAnswer.session_id, func.count(ExamAnswer.id))
+            .where(
+                ExamAnswer.session_id.in_([a.id for a in last_by_paper.values()]),
+                ExamAnswer.correct.is_(True),
+            )
+            .group_by(ExamAnswer.session_id)
+        )
+        correct_counts = {session_id: count for session_id, count in rows.all()}
+
+    # Paper composition for the practice-page cards: real section names and
+    # question counts instead of a hard-coded "3 部分 / 30 题".
+    sections_by_paper: dict[str, list[dict]] = {}
+    if paper_ids:
+        section_rows = (
+            await db.execute(
+                select(ExamQuestion.paper_id, ExamQuestion.section, func.count(ExamQuestion.id))
+                .where(ExamQuestion.paper_id.in_(paper_ids))
+                .group_by(ExamQuestion.paper_id, ExamQuestion.section)
+                .order_by(ExamQuestion.paper_id, ExamQuestion.section)
+            )
+        ).all()
+        for paper_id, section, count in section_rows:
+            sections_by_paper.setdefault(paper_id, []).append({"section": section, "question_count": count})
+
     items: list[dict] = []
     for p in papers:
         mine = by_paper.get(p.id, [])
-        last = mine[-1] if mine else None  # insertion order == started order
+        last = last_by_paper.get(p.id)
         best = max((a.score or 0) for a in mine) if mine else None
         items.append(
             {
@@ -572,11 +663,22 @@ async def list_papers(
                 "total_questions": p.total_questions,
                 "last_score": last.score if last else None,
                 "last_submitted_at": last.submitted_at if last else None,
+                "last_session_id": last.id if last else None,
+                "last_correct_count": correct_counts.get(last.id, 0) if last else None,
+                "last_question_count": last.question_count if last else None,
                 "attempt_count": len(mine),
                 "best_score": best,
+                "sections": sections_by_paper.get(p.id, []),
             }
         )
     return items, total
+
+
+async def paper_years(db: AsyncSession, level: str | None) -> list[int]:
+    stmt = select(ExamPaper.year).distinct().order_by(ExamPaper.year.desc())
+    if level:
+        stmt = stmt.where(ExamPaper.level == level)
+    return list((await db.execute(stmt)).scalars().all())
 
 
 async def get_attempt_detail(db: AsyncSession, session_id: str, user_id: str) -> ExamSession | None:
@@ -612,6 +714,22 @@ async def list_attempts(
         rows = (await db.execute(select(ExamPaper.id, ExamPaper.title).where(ExamPaper.id.in_(paper_ids)))).all()
         titles = {r[0]: r[1] for r in rows}
 
+    # Count correct answers from the frozen answer rows instead of reverse-
+    # engineering them from ``score``: score is rounded to 4 decimals, so
+    # int(score * question_count) truncates (1/3 → 0, 7/30 → 6) and the attempt
+    # list disagrees with the result page for the very same attempt.
+    submitted_ids = [s.id for s in sessions if s.submitted_at]
+    correct_counts: dict[str, int] = {}
+    if submitted_ids:
+        correct_rows = (
+            await db.execute(
+                select(ExamAnswer.session_id, func.count())
+                .where(ExamAnswer.session_id.in_(submitted_ids), ExamAnswer.correct.is_(True))
+                .group_by(ExamAnswer.session_id)
+            )
+        ).all()
+        correct_counts = {session_id: int(count) for session_id, count in correct_rows}
+
     items: list[dict] = []
     for s in sessions:
         duration = 0
@@ -626,7 +744,7 @@ async def list_attempts(
                 "paper_title": titles.get(s.paper_id or "") if s.paper_id else None,
                 "question_count": s.question_count,
                 "score": s.score,
-                "correct_count": int((s.score or 0) * s.question_count) if s.submitted_at else None,
+                "correct_count": correct_counts.get(s.id, 0) if s.submitted_at else None,
                 "duration_sec": duration,
                 "started_at": s.started_at,
                 "submitted_at": s.submitted_at,

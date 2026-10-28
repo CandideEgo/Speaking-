@@ -21,6 +21,9 @@ class BehaviorEvent(Base):
     __table_args__ = (
         Index("ix_behavior_events_user_server", "user_id", "server_ts"),
         Index("ix_behavior_events_video_type", "video_id", "event_type"),
+        # Weekly play ranking: event_type IN ('play','complete') AND
+        # server_ts >= Monday, grouped by video_id.
+        Index("ix_behavior_events_server_ts_type", "server_ts", "event_type"),
     )
 
     # SQLite (tests) only auto-increments an exact INTEGER PRIMARY KEY, so the

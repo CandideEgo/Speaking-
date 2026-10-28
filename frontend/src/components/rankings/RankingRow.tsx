@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { VideoMetadata } from "@/components/video/VideoMetadata";
 import { VideoThumbnail } from "@/components/video/VideoThumbnail";
+import { VideoTitle } from "@/components/video/VideoTitle";
 import { cn, formatCount, relativeTime } from "@/lib/utils";
 import { watchHref } from "@/lib/watchEntry";
 import type { RankingScope } from "@/hooks/useRankings";
@@ -18,15 +20,13 @@ export const RANKING_METRIC_LABELS: Record<RankingScope, string> = {
 };
 
 /**
- * 名次数字配色：1 品牌橙 / 2 琥珀 / 3 深橙（暗色下提亮），其余中性。
- * 文字色一律用加深档（brand-700/brand-800/warning-text/muted）——
- * 原始主色（brand-500 3.12:1、accent-amber 1.95:1）做 16px 文字对比不足。
+ * 名次数字配色：只有第 1 名用品牌蓝，其余中性。
+ * 文字色一律用加深档（brand-700 / body / muted）——
+ * 原始主色（brand-500 3.12:1）做 16px 文字对比不足。
  */
 function rankClass(rank: number): string {
   if (rank === 1) return "text-brand-700";
-  if (rank === 2) return "text-warning-text";
-  if (rank === 3) return "text-brand-800";
-  return "text-muted";
+  return "text-body";
 }
 
 /** NEW 只表示“刚上架”：48 小时内；更早的条目只给相对时间，避免满屏 NEW。 */
@@ -93,10 +93,14 @@ export function RankingRow({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-copy font-semibold leading-snug text-ink transition-colors duration-150 group-hover:text-brand-600 sm:line-clamp-1">
-          {video.title}
-        </p>
+        <VideoTitle
+          video={video}
+          as="span"
+          zhClassName="text-copy font-semibold leading-snug text-ink transition-colors duration-150 group-hover:text-brand-600 sm:line-clamp-1"
+          enClassName="hidden sm:block"
+        />
         {meta && <p className="mt-1 line-clamp-1 text-meta text-body">{meta}</p>}
+        <VideoMetadata video={video} className="mt-1" />
       </div>
 
       <div className="w-14 flex-shrink-0 text-right sm:w-20">

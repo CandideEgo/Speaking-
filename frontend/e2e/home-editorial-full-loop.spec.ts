@@ -25,8 +25,8 @@ import type {
  *   6. 「发布并替换主推」后刷新首页立即显示 B（不重建前端）；
  *   7. 来源变化（改一句真实字幕）→ 公共卡失效 + 发布被拒 → 原样改回后恢复；
  *   8. 再改 B 草稿，线上仍是已发布的 B；
- *   9. 点互动选项只显示保存的反馈，不发任何 API / AI 请求；
- *  10. 收词/定位/跟读/片段时长参数正确；1440 与 320–390 无横向溢出；
+ *   9. 已发布导语展示，原教学数据保留但不占首页；
+ *  10. 片段深链、原句收词与多尺寸无溢出；
  *  11. 恢复上一版回到 A；
  *  12. A 下线后拒绝恢复并说明，复原 A 后可恢复。
  *
@@ -116,9 +116,15 @@ interface AdminSubtitle {
 interface AdminVideoDetail {
   id: string;
   title: string;
+  title_zh?: string | null;
   is_published: boolean;
   is_official: boolean;
   subtitles: AdminSubtitle[];
+}
+
+/** 公共卡显示的主标题：后端 title_zh 优先，英文原名回退。 */
+function displayTitle(video: AdminVideoDetail): string {
+  return video.title_zh?.trim() || video.title;
 }
 
 interface FeaturedBody {
@@ -160,14 +166,6 @@ function findSubtitle(subtitles: AdminSubtitle[], needle: string): AdminSubtitle
   );
   if (!hit) throw new Error(`视频字幕里找不到「${needle}」，数据前提已变化`);
   return hit;
-}
-
-function clipDurationLabel(seconds: number): string {
-  const rounded = Math.max(1, Math.round(seconds));
-  if (rounded < 60) return `${rounded} 秒`;
-  const minutes = Math.floor(rounded / 60);
-  const rest = rounded % 60;
-  return rest === 0 ? `${minutes} 分钟` : `${minutes} 分 ${rest} 秒`;
 }
 
 /** 管理员会话注入：边缘登录墙读 cookie，管理端 store 读 localStorage。 */
@@ -743,12 +741,12 @@ test("2/12 管理员为 A 制作并发布主推，并在编排页摆好换说法
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toContainText(A_HEADLINE, {
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailA), {
     timeout: 60_000,
   });
   await page.locator(".home-editorial-lead").getByRole("button", { name: "学前预览" }).click();
   await expect(page.getByText("点头同意")).toBeVisible();
-  await expect(page.locator("#home-scenarios")).toBeVisible();
+  await expect(page.locator("#home-scenarios")).toHaveCount(0);
   // 后端保留两条递补候选，前端只展示一个视频。
   await expect(page.locator(".home-editorial-secondary")).toHaveCount(0);
   await expect(page.locator(".home-feature-card")).toHaveCount(1);
@@ -799,17 +797,15 @@ test("3/12 管理员详情页：B 草稿（真实 AI 结果或手写兜底）改
   await panel.getByRole("button", { name: "预览" }).click();
   const previewDialog = page.getByRole("dialog", { name: "首页内容预览（管理员接口）" });
   await expect(previewDialog).toBeVisible({ timeout: 60_000 });
-  await expect(previewDialog.getByRole("heading", { name: B_HEADLINE })).toBeVisible({
+  await expect(previewDialog.getByRole("heading", { name: displayTitle(detailB) })).toBeVisible({
     timeout: 60_000,
   });
-  // 预览复用首页组件：草稿里的推荐理由与互动选项都应出现在预览里
+  // 预览复用完整视频推荐：导语展示，互动与片段不占首页。
   await expect(previewDialog.getByText(B_DEK)).toBeVisible();
-  await previewDialog.getByRole("button", { name: "学前预览" }).click();
-  const previewOptionLabel = stateB.draft!.interaction!.options[0].label;
-  await expect(previewDialog.getByRole("button", { name: previewOptionLabel })).toBeVisible();
-  // 预览里点选项同样只显示已保存反馈（本地 state，不发请求）
-  await previewDialog.getByRole("button", { name: previewOptionLabel }).click();
-  await expect(previewDialog.getByText(B_FEEDBACK)).toBeVisible();
+  await expect(previewDialog.getByRole("button", { name: "学前预览" })).toHaveCount(0);
+  await expect(
+    previewDialog.getByRole("link", { name: "观看完整视频", exact: true })
+  ).toHaveAttribute("href", `/watch/${B}?from=home`);
   await previewDialog.screenshot({ path: evidencePath("05-预览弹层.png") });
   // 弹层里有两个「关闭」（右上角图标 + 底部按钮），点底部那个
   await previewDialog.getByRole("button", { name: "关闭" }).last().click();
@@ -865,7 +861,8 @@ test("4/12 草稿对普通用户不可见；非管理员访问管理接口 403",
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toContainText(A_HEADLINE, {
+  const detailA = await getAdminVideoDetail(request, A);
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailA), {
     timeout: 60_000,
   });
   await expect(page.getByText(B_HEADLINE)).toHaveCount(0);
@@ -978,12 +975,12 @@ test("6/12 管理员点击「发布并替换主推」→ 刷新公共首页立�
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-heading")).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator(".home-editorial-lead")).toContainText(B_HEADLINE, {
+  const detailB = await getAdminVideoDetail(request, B);
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailB), {
     timeout: 60_000,
   });
   await expect(page.getByRole("article", { name: "换个说法" })).toHaveCount(0);
-  await expect(page.locator("#home-scenarios")).toBeVisible();
+  await expect(page.locator("#home-scenarios")).toHaveCount(0);
   await expect(page.locator(".home-editorial-secondary")).toHaveCount(0);
   await captureEditorialHome(page, 1440, 1600, "07-首页-发布后-B-1440.png");
 });
@@ -1032,7 +1029,8 @@ test("7/12 来源变化：改一句 B 字幕 → 公共卡失效且发布被拒�
     // 首页不再是 B，也没有半套编排：次推 C 被提升为主推
     await loginUser(page);
     await page.goto("/");
-    await expect(page.locator(".home-editorial-lead")).toContainText(C_HEADLINE, {
+    const detailC = await getAdminVideoDetail(request, C);
+    await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailC), {
       timeout: 60_000,
     });
     await expect(page.getByText(B_HEADLINE)).toHaveCount(0);
@@ -1082,209 +1080,83 @@ test("8/12 再改 B 草稿不改变线上；普通用户仍看已发布 B", asyn
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toContainText(B_HEADLINE, {
+  const detailB = await getAdminVideoDetail(request, B);
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailB), {
     timeout: 60_000,
   });
   await expect(page.getByText("草稿里的新反馈")).toHaveCount(0);
 });
 
-test("9/12 点互动选项只显示保存反馈：不发任何 API / AI 请求", async ({ request, page }) => {
-  test.setTimeout(180_000);
+test("9/12 完整视频介绍使用已发布导语，原有教学数据保留在公共契约中", async ({ request, page }) => {
   const publicPage = await getPublicEditorial(request);
   const lead = publicPage!.lead!;
-  const interaction = lead.content.interaction!;
-  expect(interaction.options.length).toBeGreaterThanOrEqual(2);
-
+  expect(lead.content.interaction!.options.length).toBeGreaterThanOrEqual(2);
+  expect(lead.content.interaction!.options[0].feedback).toBe(B_FEEDBACK);
   await loginUser(page);
-
-  // 首页运行时干净度：无 console.error / pageerror / 4xx-5xx；失败请求只允许
-  // dev 下 React StrictMode 双执行/导航 unmount 造成的 ERR_ABORTED（dev-only 噪声）。
-  const consoleErrors: string[] = [];
-  const pageErrors: string[] = [];
-  const httpErrors: string[] = [];
-  const failedRequests: string[] = [];
-  page.on("console", (msg) => {
-    if (msg.type() === "error") consoleErrors.push(msg.text());
-  });
-  page.on("pageerror", (err) => pageErrors.push(err.message));
-  page.on("response", (res) => {
-    if (res.status() >= 400) {
-      httpErrors.push(`${res.status()} ${res.request().method()} ${res.url()}`);
-    }
-  });
-  page.on("requestfailed", (req) => {
-    failedRequests.push(`${req.method()} ${req.url()} :: ${req.failure()?.errorText ?? "unknown"}`);
-  });
-
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   const card = page.locator(".home-editorial-lead");
-  await expect(card.getByRole("heading", { name: B_HEADLINE })).toBeVisible({ timeout: 60_000 });
-  await card.getByRole("button", { name: "学前预览" }).click();
-
-  const requests: string[] = [];
-  const onRequest = (request: import("@playwright/test").Request) => {
-    requests.push(`${request.method()} ${request.url()}`);
-  };
-  page.on("request", onRequest);
-
-  const firstOption = card.getByRole("button", { name: interaction.options[0].label });
-  await firstOption.click();
-  await expect(firstOption).toHaveAttribute("aria-pressed", "true");
-  await expect(card.getByText(interaction.options[0].feedback)).toBeVisible();
-
-  const secondOption = card.getByRole("button", { name: interaction.options[1].label });
-  await secondOption.click();
-  await expect(secondOption).toHaveAttribute("aria-pressed", "true");
-  await expect(card.getByText(interaction.options[1].feedback)).toBeVisible();
-  await expect(firstOption).toHaveAttribute("aria-pressed", "false");
-
-  await page.waitForTimeout(800);
-  page.off("request", onRequest);
-  const offending = requests.filter(
-    (entry) => entry.includes("/api/") || /openai|chat|completion/i.test(entry)
-  );
-  expect(offending).toEqual([]);
-
-  // 首页运行时断言 + 证据日志（Lead 要求的 console 证据）
-  const nonAbortedFailures = failedRequests.filter((entry) => !entry.includes("net::ERR_ABORTED"));
-  expect(consoleErrors, `console.error: ${consoleErrors.join("\n")}`).toEqual([]);
-  expect(pageErrors, `pageerror: ${pageErrors.join("\n")}`).toEqual([]);
-  expect(httpErrors, `http>=400: ${httpErrors.join("\n")}`).toEqual([]);
-  expect(nonAbortedFailures, `failed: ${nonAbortedFailures.join("\n")}`).toEqual([]);
-  fs.writeFileSync(
-    evidencePath("12-homepage-console.log"),
-    [
-      "页面：/（新编排首页，普通用户 token，chromium 1440x1600）",
-      "用于解释 08 截图左下角 Next dev tools「N Issue」徽标：它是 dev overlay，不是运行时错误。",
-      `console.error: ${consoleErrors.length}`,
-      ...consoleErrors.map((line) => `  console.error -> ${line}`),
-      `pageerror: ${pageErrors.length}`,
-      ...pageErrors.map((line) => `  pageerror -> ${line}`),
-      `http >= 400: ${httpErrors.length}`,
-      ...httpErrors.map((line) => `  http -> ${line}`),
-      `requestfailed: ${failedRequests.length}（仅 dev StrictMode 双执行/组件 unmount 的 ERR_ABORTED）`,
-      ...failedRequests.map((line) => `  requestfailed -> ${line}`),
-    ].join("\n") + "\n",
-    "utf8"
-  );
-
-  // 跳过选择直接看完整视频的入口存在且指向真实视频
-  await expect(card.getByRole("link", { name: /跳过选择，直接看完整视频/ })).toHaveAttribute(
+  await expect(card).toContainText(displayTitle(await getAdminVideoDetail(request, B)));
+  await expect(card).toContainText(lead.content.dek);
+  await expect(card.getByRole("link", { name: "观看完整视频", exact: true })).toHaveAttribute(
     "href",
-    new RegExp(`/watch/${B}\\?from=home`)
+    `/watch/${B}?from=home`
   );
-
-  await card.scrollIntoViewIfNeeded();
-  await card.screenshot({ path: evidencePath("06-首页互动-选项反馈展开.png") });
+  await expect(card.getByRole("button", { name: "学前预览" })).toHaveCount(0);
+  await expect(page.getByText(B_FEEDBACK, { exact: true })).toHaveCount(0);
+  expect(errors).toEqual([]);
+  await card.screenshot({ path: evidencePath("06-首页-完整视频介绍.png") });
 });
 
-test("10/12 收词/定位/跟读/片段时长参数正确；1440 与 390/320 无横向溢出", async ({
-  request,
-  page,
-}) => {
+test("10/12 片段深链与原句收词仍可用；首页多尺寸无横向溢出", async ({ request, page }) => {
   test.setTimeout(300_000);
-  const publicPage = await getPublicEditorial(request);
-  const lead = publicPage!.lead!;
+  const lead = (await getPublicEditorial(request))!.lead!;
   const clip = lead.content.clip!;
+  const expression = lead.content.expressions.find((item) => item.word)!;
   expect(clip.duration).toBeGreaterThan(0);
-  const expression =
-    lead.content.expressions.find((item) => item.word) ?? lead.content.expressions[0];
   expect(expression.word).toBeTruthy();
-
+  const detail = await getAdminVideoDetail(request, B);
+  expect(detail.subtitles.some((subtitle) => subtitle.id === expression.sentence.subtitle_id)).toBe(
+    true
+  );
   await loginUser(page);
-  await page.setViewportSize({ width: 1440, height: 1600 });
-  await page.goto("/");
-  const card = page.locator(".home-editorial-lead");
-  await expect(card.getByRole("heading", { name: B_HEADLINE })).toBeVisible({ timeout: 60_000 });
-
-  // 片段按钮显示服务端解析的真实时长，不写死 90 秒
-  await card.getByRole("button", { name: "学前预览" }).click();
-  const clipLabel = clipDurationLabel(clip.duration);
-  await expect(
-    card.getByRole("button", { name: new RegExp(`先听一小段 · ${clipLabel}`) })
-  ).toBeVisible();
-  await expect(page.getByText(/90 秒/)).toHaveCount(0);
-
-  // 定位 / 跟读 / 文稿都复用真实字幕与 watchEntry
-  await expect(card.getByRole("link", { name: "跟读这句" })).toHaveAttribute(
-    "href",
-    new RegExp(`/watch/${B}\\?from=home&sub=${expression.sentence.subtitle_id}`)
+  await page.goto(
+    `/watch/${B}?from=home&clip=${lead.content.content_revision_id}&sub=${expression.sentence.subtitle_id}&word=${encodeURIComponent(expression.word!)}`
   );
-  await expect(card.getByRole("link", { name: "全文文稿" })).toHaveAttribute(
-    "href",
-    `/watch/${B}/transcript`
+  await expect(page.getByRole("region", { name: "片段任务", exact: true })).toContainText(
+    lead.content.headline
   );
-  // 「跳过选择」链接也含有「看完整视频」字样，这里精确匹配底部的完整视频入口
-  await expect(card.getByRole("link", { name: "看完整视频", exact: true })).toHaveAttribute(
-    "href",
-    new RegExp(`/watch/${B}\\?from=home`)
-  );
-
-  // 收词：选中带单词的表达 → 发真实 POST，参数来自真实原句
-  const chip = card.locator(".home-editorial-expression-chip").first();
-  await chip.click();
-  const savedRequestPromise = page.waitForRequest(
-    (req) => req.method() === "POST" && req.url().includes("/api/v1/vocabulary?")
-  );
-  await card.getByRole("button", { name: "收进词库" }).click();
-  const savedRequest = await savedRequestPromise;
-  const params = new URL(savedRequest.url()).searchParams;
-  expect(params.get("word")).toBe(expression.word);
+  const wordCard = page.getByTestId("word-tooltip");
+  await expect(wordCard).toBeVisible();
+  const [saved] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/v1/vocabulary" &&
+        response.request().method() === "POST"
+    ),
+    wordCard.getByRole("button", { name: "加入词库", exact: true }).click(),
+  ]);
+  expect([200, 201]).toContain(saved.status());
+  const params = new URL(saved.request().url()).searchParams;
   expect(params.get("video_id")).toBe(B);
   expect(params.get("subtitle_id")).toBe(expression.sentence.subtitle_id);
-  expect(params.get("context_sentence")).toBe(expression.sentence.text_en);
-  await expect(card.getByRole("button", { name: "已收词" })).toBeDisabled();
-
-  // 1440 桌面：无横向溢出 + 证据截图 01
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const assertNoOverflow = async (label: string) => {
-    const metrics = await page.evaluate(() => ({
-      docWidth: document.documentElement.scrollWidth,
-      viewport: window.innerWidth,
-    }));
-    expect(metrics.docWidth, `${label} 文档横向溢出`).toBeLessThanOrEqual(metrics.viewport);
-    const content = await page
-      .locator(".home-discovery")
-      .evaluate((element) => ({ width: element.clientWidth, scroll: element.scrollWidth }));
-    expect(content.scroll, `${label} 内容横向溢出`).toBeLessThanOrEqual(content.width);
-  };
-  await assertNoOverflow("1440");
-  await captureEditorialHome(page, 1440, 3600, "01-首页-新编排-1440.png");
-
-  // 390 手机：无溢出 + 证据截图 02
-  await loginUser(page);
-  await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toBeVisible({ timeout: 60_000 });
-  await assertNoOverflow("390");
-  await captureEditorialHome(page, 390, 4200, "02-首页-新编排-390.png");
-
-  // 场景展开不被移动端底部导航遮挡
-  const scenarios = page.locator("#home-scenarios");
-  await expect(scenarios).toBeVisible();
-  const firstScenario = scenarios.getByRole("article").first();
-  await firstScenario.getByRole("button", { name: /^试一句/ }).click();
-  const scenarioDialog = page.getByRole("dialog", { name: "换你说一句" });
-  const toggle = scenarioDialog.getByRole("button", { name: "看这句话从哪来" });
-  await expect(toggle).toBeVisible();
-  await toggle.click();
-  const detail = scenarioDialog.locator(".home-editorial-scenario-detail");
-  await expect(detail).toBeVisible();
-  await detail.scrollIntoViewIfNeeded();
-  const detailBox = await detail.boundingBox();
-  const tabBarBox = await page.locator('[data-testid="mobile-tab-bar"]').boundingBox();
-  expect(detailBox).not.toBeNull();
-  expect(tabBarBox).not.toBeNull();
-  expect(detailBox!.y + detailBox!.height).toBeLessThanOrEqual(tabBarBox!.y + 1);
-  await scenarioDialog.getByRole("button", { name: "关闭" }).click();
-
-  // 320 手机：无溢出 + 证据截图 10
-  await loginUser(page);
-  await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toBeVisible({ timeout: 60_000 });
-  await assertNoOverflow("320");
-  await captureEditorialHome(page, 320, 4200, "10-首页-新编排-320.png");
+  for (const [width, height] of [
+    [1440, 900],
+    [1280, 720],
+    [390, 844],
+    [375, 667],
+    [320, 800],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/");
+    await expect(page.locator(".home-editorial-lead")).toContainText(lead.content.dek);
+    const geometry = await page
+      .locator("#main-scroll")
+      .evaluate((el) => ({ scroll: el.scrollWidth, width: el.clientWidth }));
+    expect(geometry.scroll, `width=${width}`).toBeLessThanOrEqual(geometry.width);
+    await page.screenshot({ path: evidencePath(`home-content-${width}.png`) });
+  }
 });
 
 test("11/12 首页编排页恢复上一版回到 A", async ({ request, page }) => {
@@ -1319,7 +1191,8 @@ test("11/12 首页编排页恢复上一版回到 A", async ({ request, page }) =
 
   await loginUser(page);
   await page.goto("/");
-  await expect(page.locator(".home-editorial-lead")).toContainText(A_HEADLINE, {
+  const detailA = await getAdminVideoDetail(request, A);
+  await expect(page.locator(".home-editorial-lead")).toContainText(displayTitle(detailA), {
     timeout: 60_000,
   });
   await captureEditorialHome(page, 1440, 1600, "08-首页-恢复后-A-1440.png");

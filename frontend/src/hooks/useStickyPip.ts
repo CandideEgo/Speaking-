@@ -63,12 +63,15 @@ export function useStickyPip<T extends HTMLElement>(
     const sentinel = document.createElement("div");
     sentinel.setAttribute("aria-hidden", "true");
     sentinel.style.cssText = "height:0;margin:0;padding:0;border:0;pointer-events:none;";
-    scroller.insertBefore(sentinel, scroller.firstChild);
+    el.parentNode?.insertBefore(sentinel, el);
 
     let raf = 0;
 
     const measure = () => {
       const out = sentinel.getBoundingClientRect().top < scroller.getBoundingClientRect().top - 0.5;
+      const height = `${el.getBoundingClientRect().height}px`;
+      if (scroller.style.getPropertyValue("--watch-sticky-height") !== height)
+        scroller.style.setProperty("--watch-sticky-height", height);
       setStuck(out);
       // 画框落回原位就重新武装（与旧行为一致：回到起点则恢复跟随）。
       if (!out) setDismissed(false);
@@ -85,10 +88,15 @@ export function useStickyPip<T extends HTMLElement>(
     measure();
     window.addEventListener("scroll", schedule, true);
     window.addEventListener("resize", schedule);
+    const observer = new ResizeObserver(schedule);
+    observer.observe(el);
+    observer.observe(scroller);
     return () => {
       if (raf) window.cancelAnimationFrame(raf);
       window.removeEventListener("scroll", schedule, true);
       window.removeEventListener("resize", schedule);
+      observer.disconnect();
+      scroller.style.removeProperty("--watch-sticky-height");
       sentinel.remove();
     };
   }, [enabled, slotRef]);

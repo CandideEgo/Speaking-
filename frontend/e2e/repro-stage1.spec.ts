@@ -108,39 +108,33 @@ test.describe("Stage1 - watch page layout (A2/A4/A5)", () => {
     expect(box!.x + box!.width).toBeLessThan(vw * 0.62);
   });
 
-  test("desktop: collapse panel -> video wrapper constrained, word card stays anchored", async ({
-    page,
-  }) => {
+  test("desktop: expand video -> wrapper grows, word card stays anchored", async ({ page }) => {
     test.skip(!(await openFirstWatch(page)), "no seeded video — layout guards skip");
     await page.locator(".now-sub-en .now-sub-word").first().click({ timeout: 8000 });
     const card = page.locator("[data-testid='word-tooltip']");
     await expect(card).toBeVisible({ timeout: 5000 });
 
     const vw = page.viewportSize()!.width;
-    const wrapper = page.locator("div.relative.aspect-video").first();
+    const wrapper = page.getByTestId("video-frame");
 
-    // Before collapse: video wrapper spans (nearly) full column width.
+    // Before: video wrapper spans the left column of the split.
     const before = await wrapper.boundingBox();
     expect(before).not.toBeNull();
 
-    // Collapse the subtitle panel.
-    await page.locator('button[aria-label="收起为字幕轨"]').first().click();
-    await page.waitForTimeout(500);
+    // 沉浸观看隐藏文稿，播放器字幕仍由同一偏好控制。
+    await page.getByRole("button", { name: "沉浸观看", exact: true }).click();
+    await expect(page.getByTestId("watch-transcript")).toBeHidden();
 
-    // 词卡已改为**锚定被点词**（WordTooltipInline 的 placementForAnchor），不再
-    // 随面板折叠改投右下角：折叠只改变画框宽度，卡片保持在点击时的位置。
-    // 这里验的是不变量——仍在视口内，且没有被折叠后的布局推出右边界。
+    // 词卡仍锚定被点词：切换布局后仍在视口内，且不被推出右边界。
     const cardBox = await card.boundingBox();
     expect(cardBox).not.toBeNull();
     expect(cardBox!.x).toBeGreaterThanOrEqual(8);
     expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(vw - 8 + 1);
 
-    // After collapse: video wrapper is constrained (max-width) + centered ->
-    // width strictly less than viewport width with visible side margins.
+    // Expanded: the wrapper grows beyond its split width and stays centered.
     const after = await wrapper.boundingBox();
     expect(after).not.toBeNull();
-    expect(after!.width).toBeLessThan(vw - 16);
-    // And centered (left margin > some px).
+    expect(after!.width).toBeGreaterThan(before!.width);
     expect(after!.x).toBeGreaterThan(8);
   });
 });

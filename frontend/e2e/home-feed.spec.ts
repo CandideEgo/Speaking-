@@ -27,6 +27,10 @@ async function openHome(page: Page) {
   await loginViaToken(page, token);
   await page.goto("/");
   await expect(page.locator("#feed-sort")).toBeVisible({ timeout: 15000 });
+  // 设计工具条只有分类 chips + 难度 + 排序 + 条数（V-10）。
+  await expect(page.locator("#feed-duration")).toHaveCount(0);
+  // 设计应用壳只有 sidebar/topbar/main，登录后不再渲染协议页脚（V-08）。
+  await expect(page.locator("footer").filter({ hasText: "用户协议" })).toHaveCount(0);
 }
 
 test.describe("首页下滑流 · 筛选", () => {
@@ -246,10 +250,7 @@ test.describe("首页下滑流 · 筛选", () => {
     await expect(page.locator("#feed-sort")).toHaveValue("hot");
   });
 
-  test("真实数据首页在桌面与手机使用新版式，短复习入口不修改今日训练", async ({
-    page,
-    request,
-  }) => {
+  test("真实数据首页以完整视频为主，辅助练习接口保持可用", async ({ page, request }) => {
     const directory = path.resolve(process.cwd(), "../docs/evidence/home-design-refresh");
     const browserErrors: string[] = [];
     page.on("pageerror", (error) => browserErrors.push(error.message));
@@ -259,10 +260,11 @@ test.describe("首页下滑流 · 筛选", () => {
     fs.mkdirSync(directory, { recursive: true });
     await loginViaToken(page, token);
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "今天从哪里开始？" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^发现 · / })).toBeVisible();
     await expect(page.locator(".home-editorial-lead")).toBeVisible();
     await expect(page.locator(".home-personal")).toHaveCount(0);
-    await expect(page.getByRole("complementary", { name: "其他学习入口" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "我的学习入口" })).toHaveCount(0);
+    await expect(page.getByRole("complementary", { name: "其他学习入口" })).toHaveCount(0);
     for (const [label, width, height] of [
       ["desktop", 1440, 1000],
       ["mobile", 390, 1100],
@@ -285,7 +287,7 @@ test.describe("首页下滑流 · 筛选", () => {
         .evaluate((image: HTMLImageElement) => image.decode());
       await page.screenshot({ path: path.join(directory, `live-${label}.png`) });
     }
-    // 真实后端验证新深链使用的既有练习接口：允许没有到期词时返回业务 409。
+    // 真实后端验证辅助功能的既有练习接口：允许没有到期词时返回业务 409。
     const response = await request.get("/api/v1/vocabulary/practice?count=5&due_only=true", {
       headers: { Authorization: `Bearer ${token}` },
     });

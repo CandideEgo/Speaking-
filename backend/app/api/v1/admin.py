@@ -1,13 +1,16 @@
 """Admin API router — all admin-only endpoints under /api/v1/admin.
 
 This router consolidates the admin management endpoints that don't belong
-in existing domain routers (videos, invite-codes, rubrics). Those keep
-their admin routes in-place; this file adds the missing ones:
+in existing domain routers (videos, orders, users). Those keep their admin
+routes in-place; this file adds the missing ones:
 
   - Dashboard stats
   - User management (list, ban, role change, plan grant/revoke)
-  - Orders listing
+  - 金数据 payment records + revenue summary (read-only; the legacy ``orders``
+    surface is gone — real revenue lives in ``jinshuju_payments``)
 """
+
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,15 +20,32 @@ from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.admin import (
+    AdminAccountItem,
+    AdminPaymentRow,
+    AdminPaymentSummaryResponse,
+    AdminPaymentSyncResponse,
+    AdminSettingsResponse,
     AdminSettingsUpdate,
+    AdminStatsResponse,
     AdminUserBanRequest,
+    AdminUserBanResponse,
     AdminUserPlanRequest,
+    AdminUserPlanResponse,
     AdminUserRoleRequest,
+    AdminUserRoleResponse,
+    AdminUserRow,
+    WorkerStatusResponse,
 )
 from app.schemas.pagination import PaginatedResponse
 from app.services import admin_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+#: Admin user-list filters are validated by FastAPI (422 instead of silently
+#: ignoring unknown values, ADM-11). ``expired`` is a synthetic plan bucket.
+AdminRoleFilter = Literal["user", "admin"]
+AdminPlanFilter = Literal["free", "pro", "expired"]
+AdminPaymentStatusFilter = Literal["applied", "pending", "ignored", "refunded", "error"]
 
 
 # ---------------------------------------------------------------------------
@@ -33,7 +53,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 # ---------------------------------------------------------------------------
 
 
-@router.get("/worker-status")
+@router.get("/worker-status", response_model=WorkerStatusResponse)
 @rate_limit("30/minute")
 async def get_worker_status(
     request: Request,
@@ -51,7 +71,7 @@ async def get_worker_status(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=AdminStatsResponse)
 @rate_limit("30/minute")
 async def get_admin_stats(
     request: Request,
@@ -68,15 +88,15 @@ async def get_admin_stats(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/users", response_model=PaginatedResponse)
+@router.get("/users", response_model=PaginatedResponse[AdminUserRow])
 @rate_limit("30/minute")
 async def list_admin_users(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    role: str | None = Query(None, description="Filter by role: user / admin"),
-    plan: str | None = Query(None, description="Filter by plan: free / pro"),
-    keyword: str | None = Query(None, description="Search name or phone"),
+    role: AdminRoleFilter | None = Query(None, description="Filter by role: user / admin"),
+    plan: AdminPlanFilter | None = Query(None, description="Filter by plan: free / pro / expired"),
+    keyword: str | None = Query(None, max_length=100, description="Search name or phone"),
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -86,7 +106,7 @@ async def list_admin_users(
     )
 
 
-@router.patch("/users/{user_id}/ban")
+@router.patch("/users/{user_id}/ban", response_model=AdminUserBanResponse)
 @rate_limit("10/minute")
 async def ban_user(
     request: Request,
@@ -103,7 +123,7 @@ async def ban_user(
     }
 
 
-@router.patch("/users/{user_id}/role")
+@router.patch("/users/{user_id}/role", response_model=AdminUserRoleResponse)
 @rate_limit("10/minute")
 async def change_user_role(
     request: Request,
@@ -120,7 +140,7 @@ async def change_user_role(
     }
 
 
-@router.patch("/users/{user_id}/plan")
+@router.patch("/users/{user_id}/plan", response_model=AdminUserPlanResponse)
 @rate_limit("10/minute")
 async def change_user_plan(
     request: Request,
@@ -135,56 +155,57 @@ async def change_user_plan(
         "id": user.id,
         "plan": user.plan.value,
         "plan_expires_at": user.plan_expires_at.isoformat() if user.plan_expires_at else None,
+        # ADM-17: additively expose the entitlement provenance so the panel can
+        # tell an admin grant from a purchase/trial.
+        "plan_source": user.plan_source,
     }
 
 
 # ---------------------------------------------------------------------------
-# Orders
+# 金数据 payment records / revenue (read-only; replaces the dead orders list)
 # ---------------------------------------------------------------------------
 
 
-@router.get("/orders", response_model=PaginatedResponse)
+@router.get("/payments", response_model=PaginatedResponse[AdminPaymentRow])
 @rate_limit("30/minute")
-async def list_admin_orders(
+async def list_admin_payments(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    status: AdminPaymentStatusFilter | None = Query(
+        None, description="Filter by payment status: applied / pending / ignored / refunded / error"
+    ),
+    keyword: str | None = Query(None, max_length=100, description="Search phone / trade number / tier / serial"),
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all orders with user phone. Admin only."""
-    return await admin_service.list_admin_orders(db, page=page, page_size=page_size)
+    """List 金数据 payment records (raw_json never exposed). Admin only."""
+    return await admin_service.list_admin_payments(db, page=page, page_size=page_size, status=status, keyword=keyword)
 
 
-# ---------------------------------------------------------------------------
-# Redemption records (prototype 29 订单管理 — 非经营性平台，订单=兑换记录)
-# ---------------------------------------------------------------------------
-
-
-@router.get("/redemptions", response_model=PaginatedResponse)
+@router.get("/payments/summary", response_model=AdminPaymentSummaryResponse)
 @rate_limit("30/minute")
-async def list_admin_redemptions(
-    request: Request,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    status: str | None = Query(None, description="Filter: redeemed / revoked / refunded"),
-    keyword: str | None = Query(None, description="Search code or user phone"),
-    current_user: User = Depends(get_admin_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """List redeem-code activation records with user phone. Admin only."""
-    return await admin_service.list_redemptions(db, page=page, page_size=page_size, status=status, keyword=keyword)
-
-
-@router.get("/redemptions/summary")
-@rate_limit("30/minute")
-async def redemption_summary(
+async def get_payment_summary(
     request: Request,
     current_user: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Status counts for the redemption records stat strip. Admin only."""
-    return await admin_service.redemption_summary(db)
+    """Status counters + revenue sums for the payments page. Admin only."""
+    return await admin_service.payment_summary(db)
+
+
+@router.post("/payments/sync", response_model=AdminPaymentSyncResponse)
+@rate_limit("5/minute")
+async def sync_admin_payments(
+    request: Request,
+    current_user: User = Depends(get_admin_user),
+):
+    """Enqueue the Jinshuju sync Celery task (no inline external HTTP).
+
+    Returns ``{"queued": false}`` when 金数据 integration is disabled or not
+    configured — there is nothing to sync in that case.
+    """
+    return {"queued": admin_service.enqueue_payment_sync(current_user.id)}
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +213,7 @@ async def redemption_summary(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/settings")
+@router.get("/settings", response_model=AdminSettingsResponse)
 @rate_limit("30/minute")
 async def get_settings(
     request: Request,
@@ -218,7 +239,7 @@ async def get_settings(
     }
 
 
-@router.put("/settings")
+@router.put("/settings", response_model=AdminSettingsResponse)
 @rate_limit("10/minute")
 async def update_settings(
     request: Request,
@@ -245,7 +266,7 @@ async def update_settings(
     }
 
 
-@router.get("/admins")
+@router.get("/admins", response_model=list[AdminAccountItem])
 @rate_limit("30/minute")
 async def list_admin_accounts(
     request: Request,

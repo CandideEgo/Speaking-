@@ -28,7 +28,9 @@ export function useWatchClip(videoId: string, revision: string | null) {
         setResult({
           key,
           slot: slot ?? null,
-          error: slot ? null : "片段已更新或字幕已变化，请回首页选择新片段，或打开完整视频。",
+          error: slot
+            ? null
+            : "片段已更新或字幕已变化，请打开完整视频，或展开“片段与表达”查看当前内容。",
         });
       })
       .catch(() => {
@@ -36,7 +38,7 @@ export function useWatchClip(videoId: string, revision: string | null) {
           setResult({
             key,
             slot: null,
-            error: "片段信息暂不可用，请返回首页重试，或打开完整视频。",
+            error: "片段信息暂不可用，可以打开完整视频，或稍后重新展开“片段与表达”。",
           });
       })
       .finally(() => window.clearTimeout(timer));

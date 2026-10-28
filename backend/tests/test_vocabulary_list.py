@@ -155,3 +155,16 @@ class TestVocabularyListFilters:
         data = resp.json()
         assert data["total"] == 2
         assert data["has_more"] is False
+
+
+class TestAddWordEnrichment:
+    async def test_add_word_fills_ecdict_fields(self, client: AsyncClient, auth_headers: dict, requires_ecdict):
+        """收词时就写释义/音标：否则词库卡片与训练题永远显示「释义待补充」。"""
+        resp = await client.post("/api/v1/vocabulary?word=historian", headers=auth_headers)
+        assert resp.status_code == 201
+
+        listing = (await client.get("/api/v1/vocabulary?q=historian", headers=auth_headers)).json()
+        row = listing["items"][0]
+        assert row["translation"]
+        assert row["ipa"]
+        assert row["part_of_speech"]

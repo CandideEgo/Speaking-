@@ -138,13 +138,14 @@ services:
       JINSHUJU_SYNC_LOOKBACK_HOURS: ${JINSHUJU_SYNC_LOOKBACK_HOURS:-72}
       JINSHUJU_PURCHASE_URL: ${JINSHUJU_PURCHASE_URL:-}
       JINSHUJU_PURCHASE_TOKEN_TTL_MINUTES: ${JINSHUJU_PURCHASE_TOKEN_TTL_MINUTES:-1440}
-      # 站内购买 token（写在 x_field_1 的 HMAC 签名）用的密钥 —— **必须显式配置**。
-      # ${VAR:?msg} 是 compose 的「缺失即失败」写法：变量未设置或为空时
-      # `docker compose up` / `config` 直接报错退出，而不是留空让
-      # jinshuju_service._purchase_secret() 静默回退到 JWT_SECRET —— 同一把密钥
-      # 同时保护「用户会话」和「购买凭证」两个不同用途，密钥分离就没了。
+      # 站内购买 token（写在 x_field_1 的 HMAC 签名）用的密钥。
+      # 是否必填由后端按 JINSHUJU_ENABLED 决定（app/core/config.py）：
+      # 开启金数据时必须显式配置且 ≠ JWT_SECRET，关闭时留空即可。这里用
+      # `${VAR:-}`（可选）而不是 `${VAR:?}`，否则「没开金数据」的部署会在
+      # compose 阶段被一个根本用不到的密钥卡住，运维通常只会填个假值绕过，
+      # 反而破坏密钥分离的本意。
       # 生成：openssl rand -hex 32（必须与 JWT_SECRET 不同）。
-      JINSHUJU_PURCHASE_TOKEN_SECRET: ${JINSHUJU_PURCHASE_TOKEN_SECRET:?JINSHUJU_PURCHASE_TOKEN_SECRET is required in production - generate one with openssl rand -hex 32 and it must differ from JWT_SECRET}
+      JINSHUJU_PURCHASE_TOKEN_SECRET: ${JINSHUJU_PURCHASE_TOKEN_SECRET:-}
       # Trust X-Forwarded-For from the nginx container so per-IP rate
       # limiting (app.core.limiter) sees real client IPs instead of the
       # nginx container IP for every request. Safe: backend is only

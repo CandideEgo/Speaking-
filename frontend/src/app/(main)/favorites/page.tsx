@@ -1,15 +1,16 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Bookmark, BookOpen, Clock, FileText, HelpCircle, Play, Trash2 } from "lucide-react";
+import { Bookmark, Play, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { scrollKey } from "@/lib/scrollMemory";
+import { partOfSpeechLabel } from "@/lib/vocabularyPresentation";
 import { watchHref, watchSentenceHref } from "@/lib/watchEntry";
 import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -18,9 +19,9 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
+import { TabPills } from "@/components/ui/TabPills";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { toastApiError } from "@/lib/errors";
-import { useVideoMetadata } from "@/hooks/useVideoMetadata";
 import type { Paginated, VideoCard as VideoCardDTO, VocabularyWord } from "@/types";
 
 interface SavedSentence {
@@ -84,6 +85,8 @@ export default function FavoritesPage() {
   const [removingSentenceId, setRemovingSentenceId] = useState<string | null>(null);
   const [removeWord, setRemoveWord] = useState<VocabularyWord | null>(null);
   const [wordBusy, setWordBusy] = useState(false);
+  // 设计是「视频 / 原句」两个 tab；「词」作为第三个 tab，避免三组常驻把主栏压窄（V-18）。
+  const [activeTab, setActiveTab] = useState<"videos" | "sentences" | "words">("videos");
 
   const fetcher = useCallback(
     (page: number) =>
@@ -113,16 +116,7 @@ export default function FavoritesPage() {
   const sentences = usePaginatedList<SavedSentence>({ fetcher: sentenceFetcher, mode: "append" });
   const words = usePaginatedList<VocabularyWord>({ fetcher: wordFetcher, mode: "append" });
 
-  const metadata = useVideoMetadata(items);
   useScrollRestore(scrollKey(pathname, searchParams.toString()), items.length > 0);
-
-  const lastFavorited = useMemo(() => {
-    const dates = items
-      .map((v) => v.favorited_at)
-      .filter((x): x is string => Boolean(x))
-      .sort();
-    return dates.length ? dates[dates.length - 1] : null;
-  }, [items]);
 
   async function handleUnfavorite(videoId: string, title: string) {
     setRemovingIds((prev) => new Set(prev).add(videoId));
@@ -193,6 +187,17 @@ export default function FavoritesPage() {
   if (isLoading) return <FullPageSpinner />;
 
   const visible = items.filter((v) => !removingIds.has(v.id));
+  // 三组都为空时只给一张合并空态：否则同一句「去首页挑一段」会连出三遍。
+  const allEmpty =
+    !loading &&
+    !error &&
+    !sentences.loading &&
+    !sentences.error &&
+    !words.loading &&
+    !words.error &&
+    total === 0 &&
+    sentences.total === 0 &&
+    words.total === 0;
 
   return (
     <PageTransition>
@@ -200,382 +205,315 @@ export default function FavoritesPage() {
         <PageHeader
           crumb="我的"
           title="我的收藏"
-          description="回顾收藏的视频、句子和词汇，重温值得记住的内容。"
+
+          variant="eyebrow"
           actions={
-            <LinkButton href="/" variant="outline" icon={Play}>
-              去首页挑一段
-            </LinkButton>
+            allEmpty ? undefined : (
+              <LinkButton href="/" variant="outline" icon={Play}>
+                去首页挑一段
+              </LinkButton>
+            )
           }
         />
 
-        <div className="mt-6 user-stat-grid">
-          <div className="user-stat">
-            <span className="user-stat-num">
-              {total}
-              <span className="ml-1 text-meta font-semibold text-muted">段</span>
-            </span>
-            <span className="user-stat-label">收藏的视频</span>
+        {!allEmpty && (
+          <div className="mt-6">
+            <TabPills
+              tabs={[
+                { key: "videos", label: `视频 ${total}` },
+                { key: "sentences", label: `原句 ${sentences.total}` },
+                { key: "words", label: `词 ${words.total}` },
+              ]}
+              activeKey={activeTab}
+              onChange={(key) => setActiveTab(key as typeof activeTab)}
+            />
           </div>
-          <div className="user-stat">
-            <span className="user-stat-num">
-              {sentences.total}
-              <span className="ml-1 text-meta font-semibold text-muted">句</span>
-            </span>
-            <span className="user-stat-label">收藏的句子</span>
-          </div>
-          <div className="user-stat">
-            <span className="user-stat-num">
-              {words.total}
-              <span className="ml-1 text-meta font-semibold text-muted">词</span>
-            </span>
-            <span className="user-stat-label">收藏的词</span>
-          </div>
-          <div className="user-stat">
-            <span className="user-stat-num">
-              {lastFavorited ? formatMonthDay(lastFavorited) : "—"}
-            </span>
-            <span className="user-stat-label">最近一次收藏</span>
-          </div>
-        </div>
+        )}
 
-        <div className="user-page-layout has-aside">
-          <div className="user-page-main">
-            {/* ---------------- 收藏的视频 ---------------- */}
-            <section aria-labelledby="f-video-title">
-              <div className="user-sec-head">
-                <h2 className="user-sec-title flex items-center gap-2" id="f-video-title">
-                  <Play size={17} className="text-muted" />
-                  收藏的视频
-                </h2>
-                <span className="user-sec-sub">{total} 段</span>
-              </div>
-
-              {loading && items.length === 0 ? (
-                <div className="mt-4 grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <VideoCardSkeleton key={i} />
-                  ))}
-                </div>
-              ) : error && items.length === 0 ? (
-                <ErrorState title={error} onRetry={reload} className="py-12" />
-              ) : visible.length === 0 ? (
-                <GroupEmpty
-                  title="视频收藏是空的"
-                  description="在观看页点右上角的书签图标就把整段收进来；也可以先去首页挑一段，看两句再决定。"
-                >
-                  <LinkButton href="/" variant="outline" size="sm">
-                    去首页挑一段
-                  </LinkButton>
-                  <LinkButton href="/" variant="text" size="sm" iconRight>
-                    浏览视频
-                  </LinkButton>
-                </GroupEmpty>
-              ) : (
-                <>
-                  <div className="mt-4 grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(260px,100%),1fr))]">
-                    {visible.map((v) => (
-                      <div key={v.id} className="flex min-w-0 flex-col gap-2">
-                        <VideoCard
-                          video={{
-                            id: v.id,
-                            title: v.title,
-                            thumbnail_url: v.thumbnail_url,
-                            duration: v.duration,
-                            difficulty_level: v.difficulty_level,
-                            topic_tags: v.topic_tags,
-                            channel_title: v.channel_name ?? "SeeWord",
-                            channel_slug: v.channel_slug ?? undefined,
-                            storage_mode: v.storage_mode,
-                            view_count: v.view_count,
-                            favorite_count: v.favorite_count,
-                            description: v.description,
-                            ...metadata[v.id],
-                          }}
-                          entry={{ from: "favorites" }}
-                        />
-                        {/* 卡片外的一行：来源/收藏日期 + 恢复入口（不再在卡片 Link 内嵌链接）。 */}
-                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-meta text-muted">
-                          <span>
-                            {v.channel_name ?? "SeeWord"}
-                            {v.favorited_at ? ` · 收藏于 ${formatMonthDay(v.favorited_at)}` : ""}
-                          </span>
-                          <span className="flex items-center gap-3">
-                            <Link
-                              href={watchHref(v.id, { from: "favorites" })}
-                              className="font-semibold text-body transition-colors hover:text-brand-700"
-                            >
-                              继续看
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => void handleUnfavorite(v.id, v.title)}
-                              className="inline-flex items-center gap-1 text-body transition-colors hover:text-error-text"
-                            >
-                              <Trash2 size={12} />
-                              取消收藏
-                            </button>
-                          </span>
-                        </div>
-                        {v.has_note && v.note_excerpt && (
-                          <div className="mx-1 border-l-2 border-hairline-strong pl-3 text-copy leading-relaxed text-body">
-                            <span className="text-muted">笔记 · </span>
-                            {v.note_excerpt}
-                            <Link
-                              href={watchHref(v.id, { from: "favorites", extra: { note: 1 } })}
-                              className="ml-1 font-semibold text-brand-700 hover:underline"
-                            >
-                              回看笔记
-                            </Link>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+        <div className="mt-6">
+          {allEmpty ? (
+            <div className="rounded-lg border border-dashed border-hairline-strong bg-surface-soft p-6">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-canvas text-muted">
+                  <Bookmark size={18} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-copy-lg font-semibold text-ink">收藏还是空的</p>
+                  <p className="mt-1 max-w-[52ch] text-copy leading-relaxed text-body">
+                    看视频时，右上角书签收藏整段，字幕句尾的书签收藏一句；字幕里点词，词卡里的「收进词库」收藏单词。收藏会连同原句、时间点和学习进度一起留着。
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <LinkButton href="/" variant="outline" size="sm" icon={Play}>
+                      去首页挑一段
+                    </LinkButton>
+                    <LinkButton href="/vocabulary" variant="text" size="sm" iconRight>
+                      看词库
+                    </LinkButton>
                   </div>
-                  {hasMore && (
-                    <div ref={loaderRef} className="flex justify-center py-6">
-                      <span className="text-meta text-muted">加载更多…</span>
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
-
-            {/* ---------------- 收藏的句子 ---------------- */}
-            <section aria-labelledby="f-sent-title">
-              <div className="user-sec-head">
-                <h2 className="user-sec-title flex items-center gap-2" id="f-sent-title">
-                  <FileText size={17} className="text-muted" />
-                  收藏的句子
-                </h2>
-                <span className="user-sec-sub">{sentences.total} 句</span>
+                </div>
               </div>
-              <p className="mt-3 max-w-[62ch] text-meta leading-relaxed text-body">
-                句子和它所在的时间点一起存；点时间回观看页，从那一句开始。
-              </p>
-
-              {sentences.error ? (
-                <ErrorState title={sentences.error} onRetry={sentences.reload} className="py-8" />
-              ) : sentences.items.length === 0 ? (
-                <GroupEmpty
-                  title="还没有收藏句子"
-                  description="在字幕里点句子右侧的书签，可以把那一句连同时间点单独存下来，比收藏整段更省事。"
-                >
-                  <LinkButton href="/" variant="outline" size="sm">
-                    去首页选一段
-                  </LinkButton>
-                </GroupEmpty>
-              ) : (
-                <ul className="mt-2">
-                  {sentences.items.map((s) => {
-                    const href = watchSentenceHref(
-                      s.video_id,
-                      { from: "favorites" },
-                      { subtitleId: s.subtitle_id, startTime: s.start_time }
-                    );
-                    return (
-                      <li
-                        key={s.id}
-                        className="grid grid-cols-1 gap-2 border-t border-hairline-soft py-4 first:border-t-0 md:grid-cols-[9rem_minmax(0,1fr)] md:gap-4"
-                      >
-                        <div className="text-meta text-muted">
-                          <p className="tabular-nums">
-                            {formatClock(s.start_time) || "时间点待定位"}
-                          </p>
-                          <p className="mt-1 line-clamp-2" title={s.title}>
-                            {s.title}
-                          </p>
+            </div>
+          ) : (
+            <>
+              {/* ---------------- 收藏的视频 ---------------- */}
+              {activeTab === "videos" && (
+                <section aria-label="收藏的视频">
+                  {loading && items.length === 0 ? (
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <VideoCardSkeleton key={i} />
+                      ))}
+                    </div>
+                  ) : error && items.length === 0 ? (
+                    <ErrorState title={error} onRetry={reload} className="py-12" />
+                  ) : visible.length === 0 ? (
+                    <GroupEmpty
+                      title="视频收藏是空的"
+                      description="在观看页点右上角的书签图标就把整段收进来；也可以先去首页挑一段，看两句再决定。"
+                    >
+                      <LinkButton href="/" variant="outline" size="sm">
+                        去首页挑一段
+                      </LinkButton>
+                      <LinkButton href="/" variant="text" size="sm" iconRight>
+                        浏览视频
+                      </LinkButton>
+                    </GroupEmpty>
+                  ) : (
+                    <>
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        {visible.map((v) => (
+                          <div key={v.id} className="flex min-w-0 flex-col gap-2">
+                            <VideoCard video={v} entry={{ from: "favorites" }} />
+                            {/* 卡片外的一行：来源/收藏日期 + 恢复入口（不再在卡片 Link 内嵌链接）。 */}
+                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-meta text-muted">
+                              <span>
+                                {[
+                                  v.channel_name,
+                                  v.favorited_at
+                                    ? `收藏于 ${formatMonthDay(v.favorited_at)}`
+                                    : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                              <span className="flex items-center gap-3">
+                                <Link
+                                  href={watchHref(v.id, { from: "favorites" })}
+                                  className="inline-flex min-h-11 items-center font-semibold text-body transition-colors hover:text-brand-700"
+                                >
+                                  继续看
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleUnfavorite(v.id, v.title)}
+                                  className="inline-flex min-h-11 items-center gap-1 text-body transition-colors hover:text-error-text"
+                                >
+                                  <Trash2 size={12} />
+                                  取消收藏
+                                </button>
+                              </span>
+                            </div>
+                            {v.has_note && v.note_excerpt && (
+                              <div className="mx-1 border-l-2 border-hairline-strong pl-3 text-copy leading-relaxed text-body">
+                                <span className="text-muted">笔记 · </span>
+                                {v.note_excerpt}
+                                <Link
+                                  href={watchHref(v.id, { from: "favorites", extra: { note: 1 } })}
+                                  className="ml-1 font-semibold text-brand-700 hover:underline"
+                                >
+                                  回看笔记
+                                </Link>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {hasMore && (
+                        <div ref={loaderRef} className="flex justify-center py-6">
+                          <span className="text-meta text-muted">加载更多…</span>
                         </div>
-                        <div className="min-w-0">
-                          {s.available ? (
-                            <Link
-                              href={href}
-                              className="text-copy leading-relaxed text-ink hover:text-brand-700"
-                            >
-                              {s.text_en}
-                            </Link>
-                          ) : (
-                            <p className="text-copy leading-relaxed text-muted">{s.text_en}</p>
-                          )}
-                          {s.text_zh && (
-                            <p className="mt-1 text-meta leading-relaxed text-muted">{s.text_zh}</p>
-                          )}
-                          <div className="mt-3 flex flex-wrap items-center gap-3">
-                            <LinkButton href={href} variant="outline" size="sm" icon={Play}>
-                              从这句听
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
+
+              {/* ---------------- 收藏的句子 ---------------- */}
+              {activeTab === "sentences" && (
+                <section aria-label="收藏的句子">
+                  <p className="max-w-[62ch] text-meta leading-relaxed text-body">
+                    句子和它所在的时间点一起存；点时间回观看页，从那一句开始。
+                  </p>
+
+                  {sentences.error ? (
+                    <ErrorState
+                      title={sentences.error}
+                      onRetry={sentences.reload}
+                      className="py-8"
+                    />
+                  ) : sentences.items.length === 0 ? (
+                    <GroupEmpty
+                      title="还没有收藏句子"
+                      description="在字幕里点句子右侧的书签，可以把那一句连同时间点单独存下来，比收藏整段更省事。"
+                    >
+                      <LinkButton href="/" variant="outline" size="sm">
+                        去首页选一段
+                      </LinkButton>
+                    </GroupEmpty>
+                  ) : (
+                    <ul className="mt-2">
+                      {sentences.items.map((s) => {
+                        const href = watchSentenceHref(
+                          s.video_id,
+                          { from: "favorites" },
+                          { subtitleId: s.subtitle_id, startTime: s.start_time }
+                        );
+                        return (
+                          <li
+                            key={s.id}
+                            className="grid grid-cols-1 gap-2 border-t border-hairline-soft py-4 first:border-t-0 md:grid-cols-[9rem_minmax(0,1fr)] md:gap-4"
+                          >
+                            <div className="text-meta text-muted">
+                              <p className="tabular-nums">
+                                {formatClock(s.start_time) || "时间点待定位"}
+                              </p>
+                              <p className="mt-1 line-clamp-2" title={s.title}>
+                                {s.title}
+                              </p>
+                            </div>
+                            <div className="min-w-0">
+                              {s.available ? (
+                                <Link
+                                  href={href}
+                                  className="text-copy leading-relaxed text-ink hover:text-brand-700"
+                                >
+                                  {s.text_en}
+                                </Link>
+                              ) : (
+                                <p className="text-copy leading-relaxed text-muted">{s.text_en}</p>
+                              )}
+                              {s.text_zh && (
+                                <p className="mt-1 text-meta leading-relaxed text-muted">
+                                  {s.text_zh}
+                                </p>
+                              )}
+                              <div className="mt-3 flex flex-wrap items-center gap-3">
+                                <LinkButton href={href} variant="outline" size="sm" icon={Play}>
+                                  从这句听
+                                </LinkButton>
+                                <Button
+                                  variant="text"
+                                  size="sm"
+                                  disabled={removingSentenceId === s.id}
+                                  onClick={() => void removeSentence(s)}
+                                >
+                                  移除
+                                </Button>
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {sentences.hasMore && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={sentences.loadMore}
+                      disabled={sentences.loading}
+                    >
+                      加载更多句子
+                    </Button>
+                  )}
+                </section>
+              )}
+
+              {/* ---------------- 收藏的词 ---------------- */}
+              {activeTab === "words" && (
+                <section aria-label="收藏的词">
+                  <p className="max-w-[62ch] text-meta leading-relaxed text-body">
+                    这里与生词本共用词条；移除会同时删除该词的复习进度。
+                  </p>
+
+                  {words.error ? (
+                    <ErrorState title={words.error} onRetry={words.reload} className="py-8" />
+                  ) : words.items.length === 0 ? (
+                    <GroupEmpty
+                      title="收藏的词是空的"
+                      description="在字幕里点任意一个词，词卡右下角「收进词库」就会把它和原句一起存下来。"
+                    >
+                      <LinkButton href="/" variant="outline" size="sm">
+                        去首页选一段
+                      </LinkButton>
+                      <LinkButton href="/vocabulary" variant="text" size="sm" iconRight>
+                        看词库
+                      </LinkButton>
+                    </GroupEmpty>
+                  ) : (
+                    <ul className="mt-2">
+                      {words.items.map((w) => (
+                        <li
+                          key={w.id}
+                          className="flex flex-wrap items-start gap-3 border-t border-hairline-soft py-4 first:border-t-0"
+                        >
+                          <div className="min-w-[14rem] flex-1">
+                            <div className="flex flex-wrap items-baseline gap-2">
+                              <Link
+                                href="/vocabulary?tab=library&sub=words"
+                                className="text-title font-bold text-ink hover:text-brand-700"
+                              >
+                                {w.word}
+                              </Link>
+                              {w.ipa && <span className="text-meta text-muted">{w.ipa}</span>}
+                              {partOfSpeechLabel(w.part_of_speech) && (
+                                <span className="rounded-sm border border-hairline px-1 text-caption text-muted">
+                                  {partOfSpeechLabel(w.part_of_speech)}
+                                </span>
+                              )}
+                              {w.difficulty_level && (
+                                <span className="inline-flex h-6 items-center rounded-sm border border-hairline px-2 text-caption text-muted">
+                                  {w.difficulty_level}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 text-copy text-ink">
+                              {w.translation || w.definition || "释义待补充"}
+                            </p>
+                            {w.context_sentence && (
+                              <p className="mt-2 border-l-2 border-hairline-strong pl-3 text-copy leading-relaxed text-body">
+                                “{w.context_sentence}”
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <LinkButton href="/vocabulary" variant="outline" size="sm">
+                              去复习
                             </LinkButton>
-                            <Button
-                              variant="text"
-                              size="sm"
-                              disabled={removingSentenceId === s.id}
-                              onClick={() => void removeSentence(s)}
-                            >
+                            <Button variant="text" size="sm" onClick={() => setRemoveWord(w)}>
                               移除
                             </Button>
                           </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {sentences.hasMore && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={sentences.loadMore}
-                  disabled={sentences.loading}
-                >
-                  加载更多句子
-                </Button>
-              )}
-            </section>
-
-            {/* ---------------- 收藏的词 ---------------- */}
-            <section aria-labelledby="f-word-title">
-              <div className="user-sec-head">
-                <h2 className="user-sec-title flex items-center gap-2" id="f-word-title">
-                  <Bookmark size={17} className="text-muted" />
-                  收藏的词
-                </h2>
-                <span className="user-sec-sub">{words.total} 个词</span>
-              </div>
-              <p className="mt-3 max-w-[62ch] text-meta leading-relaxed text-body">
-                这里与生词本共用词条；移除会同时删除该词的复习进度。
-              </p>
-
-              {words.error ? (
-                <ErrorState title={words.error} onRetry={words.reload} className="py-8" />
-              ) : words.items.length === 0 ? (
-                <GroupEmpty
-                  title="收藏的词是空的"
-                  description="在字幕里点任意一个词，词卡右下角「收进词库」就会把它和原句一起存下来。"
-                >
-                  <LinkButton href="/" variant="outline" size="sm">
-                    去首页选一段
-                  </LinkButton>
-                  <LinkButton href="/vocabulary" variant="text" size="sm" iconRight>
-                    看词库
-                  </LinkButton>
-                </GroupEmpty>
-              ) : (
-                <ul className="mt-2">
-                  {words.items.map((w) => (
-                    <li
-                      key={w.id}
-                      className="flex flex-wrap items-start gap-3 border-t border-hairline-soft py-4 first:border-t-0"
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {words.hasMore && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={words.loadMore}
+                      disabled={words.loading}
                     >
-                      <div className="min-w-[14rem] flex-1">
-                        <div className="flex flex-wrap items-baseline gap-2">
-                          <Link
-                            href="/vocabulary?tab=library&sub=words"
-                            className="text-title font-bold text-ink hover:text-brand-700"
-                          >
-                            {w.word}
-                          </Link>
-                          {w.ipa && <span className="text-meta text-muted">{w.ipa}</span>}
-                          {w.part_of_speech && (
-                            <span className="rounded-sm border border-hairline px-1 text-caption text-muted">
-                              {w.part_of_speech}
-                            </span>
-                          )}
-                          {w.difficulty_level && (
-                            <span className="inline-flex h-6 items-center rounded-sm border border-hairline px-2 text-caption text-muted">
-                              {w.difficulty_level}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-copy text-ink">
-                          {w.translation || w.definition || "释义待补充"}
-                        </p>
-                        {w.context_sentence && (
-                          <p className="mt-2 border-l-2 border-hairline-strong pl-3 text-copy leading-relaxed text-body">
-                            “{w.context_sentence}”
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <LinkButton href="/vocabulary" variant="outline" size="sm">
-                          去复习
-                        </LinkButton>
-                        <Button variant="text" size="sm" onClick={() => setRemoveWord(w)}>
-                          移除
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      加载更多词
+                    </Button>
+                  )}
+                </section>
               )}
-              {words.hasMore && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={words.loadMore}
-                  disabled={words.loading}
-                >
-                  加载更多词
-                </Button>
-              )}
-            </section>
-          </div>
-
-          {/* 右栏：三组怎么收 / 取一个出来练 / 说明（1280+ 才出现，CSS 原语控制） */}
-          <aside className="user-page-aside" aria-label="收藏说明">
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">三组分别怎么收</h2>
-              <ul className="flex flex-col gap-2 text-meta text-body">
-                <li className="flex items-baseline justify-between gap-3">
-                  <span>视频</span>
-                  <b className="font-semibold text-ink">观看页书签</b>
-                </li>
-                <li className="flex items-baseline justify-between gap-3">
-                  <span>句子</span>
-                  <b className="font-semibold text-ink">字幕句尾书签</b>
-                </li>
-                <li className="flex items-baseline justify-between gap-3">
-                  <span>词</span>
-                  <b className="font-semibold text-ink">词卡「收进词库」</b>
-                </li>
-                <li className="flex items-baseline justify-between gap-3">
-                  <span>最近收藏</span>
-                  <b className="font-semibold tabular-nums text-ink">
-                    {lastFavorited ? formatMonthDay(lastFavorited) : "—"}
-                  </b>
-                </li>
-              </ul>
-            </section>
-            <section className="user-aside-sec">
-              <h2 className="user-aside-title">取一个出来练</h2>
-              <div className="flex flex-col gap-2">
-                <Link
-                  href="/practice"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <BookOpen size={14} className="text-muted" />
-                  开始阅读练习
-                </Link>
-                <Link
-                  href="/vocabulary"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Bookmark size={14} className="text-muted" />
-                  复习词库里到期的词
-                </Link>
-                <Link
-                  href="/history"
-                  className="inline-flex items-center gap-2 text-meta text-body transition-colors hover:text-ink"
-                >
-                  <Clock size={14} className="text-muted" />
-                  看学习记录
-                </Link>
-              </div>
-            </section>
-            <p className="flex items-start gap-1.5 text-caption leading-relaxed text-muted">
-              <HelpCircle size={14} className="mt-0.5 shrink-0" />
-              <span>取消视频或句子收藏后，可通过提示中的「撤销」恢复。移除生词前会再次确认。</span>
-            </p>
-          </aside>
+            </>
+          )}
         </div>
 
         <ConfirmDialog

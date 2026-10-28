@@ -94,7 +94,7 @@ export function NotificationPreferences() {
         <div>
           <p className="text-copy font-semibold text-ink">通知设置</p>
           <p className="text-meta text-muted mt-0.5">
-            {loading ? "加载中…" : `${NOTIFICATION_TYPES.length} 项通知已开启 ${enabledCount} 项`}
+            {loading ? "加载中…" : `已开启 ${enabledCount} / ${NOTIFICATION_TYPES.length} 项`}
           </p>
         </div>
         <ChevronDown

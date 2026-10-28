@@ -14,7 +14,7 @@ disrupted by event emission issues.
 import logging
 from datetime import date, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.learning import Vocabulary
@@ -95,19 +95,31 @@ async def emit_event(
             await _update_daily_progress(db, profile, event_type, event_value, today)
             await _update_streak(db, profile, today)
 
-            # Check daily goal (only for learning events, not the meta-event)
+            # Check daily goal (only for learning events, not the meta-event).
+            # Claiming the transition with a conditional UPDATE means two
+            # concurrent events that cross the goal line emit exactly one
+            # met_daily_goal row.
             if event_type != EVENT_MET_DAILY_GOAL:
                 goal_met = await _check_daily_goal(db, profile)
                 if goal_met and not profile.today_goal_met:
-                    profile.today_goal_met = True
-                    # Emit meta-event (recursive but guarded by today_goal_met flag)
-                    meta_event = LearningEvent(
-                        user_id=user_id,
-                        event_type=EVENT_MET_DAILY_GOAL,
-                        event_value=1,
-                        event_date=today,
+                    claimed = await db.execute(
+                        update(UserLearningProfile)
+                        .where(
+                            UserLearningProfile.id == profile.id,
+                            UserLearningProfile.today_goal_met.is_(False),
+                        )
+                        .values(today_goal_met=True)
                     )
-                    db.add(meta_event)
+                    if claimed.rowcount:
+                        await db.refresh(profile)
+                        # Emit meta-event (recursive but guarded by today_goal_met flag)
+                        meta_event = LearningEvent(
+                            user_id=user_id,
+                            event_type=EVENT_MET_DAILY_GOAL,
+                            event_value=1,
+                            event_date=today,
+                        )
+                        db.add(meta_event)
 
             # Sprint 4: Write daily mastery snapshot (once per day)
             from app.services.milestone_service import ensure_today_snapshot
@@ -119,14 +131,15 @@ async def emit_event(
 
 
 async def _get_or_create_profile(db: AsyncSession, user_id: str) -> UserLearningProfile:
-    """Get or create the user's learning profile. Auto-creates on first access."""
-    result = await db.execute(select(UserLearningProfile).where(UserLearningProfile.user_id == user_id))
-    profile = result.scalar_one_or_none()
-    if not profile:
-        profile = UserLearningProfile(user_id=user_id)
-        db.add(profile)
-        await db.flush()
-    return profile
+    """Get or create the user's learning profile.
+
+    The implementation (and its first-access race handling) lives in
+    ``profile_service``; this alias only keeps the call sites in this module
+    reading as before.
+    """
+    from app.services.profile_service import get_or_create_profile
+
+    return await get_or_create_profile(db, user_id)
 
 
 # 「用户本地日」的唯一正文在 app.services.local_time（BUG-16 / DEC-079），本模块
@@ -141,22 +154,45 @@ async def _update_daily_progress(
     event_value: int,
     today: date,
 ) -> None:
-    """Increment today's counters on UserLearningProfile.
+    """Increment today's counters atomically.
 
-    Resets counters if the date has changed (new day).
+    The previous implementation read the profile into Python and wrote
+    ``profile.today_words_learned += value``; two concurrent events could both
+    read the same old value and lose one increment. The counters are now
+    updated with SQL ``col = col + :delta`` (row-locked by the DB), with the
+    new-day reset done in the same conditional UPDATE so a racing reset cannot
+    wipe an increment.
     """
-    # Reset if new day
-    if profile.today_date != today:
-        profile.today_words_learned = 0
-        profile.today_minutes_spent = 0
-        profile.today_goal_met = False
-        profile.today_date = today
+    reset_condition = or_(
+        UserLearningProfile.today_date.is_(None),
+        UserLearningProfile.today_date != today,
+    )
+    await db.execute(
+        update(UserLearningProfile)
+        .where(UserLearningProfile.id == profile.id, reset_condition)
+        .values(
+            today_date=today,
+            today_words_learned=0,
+            today_minutes_spent=0,
+            today_goal_met=False,
+        )
+    )
 
-    # Increment appropriate counter
     if event_type in _WORDS_EVENTS:
-        profile.today_words_learned += event_value
+        delta = event_value
+        column = UserLearningProfile.today_words_learned
     elif event_type in _MINUTES_EVENTS:
-        profile.today_minutes_spent += _ESTIMATED_VIDEO_MINUTES * event_value
+        delta = _ESTIMATED_VIDEO_MINUTES * event_value
+        column = UserLearningProfile.today_minutes_spent
+    else:
+        delta = 0
+        column = None
+
+    if column is not None and delta:
+        await db.execute(
+            update(UserLearningProfile).where(UserLearningProfile.id == profile.id).values({column.key: column + delta})
+        )
+    await db.refresh(profile)
 
 
 async def _check_daily_goal(db: AsyncSession, profile: UserLearningProfile) -> bool:
@@ -174,27 +210,48 @@ async def _check_daily_goal(db: AsyncSession, profile: UserLearningProfile) -> b
 
 
 async def _update_streak(db: AsyncSession, profile: UserLearningProfile, today: date) -> None:
-    """Update streak based on last_active_date.
+    """Update the streak atomically.
 
-    If last_active_date == yesterday: current_streak += 1
-    If last_active_date == today: no change (already counted)
-    If last_active_date < yesterday: current_streak = 1 (streak broken)
+    Each branch is a conditional UPDATE: only the transaction that still sees
+    ``last_active_date`` in the expected state flips it to ``today``, so two
+    concurrent events cannot both extend the streak for the same day.
     """
-    if profile.last_active_date is None:
-        # First ever activity
-        profile.current_streak = 1
-    elif profile.last_active_date == today:
-        # Already active today, no change
-        return
-    elif profile.last_active_date == today - timedelta(days=1):
-        # Active yesterday, extend streak
-        profile.current_streak += 1
-    else:
-        # Streak broken
-        profile.current_streak = 1
+    yesterday = today - timedelta(days=1)
+    first_activity = or_(
+        UserLearningProfile.last_active_date.is_(None),
+        UserLearningProfile.last_active_date < yesterday,
+    )
 
-    profile.last_active_date = today
-    profile.longest_streak = max(profile.longest_streak, profile.current_streak)
+    result = await db.execute(
+        update(UserLearningProfile)
+        .where(UserLearningProfile.id == profile.id, first_activity)
+        .values(
+            current_streak=1,
+            last_active_date=today,
+            longest_streak=case(
+                (UserLearningProfile.longest_streak < 1, 1),
+                else_=UserLearningProfile.longest_streak,
+            ),
+        )
+    )
+    if result.rowcount == 0:
+        extended = UserLearningProfile.current_streak + 1
+        await db.execute(
+            update(UserLearningProfile)
+            .where(
+                UserLearningProfile.id == profile.id,
+                UserLearningProfile.last_active_date == yesterday,
+            )
+            .values(
+                current_streak=extended,
+                last_active_date=today,
+                longest_streak=case(
+                    (UserLearningProfile.longest_streak < extended, extended),
+                    else_=UserLearningProfile.longest_streak,
+                ),
+            )
+        )
+    await db.refresh(profile)
 
 
 async def get_weekly_cycle_count(db: AsyncSession, user_id: str) -> dict:
@@ -255,12 +312,27 @@ async def get_today_progress(db: AsyncSession, user_id: str) -> dict:
     profile = await _get_or_create_profile(db, user_id)
     today = await get_user_local_date(db, user_id)
 
-    # Reset if new day (in case no events were emitted today yet)
+    # Reset if new day (in case no events were emitted today yet). Conditional
+    # UPDATE rather than Python assignment: the read path must not wipe a
+    # concurrent event's increment with a stale profile object.
     if profile.today_date != today:
-        profile.today_words_learned = 0
-        profile.today_minutes_spent = 0
-        profile.today_goal_met = False
-        profile.today_date = today
+        await db.execute(
+            update(UserLearningProfile)
+            .where(
+                UserLearningProfile.id == profile.id,
+                or_(
+                    UserLearningProfile.today_date.is_(None),
+                    UserLearningProfile.today_date != today,
+                ),
+            )
+            .values(
+                today_date=today,
+                today_words_learned=0,
+                today_minutes_spent=0,
+                today_goal_met=False,
+            )
+        )
+        await db.refresh(profile)
 
     # Get preferences for goal info
     result = await db.execute(select(UserPreferences).where(UserPreferences.user_id == user_id))

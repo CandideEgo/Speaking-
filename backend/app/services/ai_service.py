@@ -188,7 +188,10 @@ class AIService:
     async def enrich_vocabulary_word(self, word: str, context_sentence: str = "") -> dict:
         """Enrich a vocabulary word with AI-generated definitions and usage.
 
-        Results are cached in Redis (7-day TTL).
+        Results are cached in Redis for 7 days, keyed by the word **and** the
+        context sentence: the prompt asks for the definition "in this context",
+        so the same word in two videos must not share one cached answer.
+        No-context lookups get their own bucket ("no-context").
 
         Returns:
             Dict with definition, translation, part_of_speech, ipa,
@@ -196,7 +199,9 @@ class AIService:
         """
         import hashlib
 
-        cache_key = hashlib.sha256(f"enrich:{word}".encode()).hexdigest()
+        context = context_sentence.strip()
+        context_tag = hashlib.sha256(context.encode()).hexdigest() if context else "no-context"
+        cache_key = hashlib.sha256(f"enrich:{word.strip().lower()}:{context_tag}".encode()).hexdigest()
         cached = await self._cache_get(f"vocab_enrich:{cache_key}")
         if cached:
             return json.loads(cached)
@@ -225,7 +230,7 @@ class AIService:
             parsed.setdefault("example_sentences", [])
             parsed.setdefault("collocations", [])
             parsed.setdefault("difficulty_level", "B1")
-            await self._cache_set(f"vocab_enrich:{cache_key}", json.dumps(parsed, ensure_ascii=False))
+            await self._cache_set(f"vocab_enrich:{cache_key}", json.dumps(parsed, ensure_ascii=False), ttl=7 * 86400)
             return parsed
         except json.JSONDecodeError as e:
             raise AIServiceError("AI 返回词汇释义格式无效") from e

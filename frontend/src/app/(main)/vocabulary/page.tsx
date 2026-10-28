@@ -11,7 +11,6 @@ import { useDailySession } from "@/hooks/useDailySession";
 import { BookOpen, Search, ChevronLeft, ChevronRight, Layers } from "lucide-react";
 import { TabPills } from "@/components/ui/TabPills";
 import { Button } from "@/components/ui/Button";
-import { LinkButton } from "@/components/ui/LinkButton";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/common/SkeletonCard";
 import { type BadgeTone } from "@/components/common/Badge";
@@ -23,10 +22,12 @@ import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Image } from "@/components/ui/Image";
 import { PageTransition } from "@/components/common/PageTransition";
 import { VocabularyToday } from "@/components/vocabulary/VocabularyToday";
+import { VocabOverview } from "@/components/vocabulary/VocabOverview";
 import { VocabWordAction, VocabWordCard } from "@/components/vocabulary/VocabWordCard";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useVocabSets } from "@/hooks/useVocabSets";
 import { relativeTime } from "@/lib/utils";
+import { vocabularySource } from "@/lib/vocabularyPresentation";
 import type { Paginated, VocabularyPreferences, VocabularyWord, VocabSet } from "@/types";
 
 interface VocabStatsResponse {
@@ -36,6 +37,7 @@ interface VocabStatsResponse {
   reviewing_count: number;
   mastered_count: number;
   due_count: number;
+  due_review_count?: number;
 }
 
 const PAGE_SIZE = 24;
@@ -178,11 +180,13 @@ export default function VocabularyPage() {
     due: 0,
     mastered: 0,
     learning: 0,
+    fresh: 0,
   });
   const [dueOnly, setDueOnly] = useState(false);
   const [masteryFilter, setMasteryFilter] = useState<string>("all");
   // 统计是否到过一次（首启判断依赖它，见 loadStats）。
   const [statsLoaded, setStatsLoaded] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   // 搜索防抖：避免每次击键都请求后端。
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -221,16 +225,19 @@ export default function VocabularyPage() {
   }, [isLoading, isAuthenticated]);
 
   async function loadStats() {
+    setStatsLoaded(false);
+    setStatsError(null);
     try {
       const data = await api<VocabStatsResponse>(`/api/v1/vocabulary/stats`);
       setStats({
         total: data.total,
-        due: data.due_count,
+        due: data.due_review_count ?? data.due_count,
         mastered: data.mastered_count,
         learning: data.learning_count + data.reviewing_count,
+        fresh: data.new_count,
       });
-    } catch {
-      // keep existing stats on error
+    } catch (error) {
+      setStatsError(error instanceof Error ? error.message : "词库统计加载失败");
     } finally {
       // 首启判断要等统计回来，否则会先闪一张「词库还是空的」再跳回正常 Hero。
       setStatsLoaded(true);
@@ -299,47 +306,33 @@ export default function VocabularyPage() {
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const showEmpty = !list.loading && !list.error && list.items.length === 0;
   // 首启（一个词都没有）：Hero 换成收词引导，统计行不再摆一排 0。
-  const newTarget = preferences?.daily_new_target ?? 10;
-  const primaryLabel =
-    stats.total === 0 ? "去视频里收词" : stats.due > 0 ? "开始复习" : `提前复习 ${newTarget} 个`;
 
   return (
     <PageTransition>
       <div className="user-page">
-        {/* Page head: crumb → h1 → desc → actions（桌面 actions 右对齐），视图切换单独一行 */}
-        <PageHeader
-          crumb="词汇"
-          title={
-            !statsLoaded
-              ? "今天，记几个词？"
-              : stats.total === 0
-                ? "词库还是空的"
-                : stats.due > 0
-                  ? `累计到期 ${stats.due} 个词`
-                  : "今天没有到期词"
-          }
-          description={
-            stats.total === 0
-              ? "在观看页点一个字幕里的词，就能把它和原句一起收进来。之后按间隔回来复习。"
-              : "先看看词和原句，也可以直接开始。之后的词会按复习间隔出现。"
-          }
-          actions={
-            <>
-              {stats.total > 0 && (
-                <Link href="/" className="text-copy text-muted hover:text-ink">
-                  去看视频
-                </Link>
-              )}
-              <LinkButton href={stats.total === 0 ? "/" : "/vocabulary/drill"} size="md">
-                {primaryLabel}
-              </LinkButton>
-            </>
-          }
-        />
-        <div className="mt-4 flex justify-end">
+        {/* Page head: crumb → h1 → desc；视图切换紧贴页头左对齐，
+            「词单」不再单列按钮——它就是「词库」视图的入口。 */}
+        <PageHeader crumb="词汇" title="词汇" variant="eyebrow" />
+
+        {/* 设计稿首屏：今日到期卡 + 四项统计 + 词单网格；训练/管理视图保留在下方。 */}
+        {statsLoaded && !statsError && stats.total > 0 && (
+          <VocabOverview
+            total={stats.total}
+            due={stats.due}
+            learning={stats.learning}
+            mastered={stats.mastered}
+            fresh={stats.fresh}
+            sets={setsView.sets}
+            setsLoading={setsView.loading}
+            setsError={setsView.error}
+            onRetrySets={setsView.refresh}
+          />
+        )}
+
+        <div className="mt-4">
           <TabPills
             tabs={[
-              { key: "today", label: "今日" },
+              { key: "today", label: "复习" },
               { key: "library", label: "词库" },
             ]}
             activeKey={topTab}
@@ -355,7 +348,15 @@ export default function VocabularyPage() {
             session={daily.session ? { ...daily.session, preferences } : null}
             stats={stats}
             loading={daily.loading || !statsLoaded}
-            onQuotaSaved={setQuota}
+            error={daily.error ?? statsError}
+            onRetry={() => {
+              void daily.refresh();
+              void loadStats();
+            }}
+            onQuotaSaved={(next) => {
+              setQuota(next);
+              void daily.refresh();
+            }}
           />
         ) : (
           <>
@@ -477,11 +478,10 @@ export default function VocabularyPage() {
                         word={w.word}
                         ipa={w.ipa}
                         partOfSpeech={w.part_of_speech}
-                        meaning={
-                          w.translation ||
-                          w.definition ||
-                          (w.context_sentence ? `"${w.context_sentence}"` : "—")
-                        }
+                        meaning={w.translation || w.definition || ""}
+                        contextSentence={w.context_sentence}
+                        sentenceHref={vocabularySource(w, "vocabulary")?.href}
+                        sentenceLabel={vocabularySource(w, "vocabulary")?.label}
                         badge={masteryBadge(w.mastery_level)}
                         onSpeak={() => speak(w.word, { rate: 1 })}
                         actions={
