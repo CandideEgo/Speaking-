@@ -66,6 +66,29 @@ export interface UsePaginatedListReturn<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Request decision
+// ---------------------------------------------------------------------------
+
+/**
+ * Which page `loadMore` should request next, or `null` when the call is a
+ * no-op.
+ *
+ * Retrying the page that *failed* is the point: `requestedPage` still points
+ * at it, so advancing would silently skip a page the user never saw. That is
+ * the FE-01 regression, kept as a pure function so it can be tested without a
+ * DOM.
+ */
+export function nextPageToLoad(input: {
+  requestedPage: number;
+  hasMore: boolean;
+  failed: boolean;
+  inflight: boolean;
+}): number | null {
+  if (input.inflight || !input.hasMore) return null;
+  return input.failed ? input.requestedPage : input.requestedPage + 1;
+}
+
+// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
@@ -79,8 +102,22 @@ export function usePaginatedList<T>(
   // filters array length changes (React rejects a growing/shrinking dep array).
   const filtersKey = filters.map((f) => String(f)).join("\u0001");
 
-  const [items, setItems] = useState<T[]>([]);
+  // Two pointers, deliberately kept apart:
+  //   `page`          — the page whose data is on screen. It advances only when
+  //                     a fetch succeeds, so a failure never moves the user
+  //                     past a page they never saw.
+  //   `request.page`  — the page we are asking for. It may sit ahead of `page`
+  //                     while a request is in flight, and it stays on the
+  //                     failed page after an error so a retry re-requests that
+  //                     exact page instead of the next one.
+  // `attempt` is a counter, not a page: it exists so retrying the *same* page
+  // produces a new request object (setting state to an equal value is a no-op).
   const [page, setPage] = useState(1);
+  const [request, setRequest] = useState<{ page: number; attempt: number }>({
+    page: 1,
+    attempt: 0,
+  });
+  const [items, setItems] = useState<T[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -88,10 +125,19 @@ export function usePaginatedList<T>(
   // First-fetch gate: the IntersectionObserver shouldn't fire `loadMore`
   // before the initial page-1 fetch has resolved. Otherwise the IO callback
   // runs on mount with hasMore=true (initial state) and !loading (initial
-  // state), triggers fetchPage(2), and the fetchId guard discards the
+  // state), triggers a page-2 request, and the fetchId guard discards the
   // arriving page-1 response in favor of the empty page-2 result — leaving
   // the list visibly empty.
   const hasFetchedOnceRef = useRef(false);
+
+  // Synchronous guards for the observer and the retry entry: `loading` only
+  // turns true on the next render, so two callbacks firing in the same tick
+  // would both slip past a `!loading` check.
+  const inflightRef = useRef(false);
+  const hasMoreRef = useRef(hasMore);
+  hasMoreRef.current = hasMore;
+  const errorRef = useRef(error);
+  errorRef.current = error;
 
   // Guard against stale fetches when filters change rapidly.
   const fetchIdRef = useRef(0);
@@ -99,12 +145,12 @@ export function usePaginatedList<T>(
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
-  // Track latest page in a ref so IntersectionObserver can read it
-  // without stale closures.
-  const pageRef = useRef(page);
-  pageRef.current = page;
-
   const loaderRef = useRef<HTMLDivElement>(null);
+
+  // Stable read of the pending request for `loadMore`, which must not take a
+  // new identity every time `request` changes.
+  const requestRef = useRef(request);
+  requestRef.current = request;
 
   // -----------------------------------------------------------------------
   // Core fetch
@@ -113,6 +159,7 @@ export function usePaginatedList<T>(
   const fetchPage = useCallback(
     async (pg: number) => {
       const fetchId = ++fetchIdRef.current;
+      inflightRef.current = true;
       setLoading(true);
       setError(null);
       try {
@@ -129,15 +176,21 @@ export function usePaginatedList<T>(
         } else {
           setItems(data.items);
         }
+        setPage(pg);
         setHasMore(data.has_more);
         if (data.total !== undefined) setTotal(data.total);
         hasFetchedOnceRef.current = true;
       } catch (err) {
         if (fetchId !== fetchIdRef.current) return;
         const msg = err instanceof Error ? err.message : "加载失败";
+        // `page` intentionally stays put: it keeps naming the last page that
+        // actually loaded, and the retry entry re-requests `request.page`.
         setError(msg);
       } finally {
-        if (fetchId === fetchIdRef.current) setLoading(false);
+        if (fetchId === fetchIdRef.current) {
+          inflightRef.current = false;
+          setLoading(false);
+        }
       }
     },
     [mode]
@@ -147,32 +200,55 @@ export function usePaginatedList<T>(
   // Filter change -> reset to page 1
   // -----------------------------------------------------------------------
 
+  // Skip the first render: the fetch effect below already requests page 1 on
+  // mount, and resetting again here would fire a second request for it.
+  const filtersKeyRef = useRef(filtersKey);
   useEffect(() => {
-    if (!enabled) return;
+    if (filtersKeyRef.current === filtersKey) return;
+    filtersKeyRef.current = filtersKey;
     setPage(1);
     setHasMore(true);
     setTotal(0);
     setError(null);
     hasFetchedOnceRef.current = false;
-    fetchPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersKey, enabled]);
+    setRequest((prev) => ({ page: 1, attempt: prev.attempt + 1 }));
+  }, [filtersKey]);
 
   // -----------------------------------------------------------------------
-  // Page change (for replace mode, user clicking prev/next)
+  // The single request trigger
   // -----------------------------------------------------------------------
 
+  // Every page request goes through here — next page, retry, prev/next, reset.
+  // Having exactly one trigger is what stops `loadMore` and the old page
+  // effect from both fetching the same page.
   useEffect(() => {
-    // Skip the initial mount -- the filter effect already fetches page 1.
-    // Also skip if filters just changed (the filter effect handles it).
     if (!enabled) return;
-    if (page === 1) return;
-    fetchPage(page);
-  }, [page, enabled, fetchPage]);
+    void fetchPage(request.page);
+  }, [request, enabled, fetchPage]);
 
   // -----------------------------------------------------------------------
   // Infinite scroll via IntersectionObserver (append mode only)
   // -----------------------------------------------------------------------
+
+  const loadMore = useCallback(() => {
+    const next = nextPageToLoad({
+      requestedPage: requestRef.current.page,
+      hasMore: hasMoreRef.current,
+      // An error means the last request failed, so `requestRef` is still
+      // pointing at the page that failed.
+      failed: errorRef.current !== null,
+      inflight: inflightRef.current,
+    });
+    if (next === null) return;
+    // Always a new object, even when the page number is unchanged: `attempt`
+    // is what makes a same-page retry re-run the fetch effect.
+    setRequest((prev) => ({ page: next, attempt: prev.attempt + 1 }));
+  }, []);
+
+  // Stable handle for the observer, which must not re-subscribe on every
+  // render just to see the latest `loadMore`.
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
 
   useEffect(() => {
     if (mode !== "append") return;
@@ -181,41 +257,45 @@ export function usePaginatedList<T>(
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasFetchedOnceRef.current && hasMore && !loading) {
-          const nextPage = pageRef.current + 1;
-          setPage(nextPage);
-          fetchPage(nextPage);
-        }
+        if (!entries[0].isIntersecting) return;
+        // A failing page stops the automatic chain: re-requesting it from the
+        // observer on every intersection would hammer the API. The explicit
+        // retry entry (loadMore) is the way back.
+        if (!hasFetchedOnceRef.current || errorRef.current) return;
+        loadMoreRef.current();
       },
       { threshold: 0.1 }
     );
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [mode, hasMore, loading, fetchPage]);
+  }, [mode]);
 
   // -----------------------------------------------------------------------
   // Public API
   // -----------------------------------------------------------------------
 
-  const loadMore = useCallback(() => {
-    if (loading || !hasMore) return;
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchPage(nextPage);
-  }, [loading, hasMore, page, fetchPage]);
+  /** Jump to a page. Also accepts an updater, like `useState`'s setter. */
+  const goToPage: React.Dispatch<React.SetStateAction<number>> = useCallback((action) => {
+    setRequest((prev) => {
+      const next = typeof action === "function" ? action(prev.page) : action;
+      const safe = Number.isFinite(next) ? Math.max(1, Math.floor(next)) : prev.page;
+      return { page: safe, attempt: prev.attempt + 1 };
+    });
+  }, []);
 
   const reload = useCallback(() => {
-    setPage(1);
     setHasMore(true);
-    fetchPage(1);
-  }, [fetchPage]);
+    setError(null);
+    setPage(1);
+    setRequest((prev) => ({ page: 1, attempt: prev.attempt + 1 }));
+  }, []);
 
   return {
     items,
     setItems,
     page,
-    setPage,
+    setPage: goToPage,
     hasMore,
     total,
     loading,
