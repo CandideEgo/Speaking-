@@ -191,7 +191,8 @@ gpu-worker/
 - **DB/Redis**：不装 Docker Desktop，直接用笔记本 WSL2 Ubuntu-24.04 里已有的 Docker 29.9.2 + compose v5.6.1 跑 `docker-compose.dev.yml`；容器为 `speaking-db-1` / `speaking-redis-1`，端口经 WSL 转发到 Windows `127.0.0.1:5432/6379`。WSL 空闲会自动停止（容器随之退出），因此注册登录自启计划任务 **SeeWordInfra**（`C:\Users\Fuwei\start-infra.ps1` 在 WSL 里 `docker compose up -d` 后用 `sleep` 保活）；Windows 侧加 `C:\Users\Fuwei\bin\docker.cmd` 转发到 `wsl docker`，`Start-Redesign.ps1` 因此无需改仓库即可运行。
 - **数据迁移**：桌面机 `pg_dump -U seeword -d seeword -Fc`（14.8MB）→ 笔记本 `pg_restore --clean --if-exists --no-owner`；恢复后 `videos=49 / subtitles=4932 / users=6`，`alembic current = c3d4e5f6a7b8 (head)`，与桌面机一致。
 - **验证（全部实测）**：`GET /health` → 200（database ok / redis ok，`ENV=development`）；`GET /login` → 200；经 Next dev proxy 的 `GET /api/v1/browse/home-editorial` → 200 且返回恢复后的首页主推内容；`Start-Redesign.ps1` → `SeeWord ready: http://localhost:3000`；桌面机访问 `http://192.168.1.25:3000/login` → 200（按 `192.168.0.0/16` 放行 3000/8000，笔记本网络档案是 Public）。
-- **未迁移/遗留**：`backend/data`（978MB，含 ecdict.db 与 exam_pdfs）与 `backend/media`（2.9GB）未复制 —— 单词注释与视频播放会缺本地资源；`backend/.env` 仍是桌面 dev 配置（`YOUTUBE_COOKIES_PATH` 已改指笔记本路径，`HTTP_PROXY=127.0.0.1:7897` 依赖笔记本本机代理）；笔记本 6.9GB 内存、WSL 上限约 3.3GB，同时跑 Next dev + uvicorn + DB 偏紧。
+- **本地数据（2026-10-29 已补齐）**：`backend/data`（217 文件 / 978.4MB，含 ecdict.db 811.9MB 与 exam_pdfs/papers）与 `backend/media`（2281 文件 / 2934.6MB）已从桌面机迁到笔记本，文件数与大小与源端逐项一致；`backend/data/ecdict.db` 能被读取（`is_available()=True`，索引 14843 个考试词），DB 里 `/media/...` 的抽样缩略图与 720p 视频文件都在盘上。传输方式：`tar -czf` 打包 data（978MB → 349MB）+ `tar -cf` 打包 media（2937MB）→ media 拆 4 段并行 `scp` → 笔记本 `copy /b` 合并后 `tar -xf`；用时约 25 分钟（笔记本 WiFi 实测约 1.2–2.7MB/s），传输产物已清理。
+- **其余遗留**：`backend/.env` 仍是桌面 dev 配置（`YOUTUBE_COOKIES_PATH` 已改指笔记本路径，`HTTP_PROXY=127.0.0.1:7897` 依赖笔记本本机代理）；笔记本 6.9GB 内存、WSL 上限约 3.3GB，同时跑 Next dev + uvicorn + DB 偏紧。
 
 ## 9. 已知缺口与后续
 
