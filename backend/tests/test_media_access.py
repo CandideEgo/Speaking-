@@ -1,7 +1,6 @@
 """Media access control — shadowing recordings are owner-only (?token= JWT)."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import uuid4
 
 import httpx

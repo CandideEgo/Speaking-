@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_admin_user, get_current_user, get_optional_user
 from app.core.database import get_db
 from app.core.errors import UnprocessableEntityError
-from app.core.exam_levels import normalize_word_levels
 from app.core.limiter import rate_limit
 from app.models.user import User
 from app.models.video import Video

@@ -14,7 +14,6 @@ Design goals (deep-module philosophy):
   "any step throws → DB state is consistent".
 """
 
-import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any

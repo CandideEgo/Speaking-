@@ -212,8 +212,6 @@ def test_dypnsapi_sdk_importable():
     """
     from alibabacloud_dypnsapi20170525 import models
     from alibabacloud_dypnsapi20170525.client import Client
-    from alibabacloud_tea_openapi import models as tea_models
-    from alibabacloud_tea_util import models as tea_util_models
 
     assert Client is not None and models is not None
 

@@ -198,10 +198,8 @@ async def test_upsert_notes_inserts_then_overwrites(db_session):
 
 @pytest.mark.asyncio
 async def test_get_best_note_prefers_video_specific_over_global(db_session):
-    from sqlalchemy import select
 
     from app.models.video import Video, VideoStatus
-    from app.models.word_note import WordAINote
     from app.services import word_notes
     from tests.conftest import TestSessionLocal
 

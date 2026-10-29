@@ -17,7 +17,6 @@ from datetime import date, timedelta
 from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.learning import Vocabulary
 from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.preferences import UserPreferences
 from app.services.local_time import get_user_local_date

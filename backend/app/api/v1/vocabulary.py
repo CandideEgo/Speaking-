@@ -14,7 +14,6 @@ from app.schemas.pagination import PaginatedResponse, PaginationParams, paginate
 from app.schemas.vocabulary import (
     DailySessionResponse,
     LearningWordsResponse,
-    PracticeItem,
     StudySessionAnswerRequest,
     StudySessionAnswerResponse,
     StudySessionEnvelope,

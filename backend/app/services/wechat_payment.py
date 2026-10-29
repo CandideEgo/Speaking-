@@ -10,7 +10,6 @@ import hashlib
 import hmac
 
 import structlog
-from fastapi import Request
 
 from app.core.config import get_settings
 from app.models.order import OrderStatus

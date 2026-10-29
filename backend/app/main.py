@@ -260,7 +260,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     # Import all models so SQLAlchemy registers them on Base.metadata before
     # any create_all (e.g. conftest in tests) or Alembic autogenerate runs.
-    from app import models
+    from app import models  # noqa: F401  (import registers every model on Base.metadata)
 
     # Defence in depth: the public docs/schema (and the metrics endpoint) are
     # useful in dev but are not part of the public surface. Production nginx

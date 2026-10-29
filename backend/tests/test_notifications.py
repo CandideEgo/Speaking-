@@ -308,7 +308,7 @@ class TestWebSocketPushErrorHandling:
 
     async def test_websocket_disconnect_is_silently_cleaned(self, client: AsyncClient, auth_headers: dict):
         """WebSocketDisconnect should be silently cleaned up without logging."""
-        from app.api.v1.notifications import ConnectionManager, ws_manager
+        from app.api.v1.notifications import ws_manager
 
         # Create a mock WebSocket that raises WebSocketDisconnect on send_json
         class MockWS:
@@ -326,7 +326,7 @@ class TestWebSocketPushErrorHandling:
 
     async def test_unexpected_error_is_logged(self, client: AsyncClient, auth_headers: dict, caplog):
         """Unexpected errors during push should be logged with error details."""
-        from app.api.v1.notifications import ConnectionManager, ws_manager
+        from app.api.v1.notifications import ws_manager
 
         class MockWS:
             async def send_json(self, data):
@@ -340,7 +340,6 @@ class TestWebSocketPushErrorHandling:
         # Connection should be removed
         assert "test-user" not in ws_manager._connections
         # Should have logged a warning with error details
-        import logging
 
         assert any(
             "unexpected error" in record.message.lower() or "WebSocket push had" in record.message

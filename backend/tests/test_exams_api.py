@@ -2,7 +2,6 @@
 
 from datetime import UTC, datetime
 
-import pytest
 import pytest_asyncio
 from sqlalchemy import select
 

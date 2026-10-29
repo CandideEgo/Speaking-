@@ -1,6 +1,5 @@
 """Tests for admin quality-inspection endpoints (阶段 5)."""
 
-import pytest
 from httpx import AsyncClient
 
 from app.models.video import Video, VideoStatus

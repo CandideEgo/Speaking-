@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import Enum as SAEnum

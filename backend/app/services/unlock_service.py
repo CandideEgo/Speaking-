@@ -58,26 +58,6 @@ def _month_start(now: datetime) -> datetime:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-async def count_month_unlocks(db: AsyncSession, user_id: str, now: datetime | None = None) -> int:
-    """Number of unlocks consumed in the current calendar month."""
-    moment = now or datetime.now(UTC)
-    used = await db.scalar(
-        select(func.count())
-        .select_from(UserVideoUnlock)
-        .where(
-            UserVideoUnlock.user_id == user_id,
-            UserVideoUnlock.unlocked_at >= _month_start(moment),
-        )
-    )
-    return used or 0
-
-
-async def remaining_unlocks(db: AsyncSession, user: User, now: datetime | None = None) -> int:
-    quota = get_settings().free_monthly_unlock_quota
-    used = await count_month_unlocks(db, user.id, now)
-    return max(0, quota - used)
-
-
 async def is_unlocked(db: AsyncSession, user_id: str, video_id: str) -> bool:
     return await db.get(UserVideoUnlock, (user_id, video_id)) is not None
 

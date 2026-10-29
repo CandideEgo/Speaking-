@@ -4,7 +4,7 @@ from app.models.channel import Channel
 from app.models.learning import LearningRecord
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 from app.services import channel_service
-from app.services.channel_service import auto_attach_channel, list_public_channels
+from app.services.channel_service import auto_attach_channel
 
 
 async def _make_video(

@@ -14,7 +14,7 @@ async files.
 import os
 import time
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
@@ -43,7 +43,7 @@ os.environ.setdefault("PUNCTUATION_MODEL_DISABLED", "1")
 # after the ``create_app`` import above. (create_app does the same import
 # but only when called; this conftest fixture runs before any test
 # invokes create_app.)
-from app import models
+from app import models  # noqa: F401  (import registers every model on Base.metadata)
 from app.core import redis as redis_module
 from app.core.database import Base, get_db
 from app.core.security import create_token, hash_password

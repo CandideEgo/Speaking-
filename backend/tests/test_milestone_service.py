@@ -8,14 +8,13 @@ Covers:
 """
 
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from app.core.security import create_token, hash_password
+from app.core.security import hash_password
 from app.models.learning import Vocabulary
 from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.milestone import MasterySnapshot, UserMilestone
@@ -23,8 +22,6 @@ from app.models.user import PlanType, RoleType, User
 from app.services.milestone_service import (
     check_and_award,
     ensure_today_snapshot,
-    get_mastery_trend,
-    get_user_milestones,
 )
 
 from .conftest import TestSessionLocal

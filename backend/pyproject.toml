@@ -23,7 +23,6 @@ ignore = [
     "E711",   # none comparison (SQLAlchemy filter pattern)
     "E712",   # true/false comparison (SQLAlchemy filter pattern)
     "E402",   # module import not at top (FastAPI app setup pattern)
-    "F401",   # unused import (some are __init__.py re-exports)
     "RUF001", # ambiguous unicode character (Chinese strings)
     "RUF002", # ambiguous unicode character (Chinese docstrings)
     "RUF003", # ambiguous unicode character (Chinese comments)
@@ -42,6 +41,7 @@ ignore = [
 "openai".msg = "AI calls must go through app.services.ai_service or app.services.translation (INV-005)"
 
 [tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]                                   # 包级 re-export（models/schemas 的依赖序导出）
 "app/services/ai_service.py" = ["TID251"]                  # the gateway itself
 "app/services/translation/*" = ["TID251"]                  # the pluggable translation engine
 "scripts/precompute_global_word_notes_dual.py" = ["TID251"] # one-off operator tooling, not a runtime path

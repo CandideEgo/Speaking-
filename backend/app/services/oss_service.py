@@ -165,8 +165,6 @@ def get_signed_url(remote_key: str, expires: int = 3600) -> str:
     if not _is_configured():
         return ""
 
-    import oss2
-
     key = _object_key(remote_key)
     bucket = _get_bucket()
     return bucket.sign_url("GET", key, expires, slash_safe=True)

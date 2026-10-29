@@ -1,7 +1,5 @@
 """Persistent user-content actions and read-only recommendation boundaries."""
 
-from datetime import UTC, datetime
-
 import pytest
 from sqlalchemy import func, select
 

@@ -21,7 +21,6 @@ aware-UTC ``now`` as a test seam.
 import csv
 import io
 import json
-import uuid
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -146,8 +145,6 @@ async def _gather_export(db, user) -> dict:
 async def _build_export(task_id: str) -> dict:
     """Build the ZIP for one export task. Raises on any failure (caller retries)."""
     import zipfile
-
-    from sqlalchemy import select
 
     from app.core.database import async_session
     from app.models.data_export import DataExportTask

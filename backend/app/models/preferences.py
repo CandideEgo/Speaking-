@@ -1,7 +1,7 @@
 """User preferences model — notification opt-ins and other user settings."""
 
 import uuid
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship

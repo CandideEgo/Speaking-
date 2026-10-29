@@ -400,7 +400,7 @@ class TestCutFeaturesStayCut:
     """
 
     def test_no_model_declares_a_dropped_table(self):
-        import app.models  # 导入即注册全部模型
+        import app.models  # noqa: F401  (导入即注册全部模型)
 
         resurrected = sorted(DROPPED_TABLES & set(Base.metadata.tables))
         assert not resurrected, f"已删的表又出现在 Base.metadata 里：{resurrected}"

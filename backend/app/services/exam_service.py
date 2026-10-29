@@ -30,7 +30,6 @@ from sqlalchemy.orm import selectinload
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.models.exam_test import ExamAnswer, ExamPaper, ExamQuestion, ExamSession
 from app.models.preferences import UserPreferences
-from app.models.user import User
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

@@ -16,7 +16,6 @@ from itertools import pairwise
 from sqlalchemy import select
 
 from app.models.behavior import BehaviorEvent
-from app.models.preferences import UserPreferences
 from app.models.user import User
 from app.models.video import Video, VideoReviewStatus, VideoStatus
 from app.services.recommendation_service import (

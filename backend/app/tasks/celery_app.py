@@ -112,7 +112,7 @@ celery_app.conf.update(
 # Register the task_prerun signal that binds request_id (task_id) into
 # structlog context vars so every log line emitted during a Celery task
 # automatically includes request_id for traceability.
-import app.core.logging as _logging
+import app.core.logging
 import app.models
 import app.tasks.account_tasks
 import app.tasks.home_content_tasks
@@ -122,4 +122,4 @@ import app.tasks.payment_tasks
 import app.tasks.ranking_tasks
 import app.tasks.reminder_tasks
 import app.tasks.scoring_tasks
-import app.tasks.video_processing
+import app.tasks.video_processing  # noqa: F401  (import registers the tasks with this app)

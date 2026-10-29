@@ -40,11 +40,3 @@ EXAM_SUBJECTS: dict[str, ExamSubject] = {
 }
 
 EXAM_SUBJECT_KEYS: list[str] = [k for k, _ in sorted(EXAM_SUBJECTS.items(), key=lambda kv: kv[1]["order"])]
-
-
-def subject_label(key: str) -> str:
-    """中文名；表里没有的原样返回，免得新科目在界面上变成空白。"""
-    subject = EXAM_SUBJECTS.get(key)
-    if subject is None:
-        return key
-    return subject["label"] or key

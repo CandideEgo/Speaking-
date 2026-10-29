@@ -1084,7 +1084,6 @@ async def _extract_video_info(url: str) -> dict | None:
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                from urllib.parse import urlparse
 
                 from app.services.external_meta import parse_external_meta, pick_best_thumbnail
 

@@ -14,7 +14,6 @@ Covers:
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 

@@ -1,8 +1,8 @@
 """Learning records API — list and detail endpoints for per-video learning progress."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 

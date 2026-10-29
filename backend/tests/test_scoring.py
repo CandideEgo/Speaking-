@@ -252,7 +252,6 @@ class TestExternalFactors:
             assert old_r["factors"]["freshness"] == pytest.approx(0.01, abs=1e-3)
 
     async def test_external_factors_persisted_on_score_row(self, auth_headers: dict):
-        from app.models.video_score import VideoScore
         from tests.conftest import TestSessionLocal
 
         async with TestSessionLocal() as db:

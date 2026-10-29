@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 # Single source of truth for default notification preferences, shared by the
 # REST layer (backend/app/api/v1/notifications.py) and the response schema so
