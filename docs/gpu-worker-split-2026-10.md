@@ -158,7 +158,7 @@ gpu-worker/
 - 结果核对（笔记本侧实测）：**4183 文件 / 0.34GB**；`gpu-worker` 不存在；新文件 `transcription_quality.py` / `subtitle_segmentation.py` / `media_probe.py` 齐全；`git log` HEAD=`e7e8fd3d`；`git status --porcelain` 43 条，与桌面工作区一致；`PROGRESS.md` 与本文档为最新版（含 1406 passed 等验证数字）。
 - 实际排除：`gpu-worker/`、`backend/.venv`、`backend/data/`（ecdict.db 851MB + exam_pdfs/papers）、`backend/media/`、`backend/logs|temp|tmp|transcripts|reprocess_export`、`frontend/node_modules`、`frontend/.next`、`frontend/test-results|playwright-report`、根 `node_modules|media|logs|.tmp-diag|.raven|.cache|.debug-shots|.playwright*`、`__pycache__`/各类缓存、根 `tmp-*.log`、`.coverage`、`backend/tmp_*.txt`、`backend/.env.bak*`/`.env.fixed`、旧 cookies（只留 `youtube_cookies_fresh.txt`）。
 - 与上面清单的差异：`.git` 与 `backend/.env`、`.claude/settings.local.json` 也一起带过去了（`.git` 让笔记本是完整仓库；`backend/.env` 是桌面 dev 配置，**在笔记本首次启动前必须按本机环境核对 DB/Redis/代理/密钥**）。
-- 笔记本上尚未做（未执行，不是通过）：装 Python/Node、重建 `backend/.venv` 与 `frontend/node_modules`、Postgres 数据迁移与 `alembic upgrade head`、后端 import/测试/e2e。
+- 首次 tar 复制时尚未做：装 Python/Node、重建 `backend/.venv` 与 `frontend/node_modules`、Postgres 数据迁移、后端 import/测试/e2e。这些已在同日补齐，见 §8.1。
 
 **笔记本收：**
 
@@ -182,6 +182,17 @@ gpu-worker/
 3. GPU worker 消费成功并回调，云端返回 200、写入 `Subtitle`；
 4. tail `finalize_video` 完成到 `ready`。
 
+### 8.1 笔记本环境（2026-10-29，已部署并验证）
+
+笔记本现在是可运行的完整 dev 机，桌面机只保留 GPU 段。这一节只记「笔记本这台机器」的状态；启动/停止命令属于本机运维，写在 laptop skill 里。
+
+- **代码来源**：`git clone` 实测可行（仓库 public，匿名可克隆，`--branch redesign` 全量 **56.3s / 2128 文件 / 125MB**，HEAD 即推送后的 `4abcffea`）。现有目录改用 `git fetch` + `git reset --hard origin/redesign` 对齐到同一提交，工作树干净；`gpu-worker/` 随仓库存在但笔记本不运行它。
+- **运行时**：Windows 原生 Python 3.12.10（`C:\Program Files\Python312`）与 Node 22.20.0（`C:\Program Files\nodejs`，与桌面机同版本）；`backend/.venv` 装 `requirements-cloud.txt` + `requirements-dev.txt`（288 个包），`frontend/node_modules` 用 `npm ci --legacy-peer-deps`（245 包，普通 `npm ci` 会因 eslint 10 / eslint-plugin-react-hooks 5 的 peer 冲突失败）；用户级 `PYTHONUTF8=1`，pip 走清华 TUNA、npm 走 npmmirror。
+- **DB/Redis**：不装 Docker Desktop，直接用笔记本 WSL2 Ubuntu-24.04 里已有的 Docker 29.9.2 + compose v5.6.1 跑 `docker-compose.dev.yml`；容器为 `speaking-db-1` / `speaking-redis-1`，端口经 WSL 转发到 Windows `127.0.0.1:5432/6379`。WSL 空闲会自动停止（容器随之退出），因此注册登录自启计划任务 **SeeWordInfra**（`C:\Users\Fuwei\start-infra.ps1` 在 WSL 里 `docker compose up -d` 后用 `sleep` 保活）；Windows 侧加 `C:\Users\Fuwei\bin\docker.cmd` 转发到 `wsl docker`，`Start-Redesign.ps1` 因此无需改仓库即可运行。
+- **数据迁移**：桌面机 `pg_dump -U seeword -d seeword -Fc`（14.8MB）→ 笔记本 `pg_restore --clean --if-exists --no-owner`；恢复后 `videos=49 / subtitles=4932 / users=6`，`alembic current = c3d4e5f6a7b8 (head)`，与桌面机一致。
+- **验证（全部实测）**：`GET /health` → 200（database ok / redis ok，`ENV=development`）；`GET /login` → 200；经 Next dev proxy 的 `GET /api/v1/browse/home-editorial` → 200 且返回恢复后的首页主推内容；`Start-Redesign.ps1` → `SeeWord ready: http://localhost:3000`；桌面机访问 `http://192.168.1.25:3000/login` → 200（按 `192.168.0.0/16` 放行 3000/8000，笔记本网络档案是 Public）。
+- **未迁移/遗留**：`backend/data`（978MB，含 ecdict.db 与 exam_pdfs）与 `backend/media`（2.9GB）未复制 —— 单词注释与视频播放会缺本地资源；`backend/.env` 仍是桌面 dev 配置（`YOUTUBE_COOKIES_PATH` 已改指笔记本路径，`HTTP_PROXY=127.0.0.1:7897` 依赖笔记本本机代理）；笔记本 6.9GB 内存、WSL 上限约 3.3GB，同时跑 Next dev + uvicorn + DB 偏紧。
+
 ## 9. 已知缺口与后续
 
 - **GPU 依赖没有自动 pip-audit 门**：`backend/scripts/pip_audit_gate.py` 只管 `requirements-cloud.txt`；gpu-worker 没有 CI 审计步骤，也没有 `.pip-audit-ignore`。手工口径：升级 `gpu-worker/requirements.txt` 的钉版前，在 GPU 机上跑 `pip-audit -r requirements.txt`。若要做成门，建议单独一个 job，并像 backend 一样给豁免加「复核日期」。
@@ -189,5 +200,5 @@ gpu-worker/
 - **两份断句逻辑副本**：`subtitle_segmentation.py` 与 `formatters.py` 只能靠同步约定，没有自动一致性测试（后续可考虑抽共享包或加对比测试）。
 - **`/dev` skill 与 README 服务名已同步**：`.claude/skills/dev/SKILL.md` 的 GPU worker 步骤已改为 `gpu-worker` 路径（仅在有 `gpu-worker/` + NVIDIA GPU 的机器上执行）；`gpu-worker/README.md` 的 NSSM 表已改成实际注册名 `SeeWordGpuWorker` / `SeeWordGpuTunnel`（无空格）。
 - **运行状态**：见 §7——`SeeWordGpuWorker` Running，但隧道 16379 因云端 SSH 拒绝公钥（`ssh -i C:\Tools\seeword-gpu\id_ed25519 admin@47.122.109.52` 返回 `Permission denied (publickey,password)`，默认 key 同样被拒）起不来，worker 日志持续 `Error 10061`，尚未实际消费任务。这是**拆分前就存在的云端 SSH 鉴权/公钥问题**（重启服务后依旧，不是本次重构引入），需要云端补回公钥或改隧道配置，待用户处理。
-- **笔记本侧尚未初始化**：源码已到 `C:\Users\Fuwei\speaking`，但没装 Python/Node、没建 venv/node_modules、没迁移 Postgres 数据、`backend/.env` 仍是桌面 dev 配置。这些是「迁移后」的下一步，不属于本次代码拆分。
+- **笔记本侧已初始化（2026-10-29）**：源码、Python/Node、venv/node_modules、Postgres 数据与运行验证都已完成，细节见 §8.1；笔记本不运行 GPU 段（`gpu-worker/` 只是随仓库存在）。仍未迁移 `backend/data` 与 `backend/media`。
 - **桌面机非 GPU 部分的去留**：`backend/`、`frontend/`、`.git` 仍在桌面机上（本次是复制不是删除）；是否删除、是否停 `SeeWordCelery` 服务待用户决定。
