@@ -1,0 +1,3 @@
+#!/bin/sh
+echo 'AUDIT STUB: alembic fails with 17' >&2
+exit 17
