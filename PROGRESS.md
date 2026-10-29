@@ -583,3 +583,12 @@
 - **ruff F401 从全局 ignore 收紧为只豁免 `__init__.py`**：清掉 73 处未使用导入；确有副作用的两处（`celery_app` 的 `app.core.logging` 注册 `task_prerun`、`app.models` 填 `Base.metadata`）加 `# noqa: F401` 并写明理由。
 - **验证**：后端 `pytest tests/ -q --timeout=120` → **1406 passed / 14 skipped**（1121.30s，exit 0，与清理前同数）；`ruff check` / `ruff format --check` 通过；mypy 39 条基线 **0 new**；前端 `npm run check` exit 0、`npm run test:unit` 28 文件 / 312 项全绿；可达性复扫 0 个孤立生产模块。gpu-worker 未跑（本机没有该组件的 `.venv`，GPU 机在桌面机）。
 - **未做（记在案）**：`app/schemas/__init__.py` 仍有约 47 条无人使用的包级 re-export；`user-ui.css` 里约 132 个选择器在 `src` 中已无字面引用（含 `home-story*`、`home-editorial-scenario*`），但 e2e 仍在用其中一部分做选择器，清 CSS 要先核 spec，单独一轮做；`Video.forked_from` 列与 `VideoResponse.forked_from` 字段随投稿链路停产，是否迁移删除未定。
+
+### Round 60（2026-10-29）：生产 SSH 凭据轮换
+
+- **起因**：`backend/scripts/rebackfill_video_quality.py` 自 `ae875e01`（2026-09-16）起把生产 `root@47.122.109.52` 的 SSH 密码写死在源码里，而仓库 `CandideEgo/Speaking-` 是公开仓库，该值已随 `origin/master` 外泄；`f3e1b193` 删掉了字面量但历史提交里仍在。执行清单见 [`docs/security-ssh-credential-rotation-2026-10.md`](docs/security-ssh-credential-rotation-2026-10.md)。
+- **已做**：服务器 `/root/.ssh/authorized_keys` 原本**不存在**（此前只有密码一条登录路径），新建并装入笔记本的 `fuwei-laptop-deploy` 公钥（`SHA256:qTO13BjBtBT3ncZAouOQmJp1zptO+8/6lpT49yPF1LE`），先用 `ssh -o BatchMode=yes -o PreferredAuthentications=publickey` 验证纯密钥登录可用，再经 `chpasswd` 换掉 root 密码。新密码未进仓库，存在本机 `%USERPROFILE%\.seeword\prod-ssh.secure`（DPAPI 加密、目录 ACL 只留当前用户），取用方式见清单 §本地存放。
+- **本地存放的边界**：DPAPI 只挡别的 Windows 账户与别的机器，挡不住以当前用户身份运行的进程；这是过渡手段，改成密钥登录后应删掉该文件。
+- **验证**：新密码走 `sshx.py "id -un"` → `root`、exit 0；旧密码 → `paramiko.ssh_exception.AuthenticationException`、exit 1；七个 `speaking-*` 容器换密后仍全部 `Up`（`speaking-backend-1` healthy）。轮换未改任何代码，三个入口继续读 `SW_PW` 环境变量。
+- **未做**：`PasswordAuthentication` 仍是 `yes`——`sshx.py` / `upload.py` 还是 `look_for_keys=False, allow_agent=False` 的纯密码登录，先关会直接打断 `/deploy`，要先改成密钥；22 端口仍对全网开放；云端 `admin` 用户的公钥此前被拒（见上文迁移记录），关密码登录前需一并补齐。
+- **本机变更**：`backend/.venv` 装了 `paramiko 5.1.0`（连带 `pynacl 1.6.2`、`invoke 3.0.3`）——它不在任何 requirements 文件里，而 `/deploy` 的 `sshx.py` / `upload.py` 依赖它。
