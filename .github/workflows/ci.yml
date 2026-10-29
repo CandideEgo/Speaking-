@@ -79,11 +79,29 @@ jobs:
       - name: Type check (baseline gate - blocks new errors)
         working-directory: backend
         run: |
-          mypy app/ --ignore-missing-imports > /tmp/mypy.txt 2>&1 || true
-          # Extract "file:code" pairs (Linux mypy emits forward-slash paths, matching .mypy-baseline)
-          grep -E ": error:" /tmp/mypy.txt | sed -E 's/^([^:]+):[0-9]+:.*\[(.+)\][[:space:]]*$/\1:\2/' | sort -u > /tmp/mypy-new.txt
+          mypy app/ --ignore-missing-imports > /tmp/mypy.txt 2>&1 && mypy_status=0 || mypy_status=$?
           echo "--- mypy output (tail) ---"
           tail -20 /tmp/mypy.txt
+
+          # mypy's contract: 0 = clean, 1 = type errors found. Anything else
+          # (2 = usage/config/internal error, missing binary, crash) means the
+          # gate never ran. This step used to swallow every exit code with
+          # `|| true`, so a broken mypy read as "no new errors".
+          if [ "$mypy_status" -ne 0 ] && [ "$mypy_status" -ne 1 ]; then
+            echo "::error::mypy failed to run (exit $mypy_status) — the baseline gate did not execute."
+            exit 1
+          fi
+
+          # Extract "file:code" pairs (Linux mypy emits forward-slash paths, matching .mypy-baseline)
+          grep -E ": error:" /tmp/mypy.txt | sed -E 's/^([^:]+):[0-9]+:.*\[(.+)\][[:space:]]*$/\1:\2/' | sort -u > /tmp/mypy-new.txt
+
+          # Exit 1 with nothing extractable means the output shape changed or
+          # mypy aborted mid-run; never report that as a clean baseline.
+          if [ "$mypy_status" -eq 1 ] && [ ! -s /tmp/mypy-new.txt ]; then
+            echo "::error::mypy reported errors (exit 1) but none could be parsed — inspect the output above."
+            exit 1
+          fi
+
           echo "--- new errors not in backend/.mypy-baseline ---"
           comm -23 /tmp/mypy-new.txt .mypy-baseline > /tmp/mypy-issues.txt || true
           if [ -s /tmp/mypy-issues.txt ]; then
@@ -99,7 +117,10 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
           REDIS_URL: redis://localhost:6379/0
-          JWT_SECRET: test-secret-for-ci
+          # Must satisfy Settings' non-development rule (>=32 chars); a shorter
+          # value makes every Settings() import fail, which takes down both the
+          # test job and the e2e backend. Same value as tests/conftest.py.
+          JWT_SECRET: test_secret_for_pytest_at_least_32_chars
           ENV: testing
           PUNCTUATION_MODEL_DISABLED: "1"
           # Fixed-code phone flows are opt-in (BE-06); CI has no Aliyun credentials.
@@ -239,7 +260,10 @@ jobs:
     env:
       DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
       REDIS_URL: redis://localhost:6379/0
-      JWT_SECRET: test-secret-for-ci
+      # Must satisfy Settings' non-development rule (>=32 chars); a shorter
+      # value makes every Settings() import fail, which takes down both the
+      # test job and the e2e backend. Same value as tests/conftest.py.
+      JWT_SECRET: test_secret_for_pytest_at_least_32_chars
       ENV: testing
       PUNCTUATION_MODEL_DISABLED: "1"
       # Fixed-code phone flows are opt-in (BE-06); CI has no Aliyun credentials.

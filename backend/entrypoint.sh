@@ -3,9 +3,18 @@
 # app server.
 #
 # Migrations are idempotent (alembic upgrade head is a no-op when already at
-# head), so this is safe across container restarts. We log the migration result
-# but never block startup on a migration failure — a failed migration usually
-# means the DB is unreachable, which gunicorn will surface anyway via /health.
+# head), so this is safe across container restarts.
+#
+# Failure handling differs by mode, and the difference is the point:
+#   migrate-only  — it IS the release gate (the deploy skill runs it before
+#                   switching containers). A failure exits non-zero so the
+#                   deploy stops instead of switching over a half-migrated
+#                   schema. Reporting exit 0 here used to make a failed
+#                   migration look like a successful release step.
+#   normal start  — the container keeps starting so /health can report the DB
+#                   problem instead of the container vanishing into a restart
+#                   loop. This is a deliberate trade, not a silent success: the
+#                   failure is logged as an error with its exit status.
 #
 # Migration ownership: exactly ONE container may apply migrations. This image
 # backs three compose services, so the gate below splits them:
@@ -44,10 +53,18 @@ if [ "$RUN_MIGRATIONS" = "0" ]; then
   echo "[entrypoint] RUN_MIGRATIONS=0 — skipping migrations (another service owns them)."
 else
   echo "[entrypoint] Running database migrations..."
-  if alembic upgrade head; then
+  alembic upgrade head && migration_status=0 || migration_status=$?
+  if [ "$migration_status" -eq 0 ]; then
     echo "[entrypoint] Migrations OK."
   else
-    echo "[entrypoint] WARNING: migration step failed — continuing startup so /health can report the DB issue." >&2
+    echo "[entrypoint] ERROR: alembic upgrade head failed (exit $migration_status)." >&2
+    if [ "$MIGRATE_ONLY" = "1" ]; then
+      # Never turn this into a success: the caller decides whether to switch
+      # containers based on this exit status.
+      echo "[entrypoint] migrate-only mode: propagating the migration failure." >&2
+      exit "$migration_status"
+    fi
+    echo "[entrypoint] WARNING: continuing startup so /health can report the DB issue." >&2
   fi
 fi
 
