@@ -9,10 +9,13 @@
 # the advisory unreachable, not an opinion. Delete rows pip-audit stops
 # reporting; the gate prints those as stale.
 #
-# Scope note: every row below is a dependency of requirements.txt only, i.e. the
-# GPU worker image. The public server installs requirements-cloud.txt, which
+# Scope note: every row below belongs to the GPU stack that now lives in
+# gpu-worker/requirements.txt (the old backend/requirements.txt was deleted with
+# the 2026-10 split). The public server installs requirements-cloud.txt, which
 # carries no suppressions — torch/transformers/nltk are not in it, and its web
-# stack (fastapi/starlette/sentry-sdk) sits on fixed versions.
+# stack (fastapi/starlette/sentry-sdk) sits on fixed versions. This gate audits
+# requirements-cloud.txt only, so these rows are kept for the GPU worker's own
+# audit rather than for this run.
 #
 # Re-assessed 2026-09-19: none of these are fixable by a version bump we can land
 # safely today. nltk has no upstream fix at all (3.10.3 is the newest release).

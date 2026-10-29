@@ -17,7 +17,6 @@ app/services/admin_service.py:misc
 app/services/admin_service.py:no-any-return
 app/services/ai_service.py:index
 app/services/ai_service.py:no-any-return
-app/services/alipay_payment.py:no-any-return
 app/services/alipay_payment.py:return-value
 app/services/behavior_service.py:arg-type
 app/services/exam_service.py:operator

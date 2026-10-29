@@ -77,7 +77,7 @@ _SEED_DEDUP_STATUSES = (
 
 def _seed_lock_key(source_url: str) -> str:
     """URL-level lock key; sha1 keeps long URLs out of Redis key size limits."""
-    return f"seed:{hashlib.sha1(source_url.encode('utf-8')).hexdigest()}"
+    return f"seed:{hashlib.sha1(source_url.encode('utf-8'), usedforsecurity=False).hexdigest()}"
 
 
 async def _acquire_single_flight(key: str, ttl: int) -> bool:
