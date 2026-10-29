@@ -27,7 +27,21 @@ $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 $env:PYTHONPATH = "."
 
-# SYSTEM's PATH lacks the per-user Python install — spell it out.
-$python = "C:\Users\Administrator\AppData\Local\Programs\Python\Python312\python.exe"
+# SYSTEM's PATH lacks the per-user Python install, so resolve an interpreter
+# explicitly. Order: $env:SEEWORD_PYTHON (absolute path override) → this
+# checkout's backend/.venv → python.exe on PATH.
+$python = $env:SEEWORD_PYTHON
+if (-not $python) {
+    $venvPython = Join-Path $backendDir ".venv\Scripts\python.exe"
+    if (Test-Path $venvPython) { $python = $venvPython }
+}
+if (-not $python) {
+    $onPath = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($onPath) { $python = $onPath.Source }
+}
+if (-not $python -or -not (Test-Path $python)) {
+    Write-Error "python not found. Set SEEWORD_PYTHON to an absolute path, create backend\.venv, or put python.exe on PATH."
+    exit 1
+}
 
 & $python "tmp\batch_process.py"

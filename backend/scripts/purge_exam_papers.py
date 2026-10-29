@@ -20,7 +20,7 @@ if paper else []`` 那几处）。题目行是真的删了（``exam_questions.pa
 
     cd backend
     python scripts/purge_exam_papers.py --level cet4 --level cet6 \\
-        --backup C:/Users/Administrator/guojiya/backup_exam_papers.json --dry-run
+        --backup ~/guojiya/backup_exam_papers.json --dry-run
     python scripts/purge_exam_papers.py --level cet4 --level cet6 --backup <同上>
 """
 

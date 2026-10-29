@@ -11,19 +11,30 @@
 # explicit bind to 172.19.0.1 opens only on the Docker bridge, not on the
 # public interface.
 #
-# Uses the IP directly (not the `seeword` alias) with the key under C:\Tools
-# so the NSSM SYSTEM account can resolve and authenticate without the user's
-# ssh config. ServerAlive* detects dead connections; ExitOnForwardFailure
-# aborts (and retries) when the remote port is taken.
+# Uses the IP directly (not the `seeword` alias). NSSM's SYSTEM account has no
+# per-user ssh config or agent, so the key lives in a machine-wide location:
+# $env:SEEWORD_SSH_KEY, else %ProgramData%\seeword\id_ed25519. ServerAlive*
+# detects dead connections; ExitOnForwardFailure aborts (and retries) when the
+# remote port is taken.
 
 $ErrorActionPreference = "Continue"
+
+$keyPath = if ($env:SEEWORD_SSH_KEY) {
+    $env:SEEWORD_SSH_KEY
+} else {
+    Join-Path $env:ProgramData "seeword\id_ed25519"
+}
+if (-not (Test-Path $keyPath)) {
+    Write-Error "SSH key not found at $keyPath. Set SEEWORD_SSH_KEY or place the key at %ProgramData%\seeword\id_ed25519."
+    exit 1
+}
 
 while ($true) {
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Write-Output "[$ts][tunnel] starting ssh -R 172.19.0.1:7897:127.0.0.1:7897 admin@47.122.127.105"
     ssh -N `
         -R 172.19.0.1:7897:127.0.0.1:7897 `
-        -i "C:\Tools\seeword-gpu\id_ed25519" `
+        -i $keyPath `
         -o ServerAliveInterval=15 `
         -o ServerAliveCountMax=3 `
         -o ExitOnForwardFailure=yes `

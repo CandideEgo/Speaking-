@@ -4,7 +4,8 @@
 # 2. fix template variable names (old ALIYUN_SMS_TEMPLATE_CODE -> 3 new vars)
 # 3. tighten permissions on the leaked backup file
 set -e
-cd /home/admin/seeword
+PROJECT_DIR="${PROJECT_DIR:-/opt/speaking}"
+cd "$PROJECT_DIR"
 
 cp -p .env ".env.bak.$(date +%Y%m%d-%H%M%S)"
 echo "backup created: $(ls -1 .env.bak.* | tail -1)"

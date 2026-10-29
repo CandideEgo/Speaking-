@@ -21,8 +21,12 @@ below as written. Docker containers stay up either way — only `/dev-stop --inf
 
 ## Steps
 
+All paths below are resolved from the repository root at runtime with
+`$(git rev-parse --show-toplevel)` (shell state does not persist between tool calls, so every block
+inlines it) — never hardcode a machine path; this checkout moved machines once already.
+
 1. **Free the app ports.** Read and run
-   `C:/Users/Administrator/Speaking/.claude/reference/kill-ports.md` — no exceptions, no skipping.
+   `$(git rev-parse --show-toplevel)/.claude/reference/kill-ports.md` — no exceptions, no skipping.
    Done when its last line printed `all app ports free`.
 
 2. **Check prerequisites** — is Docker Desktop running?
@@ -32,30 +36,31 @@ below as written. Docker containers stay up either way — only `/dev-stop --inf
 
 3. **Start infra** (DB + Redis):
    ```bash
+   cd "$(git rev-parse --show-toplevel)"
    docker start speaking-db-1 speaking-redis-1 2>/dev/null || docker compose -f docker-compose.dev.yml up -d
    ```
 
 4. **Run migrations** (idempotent):
    ```bash
-   cd C:/Users/Administrator/Speaking/backend && .venv/Scripts/python.exe -m alembic upgrade head
+   cd "$(git rev-parse --show-toplevel)/backend" && .venv/Scripts/python.exe -m alembic upgrade head
    ```
 
 5. **Start the backend** (uvicorn on :8000) — background:
    ```bash
-   cd C:/Users/Administrator/Speaking/backend && PYTHONUTF8=1 .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --timeout-keep-alive 120
+   cd "$(git rev-parse --show-toplevel)/backend" && PYTHONUTF8=1 .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --timeout-keep-alive 120
    ```
    `--timeout-keep-alive 120` 不是可选项：uvicorn 默认 5s，Next dev 代理复用的空闲连接会被它在同一时刻关掉 → ECONNRESET → 代理回 500。本机全量 e2e 里表现为随机页面接口 500（不是应用 bug，换短超时后必现）。
 
 6. **Start the cloud Celery worker** — background:
    ```bash
-   cd C:/Users/Administrator/Speaking/backend && PYTHONUTF8=1 .venv/Scripts/python.exe -m celery -A app.tasks.celery_app worker --pool=solo -Q celery --loglevel=info
+   cd "$(git rev-parse --show-toplevel)/backend" && PYTHONUTF8=1 .venv/Scripts/python.exe -m celery -A app.tasks.celery_app worker --pool=solo -Q celery --loglevel=info
    ```
 
-7. **Start the GPU worker** — background, **only on the machine that has `gpu-worker/` + an NVIDIA GPU**
-   (the desktop GPU box; the laptop copy has no `gpu-worker/` and no CUDA, so skip this step there):
+7. **Start the GPU worker** — background, **only on the machine that has a GPU worker venv + `.env.gpu-worker` + an NVIDIA GPU**:
    ```bash
-   cd C:/Users/Administrator/Speaking/gpu-worker && PYTHONUTF8=1 .venv/Scripts/python.exe scripts/start_gpu_worker.py
+   cd "$(git rev-parse --show-toplevel)/gpu-worker" && PYTHONUTF8=1 .venv/Scripts/python.exe scripts/start_gpu_worker.py
    ```
+   Skip this step on a checkout without `gpu-worker/.venv/Scripts/python.exe` or `gpu-worker/.env.gpu-worker` (the laptop has neither) — and say so in the final report instead of silently omitting it.
    This reads `gpu-worker/.env.gpu-worker` (cloud Redis via the 16379 SSH tunnel + cloud callback URL).
    For an all-local dev run (local Redis + local backend callback) override the two env vars before
    starting: `REDIS_URL=redis://localhost:6379/0` and
@@ -63,8 +68,8 @@ below as written. Docker containers stay up either way — only `/dev-stop --inf
 
 8. **Start the frontend** — background:
    ```bash
-   rm -rf C:/Users/Administrator/Speaking/frontend/.next
-   cd C:/Users/Administrator/Speaking/frontend && npm run dev
+   rm -rf "$(git rev-parse --show-toplevel)/frontend/.next"
+   cd "$(git rev-parse --show-toplevel)/frontend" && npm run dev
    ```
 
 9. **Verify.** Wait ~8 seconds, then:

@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | marker 只有 `unit`（快、无外部依赖）与 `integration`（真连 Postgres） | 默认套件跑在内存 SQLite + fake Redis 上；标了 `integration` 的（如 `test_celery_tasks_pg.py`）才真连库。 |
 | ruff 口径 `line-length=120` / `target-version=py312`；AI 调用必须走 service 层 | `TID251` 的 banned-api 禁掉直接 `import openai`（**INV-005**）。白名单只有 `app/services/ai_service.py`、`app/services/translation/*` 与一个一次性运维脚本。 |
 | **ruff 版本必须与 `.pre-commit-config.yaml` 的 rev 同步** | `requirements-dev.txt` 里钉了 `ruff==0.15.18`，与 pre-commit 的 rev 一致。ruff 的 formatter 输出会随小版本变，曾发生 CI 装 0.16.4 而 pre-commit 钉 0.15.18、两边格式判定打架。改一处就同时改另一处。 |
-| mypy 是 **baseline 门，不是无错门** | CI 只拦 `backend/.mypy-baseline`（当前 40 行 `file:code` 对）之外的**新增**错误。修掉存量要顺手把基线调低；**不要**为了让新错误过门往基线里加行。mypy 上界钉 `<2.4`，升版本须重估基线（曾出现 2.3.1 让错误数 53→77）。 |
+| mypy 是 **baseline 门，不是无错门** | CI 只拦 `backend/.mypy-baseline`（当前 39 行 `file:code` 对）之外的**新增**错误。修掉存量要顺手把基线调低；**不要**为了让新错误过门往基线里加行。mypy 上界钉 `<2.4`，升版本须重估基线（曾出现 2.3.1 让错误数 53→77）。 |
 | 覆盖率门 `--cov-fail-under=60` | 在 CI 的 backend job 里。 |
 | `pip-audit` 是硬门，豁免要带复核日期 | 豁免写在 `backend/.pip-audit-ignore`，每行格式 `<ID> <review-by> <owner> <why>`；`review-by` 是期限不是备注，**过期即失败**，被接受的公告必须重新论证，不能继承。由 `backend/scripts/pip_audit_gate.py` 执行，它还只会打印已被上游修掉的陈旧行。 |
 | `requirements-dev.txt` 里的钉版是**故意的** | 尤其 `aiosqlite==0.20.0`：0.22.1 的 worker 线程不带 daemon flag，而测试套件不关测试 engine，线程活过 session，解释器永远停在 `threading._shutdown()`。症状是 CI 报「746 passed, 0 failed」然后被 10 分钟超时杀掉。放开任何钉版都要在 CI 里重新验证，本地过不算。 |

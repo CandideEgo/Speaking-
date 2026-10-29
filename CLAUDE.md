@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 目的                | 命令                                                                                   | 工作目录    |
 | ------------------- | -------------------------------------------------------------------------------------- | ----------- |
-| 全栈 dev（compose） | `docker compose up -d`                                                                 | 根          |
+| compose dev 栈      | `docker compose up -d`（db/redis/backend/celery/frontend；无 beat、无 GPU worker）      | 根          |
 | 轻量本地启动        | `.\Start-Redesign.ps1`（只起 API+前端+DB/Redis，无 Celery/GPU）                        | 根          |
 | 只起 DB + Redis     | `docker compose -f docker-compose.dev.yml up -d`                                       | 根          |
 | 后端 API            | `uvicorn app.main:app --reload --port 8000`                                            | `backend/`  |
@@ -29,6 +29,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 后端测试            | `pytest tests/ -v`                                                                     | `backend/`  |
 | 跑单条后端测试      | `pytest tests/test_auth.py::TestUserProfile::test_get_me_without_token_returns_401 -v` | `backend/`  |
 | 后端 lint / 格式    | `ruff check app/ tests/` · `ruff format app/ tests/`                                   | `backend/`  |
+| GPU worker 测试     | `.venv/Scripts/python.exe -m pytest tests -q`                                          | `gpu-worker/` |
+| GPU worker lint     | `.venv/Scripts/ruff.exe check gpu_worker/ tests/ scripts/`                             | `gpu-worker/` |
 | 前端 dev            | `npm run dev`                                                                          | `frontend/` |
 | 前端单测            | `npm run test:unit`                                                                    | `frontend/` |
 | 跑单个前端单测      | `npx vitest run src/lib/createApiClient.test.ts`                                       | `frontend/` |
@@ -61,7 +63,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 后端装配与错误契约
 
-`backend/app/main.py::create_app()` 是唯一入口，模块底部 `app = create_app()`（`main.py:420`；行号会漂，认符号别认数字）。三个自定义 `@app.middleware("http")`：request-id 注入、请求日志、安全头（生产才加 HSTS 与 CSP）。Prometheus 走 `Instrumentator`，`/health` 会真探 DB 与 Redis 并在任一不健康时返回 503。
+`backend/app/main.py::create_app()` 是唯一入口，模块底部 `app = create_app()`（认符号别认行号，行号会漂）。三个自定义 `@app.middleware("http")`：request-id 注入、请求日志、安全头（生产才加 HSTS 与 CSP）。Prometheus 走 `Instrumentator`，`/health` 会真探 DB 与 Redis 并在任一不健康时返回 503。
 
 **所有错误响应都是统一 envelope** `{code, message, detail?}`：
 
@@ -172,7 +174,7 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 
 ## 改版（`redesign` 分支，2026-10）
 
-改版分支当前领先 `master` 约 90 个提交，**尚未合并**。内容以表现层、真实统计口径、听力扩展与后端审计修补为主；不恢复已下线功能。相关文件都是活文档：
+改版主体已于 2026-10-28 合并进 `master`（`55da59f0`）；之后 `redesign` 上又有 GPU worker 独立拆分与本机迁移记录等提交，尚未回灌 `master`。分支领先/落后数会变，现查 `git log --oneline master..HEAD`，别信写死的数字。内容以表现层、真实统计口径、听力扩展与后端审计修补为主；不恢复已下线功能。相关文件都是活文档：
 
 | 路径 | 作用 |
 | --- | --- |
@@ -204,11 +206,13 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 - `backend/pyproject.toml` 与 `app/**` 注释里的 `INV-005` 是**活规则**：AI 调用必须走 `app.services.ai_service` 或 `app.services.translation`，由 ruff 的 `TID251 banned-api` 强制。但那份带编号的清单文件已不存在。
 - `.github/workflows/ci.yml` 开头提到的「本仓审查原则第 N 条」清单已删。
 - `scripts/release.sh` 里指向 `knowledge/CHANGELOG.md` 的步骤现在是断的。
-- `.mcp.json` 仍指向 `C:/Users/Administrator/Tools/aoci/aoci.exe`，该 server 已在 `.claude/settings.local.json` 里禁用。
+- `.mcp.json` 用 PATH 上的 `aoci` 与仓库相对路径 `--repo .`；该 server 已在 `.claude/settings.local.json` 里禁用。
 
 改这些注释里的失效指针不属于当前任务；遇到时按上面说明处理即可。
 
 **两个例外——这两个路径现在确实存在，别当成已删的：**
 
 - **`docs/` 已回归**（2026-10-15 `0b85160` 入库）：里面是 2026-10 起的产品/架构计划、调研、代码与 UI 评审、实施契约和验证记录（如 `architecture-fix-plan-2026-10.md`、`product-review-2026-10.md`、`oss-reference-2026-10.md`、`code-review-2026-10-20.md`、`ui-review-2026-10-21.md`、`home-editorial-content-implementation-2026-10.md`），不是被删的那批知识层。可以读（改版新增的审计报告与截图见上一节）。
-- **根 `AGENTS.md` 已重建**（2026-10-17），是指向本文件的纯入口、不含任何规则。规则仍然只有三个家：本文件、`backend/CLAUDE.md`、`frontend/CLAUDE.md`。
+- **根 `AGENTS.md` 已重建**（2026-10-17），是指向本文件的纯入口、不含任何规则。规则的家：本文件、`backend/CLAUDE.md`、`frontend/CLAUDE.md`、`gpu-worker/README.md`。
+
+另外 `.agents/`（复数）也真实存在，但它**不是规则源**：那是 Codex 的本地镜像（`.gitignore` 忽略），里面的 `skills/` 只是 `.claude/skills/` 的旧副本（路径还写着旧机器），以 `.claude/skills/` 为准。

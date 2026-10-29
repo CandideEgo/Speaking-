@@ -47,14 +47,17 @@ as production already produced a false "production data is empty" conclusion onc
 3. **Build the four images, then package them.** `--platform linux/amd64` is mandatory: the host is
    x86_64 and a native Windows build produces the wrong platform.
    ```bash
+   cd "$(git rev-parse --show-toplevel)"
+   IMG="$(cygpath -m "$TEMP")/images.tgz"
+
    docker build --platform linux/amd64 -f backend/Dockerfile.cloud -t speaking-backend:latest backend/
    docker tag speaking-backend:latest speaking-celery:latest
    docker tag speaking-backend:latest speaking-celery-beat:latest
    docker build --platform linux/amd64 -f frontend/Dockerfile.prod -t speaking-frontend:latest frontend/
 
    docker save speaking-backend:latest speaking-celery:latest speaking-celery-beat:latest speaking-frontend:latest \
-     | gzip -1 > C:/Users/Administrator/AppData/Local/Temp/images.tgz
-   sha256sum C:/Users/Administrator/AppData/Local/Temp/images.tgz
+     | gzip -1 > "$IMG"
+   sha256sum "$IMG"
    ```
    Done when the archive is ~403 MB and you have written its sha256 down. Record the four new image
    IDs too — step 8 compares them against the running containers.
@@ -62,14 +65,15 @@ as production already produced a false "production data is empty" conclusion onc
 4. **Transfer, then verify the archive.** Run it in the background: ~9–17 min at ~400 KB/s, and the
    connection does drop mid-flight (the script reconnects and resumes from the remote offset).
    `MSYS_NO_PATHCONV=1` is required or Git Bash rewrites `/root/images.tgz` into
-   `C:/Program Files/Git/root/images.tgz`; the local argument must be the Windows-form path for the
-   same reason.
+   `C:/Program Files/Git/root/images.tgz`; the local argument must be a Windows-form path
+   (`cygpath -m`) for the same reason.
    ```bash
-   cd C:/Users/Administrator/Speaking/.claude/skills/deploy/scripts
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python upload.py \
-     'C:/Users/Administrator/AppData/Local/Temp/images.tgz' /root/images.tgz
+     "$(cygpath -m "$TEMP")/images.tgz" /root/images.tgz
    ```
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "sha256sum /root/images.tgz"
    ```
    Done when the last upload line reads `DONE <n> / <n> bytes` **and** the remote sha256 is
@@ -79,6 +83,7 @@ as production already produced a false "production data is empty" conclusion onc
 5. **Freeze the rollback point, then load.** The tags must capture the *currently running* images, so
    this ordering is the whole point of the step.
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "
    set -e
    cd /opt/speaking
@@ -96,6 +101,7 @@ as production already produced a false "production data is empty" conclusion onc
 
 6. **Migrate — and stop if the migration fails.**
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "
    cd /opt/speaking
    docker compose -f docker-compose.prod.yml run --rm --no-deps --entrypoint /app/entrypoint.sh backend migrate-only
@@ -109,6 +115,7 @@ as production already produced a false "production data is empty" conclusion onc
 
 7. **Switch: recreate the four app containers and re-resolve nginx's upstreams.**
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "
    cd /opt/speaking
    docker compose -f docker-compose.prod.yml up -d --remove-orphans
@@ -124,6 +131,7 @@ as production already produced a false "production data is empty" conclusion onc
 8. **Verify every line.** Each row is a separate check; report any that fails rather than reporting
    the deploy as done.
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "
    cd /opt/speaking
    docker compose -f docker-compose.prod.yml ps --format '{{.Name}}|{{.Status}}'
@@ -146,8 +154,9 @@ as production already produced a false "production data is empty" conclusion onc
 
 9. **Clean up.** Delete the 403 MB archive on both ends once step 8 passes.
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "rm -f /root/images.tgz"
-   rm -f C:/Users/Administrator/AppData/Local/Temp/images.tgz
+   rm -f "$(cygpath -m "$TEMP")/images.tgz"
    ```
 
 ## Notes

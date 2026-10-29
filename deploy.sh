@@ -14,7 +14,7 @@ echo "  Speaking 项目部署脚本"
 echo "========================================="
 
 # 配置变量
-PROJECT_DIR="/opt/speaking"
+PROJECT_DIR="${PROJECT_DIR:-/opt/speaking}"
 REPO_URL="https://github.com/CandideEgo/Speaking.git"  # 修改为你的实际仓库地址
 BRANCH="master"
 

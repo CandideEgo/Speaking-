@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """把抓下来的原卷 PDF 收成站内可下载的一份清单 + 一个目录。
 
-源：``C:/Users/Administrator/guojiya/pdf_index.json``（206 条，字段 ``title`` /
+源：``~/guojiya/pdf_index.json``（206 条，字段 ``title`` /
 ``show_title`` / ``file_path`` / ``pdf_url`` / ``bytes`` / ``sha256`` / ``section`` /
 ``slug`` / ``file``）与它指向的 ``pdf/<section>/<slug>.pdf``。
 
@@ -34,7 +34,7 @@ import shutil
 import sys
 from pathlib import Path
 
-DEFAULT_SRC = Path("C:/Users/Administrator/guojiya")
+DEFAULT_SRC = Path.home() / "guojiya"
 DEFAULT_OUT = Path("data/exam_pdfs")
 
 # 科目顺序，与 app/core/exam_subjects.py 一致（这里只要排序，不重复展示名）。

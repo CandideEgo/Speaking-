@@ -10,10 +10,21 @@
 # crashes.
 #
 # Requires a passwordless SSH key for the cloud host (ssh-keygen +
-# ssh-copy-id / authorized_keys); the key path is fixed below because the NSSM
-# SYSTEM account has no user profile to resolve an SSH config/agent from.
+# ssh-copy-id / authorized_keys). The key lives in a machine-wide location
+# ($env:SEEWORD_SSH_KEY, else %ProgramData%\seeword\id_ed25519) because the
+# NSSM SYSTEM account has no user profile to resolve an SSH config/agent from.
 
 $ErrorActionPreference = "Continue"
+
+$keyPath = if ($env:SEEWORD_SSH_KEY) {
+    $env:SEEWORD_SSH_KEY
+} else {
+    Join-Path $env:ProgramData "seeword\id_ed25519"
+}
+if (-not (Test-Path $keyPath)) {
+    Write-Error "SSH key not found at $keyPath. Set SEEWORD_SSH_KEY or place the key at %ProgramData%\seeword\id_ed25519."
+    exit 1
+}
 
 while ($true) {
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -23,7 +34,7 @@ while ($true) {
     # Use IP directly (not SSH alias) so NSSM SYSTEM account can resolve it.
     ssh -N `
         -L 16379:127.0.0.1:6379 `
-        -i "C:\Tools\seeword-gpu\id_ed25519" `
+        -i $keyPath `
         -o ServerAliveInterval=15 `
         -o ServerAliveCountMax=3 `
         -o ExitOnForwardFailure=yes `
