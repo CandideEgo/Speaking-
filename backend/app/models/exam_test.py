@@ -132,3 +132,13 @@ class ExamAnswer(Base):
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     session = relationship("ExamSession", back_populates="answers")
+
+    __table_args__ = (
+        # One row per question per attempt. ``exam_service._claim_submit``
+        # already serialises concurrent submits; this is the data-layer
+        # backstop so no future write path can duplicate an attempt's answers
+        # (duplicates inflate scores and the wrong book). Legacy snapshot-only
+        # rows have ``question_id`` NULL, and unique constraints allow any
+        # number of NULLs, so they are unaffected.
+        UniqueConstraint("session_id", "question_id", name="uq_exam_answers_session_question"),
+    )

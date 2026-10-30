@@ -7,7 +7,9 @@ Owns the attempt lifecycle:
   * ``submit_answers``         — server-side grading, freezes question
     snapshots into exam_answers, computes score + per-section breakdown, and
     emits a LearningEvent (practiced_items) so the daily plan / profile
-    pipelines see the activity.
+    pipelines see the activity. One submission per attempt: the conditional
+    UPDATE in ``_claim_submit`` decides a concurrent race, and losers replay
+    the winner's settled result instead of grading again.
   * ``list_wrong_questions``   — aggregated wrong-book view (derived query,
     no extra table)
   * ``exam_stats``             — practice-hub headline stats
@@ -24,7 +26,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
@@ -432,6 +434,88 @@ async def exam_stats(db: AsyncSession, user_id: str) -> dict:
     }
 
 
+async def _claim_submit(db: AsyncSession, session_id: str, user_id: str, now: datetime) -> bool:
+    """Try to take this attempt's single submission slot.
+
+    ``submitted_at`` doubles as the claim: a conditional ``UPDATE`` is the only
+    write allowed to decide a concurrent submit, so two requests that both read
+    ``submitted_at IS NULL`` still produce exactly one winner. On PostgreSQL
+    the loser blocks on the row lock until the winner commits and then
+    re-evaluates the predicate against the committed row (no match) — so a
+    ``False`` here also means the winner's answers are already readable.
+    Claim and grading share one transaction: a failure further down rolls the
+    claim back, so an aborted submit never leaves the attempt looking submitted.
+    """
+    stmt = (
+        update(ExamSession)
+        .where(
+            ExamSession.id == session_id,
+            ExamSession.user_id == user_id,
+            ExamSession.submitted_at.is_(None),
+        )
+        .values(submitted_at=now)
+        .execution_options(synchronize_session=False)
+    )
+    result = await db.execute(stmt)
+    return bool(result.rowcount)
+
+
+def _submitted_payload(settled: ExamSession) -> dict:
+    """Grading payload rebuilt from a submitted attempt's frozen answer rows."""
+    rows = sorted(
+        (a for a in settled.answers if a.answered_at is not None),
+        key=lambda a: (a.question or {}).get("number") or 0,
+    )
+    results = []
+    for a in rows:
+        snap = a.question or {}
+        results.append(
+            {
+                # Legacy snapshot-only rows predate the question bank link and
+                # only carry the id inside the frozen snapshot.
+                "question_id": a.question_id or snap.get("id"),
+                "number": int(snap.get("number") or 0),
+                "section": str(snap.get("section") or ""),
+                "question_type": snap.get("question_type"),
+                "question": snap.get("question"),
+                "options": snap.get("options"),
+                "passage": snap.get("passage"),
+                "user_answer": a.user_answer,
+                "correct": bool(a.correct),
+                "correct_answer": snap.get("answer"),
+                "explanation": snap.get("explanation"),
+            }
+        )
+    return {
+        "session_id": settled.id,
+        "mode": settled.mode,
+        "score": settled.score or 0.0,
+        "correct_count": sum(1 for a in rows if a.correct),
+        "total": len(rows),
+        "part_scores": settled.part_scores or {},
+        "results": results,
+    }
+
+
+async def _settled_submit_payload(db: AsyncSession, session_id: str, user_id: str) -> dict:
+    """Replay the result of the submission that won the race.
+
+    A repeat submit is not an error: the first submission is the answer of
+    record, so a client retry (double click, two tabs, a request that timed out
+    after the server had already committed) lands on the same result page
+    instead of a dead end. Nothing is re-graded and nothing is overwritten.
+    """
+    stmt = (
+        select(ExamSession)
+        .where(ExamSession.id == session_id, ExamSession.user_id == user_id)
+        .options(selectinload(ExamSession.answers))
+    )
+    settled = (await db.execute(stmt)).scalar_one_or_none()
+    if settled is None:
+        raise NotFoundError("作答不存在")
+    return _submitted_payload(settled)
+
+
 async def submit_answers(
     db: AsyncSession,
     session: ExamSession,
@@ -441,13 +525,24 @@ async def submit_answers(
     """Grade a session's answers and freeze per-question snapshots.
 
     ``answers`` is a list of {question_id, answer}. The session must belong to
-    ``user_id`` and not be submitted yet. Returns the grading payload:
-    {score, correct_count, total, part_scores, results}.
+    ``user_id``. Exactly one submission per attempt is accepted: the winner
+    grades and writes; every later or concurrent submit returns the winner's
+    settled result without touching the stored answers. Returns the grading
+    payload: {score, correct_count, total, part_scores, results}.
     """
     if session.user_id != user_id:
         raise ForbiddenError("不是本人的作答")
-    if session.submitted_at is not None:
-        raise ConflictError("该作答已提交")
+
+    # Read the id before any rollback: rollback expires the ORM object, and
+    # touching an expired attribute here would attempt sync IO (MissingGreenlet).
+    session_id = session.id
+    now = _now()
+    if not await _claim_submit(db, session_id, user_id, now):
+        # Already submitted — by an earlier request, or by the concurrent one
+        # this call just waited for. Roll back first so the replay cannot read
+        # this request's pre-claim snapshot out of the identity map.
+        await db.rollback()
+        return await _settled_submit_payload(db, session_id, user_id)
 
     # Load the questions for this session (paper questions or daily picks).
     if session.paper_id is not None:
@@ -482,7 +577,6 @@ async def submit_answers(
     results: list[dict] = []
     part: dict[str, dict[str, int]] = {}
     correct_count = 0
-    now = _now()
 
     for q in questions:
         user_answer = ans_map.get(q.id, "")
@@ -536,16 +630,19 @@ async def submit_answers(
         sec: {"correct": part[sec]["correct"], "total": part[sec]["total"]} for sec in SECTION_ORDER if sec in part
     }
     await db.flush()
-    await db.commit()
 
-    # Non-blocking LearningEvent emission (ADR-0012 integration).
+    # Same transaction as the grading: the attempt and its practiced_items
+    # event land together, so a committed submit can never be missing its
+    # event, and a replay (which returns further up) can never emit a second
+    # one. ``emit_event`` is itself non-blocking — it swallows its own failures
+    # inside a savepoint — so the try/except is belt-and-braces.
     try:
         from app.services.learning_event_service import EVENT_PRACTICED_ITEMS, emit_event
 
         await emit_event(db, user_id, EVENT_PRACTICED_ITEMS, total, video_id=None)
-        await db.commit()
     except Exception:
         logger.exception("Failed to emit learning event for exam session %s", session.id)
+    await db.commit()
 
     return {
         "session_id": session.id,
