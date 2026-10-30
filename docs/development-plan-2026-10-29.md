@@ -63,7 +63,7 @@ flowchart TB
 ### 迭代 2 的实施记录（2026-10-29）
 
 - **A05**：新增 `pipeline_dispatches` outbox（迁移 `d5e6f7a8b9c0`）与 beat `dispatch_pipeline_tasks`（60 秒）。回调、head 续跑、GPU 转写三处派发改为「意图与状态同事务落库 → 提交 → 立即派发」，失败留在 pending 由扫描补发；看门狗不再把「有意待在派发中的视频」判死，积压超阈值/超时长时告警。确定性故障注入已覆盖：broker 抛错、提交后未派发、重复回调、重复扫描、视频状态已推进、看门狗豁免；本地 PostgreSQL 上迁移 `upgrade`/`downgrade` 往返通过。**未执行**：真实 Redis/broker 停机演练、积压告警的站外投递（依赖 A09 的告警链路）。
-- **A13**：密码契约统一为「最多 72 个 UTF-8 字节」（schema 422、`hash_password` 不截断、历史 hash 按前 72 字节仍可验证）；`plan_expires_at` 为空的语义定为无效并统一前后端与后台 KPI；购买页按 D1/D7 改写为「内测期全站免费 + 购买是支持开发」。**未执行**：浏览器走查免费/付费/过期三类账号的文案对照（未做；按常驻规则应用 `ego-browser` 起服务实测，不再以 Playwright 浏览器不可用作为理由），以及生产 `JINSHUJU_ENABLED` 实际状态核对。
+- **A13**：密码契约统一为「最多 72 个 UTF-8 字节」（schema 422、`hash_password` 不截断、历史 hash 按前 72 字节仍可验证）；`plan_expires_at` 为空的语义定为无效并统一前后端与后台 KPI；购买页按 D1/D7 改写为「内测期全站免费 + 购买是支持开发」。2026-10-30 已用 `ego-browser` 起本机 dev 栈走查四类账号（免费／付费／已过期／空到期）的购买页与个人页文案，证据见 [`docs/evidence/iteration-2/`](../evidence/iteration-2/README.md)（截图因本机 CDP 截图超时未产出，以 DOM 文本为证）。**未执行**：真实微信客户端付款链路，以及生产 `JINSHUJU_ENABLED` 实际状态核对。
 
 ## 4 轨道 B：学习闭环产品增量（TypeWords 参考）
 
