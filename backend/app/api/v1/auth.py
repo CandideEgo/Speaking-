@@ -14,7 +14,7 @@ from app.core.limiter import rate_limit
 from app.core.logging import mask_phone
 from app.core.redis import get_redis
 from app.core.security import create_token, decode_token, hash_password, verify_password
-from app.core.token_blacklist import blacklist_token, is_token_blacklisted
+from app.core.token_blacklist import blacklist_token, claim_token_once
 from app.models.user import PlanType, User
 from app.schemas.user import (
     ChangePasswordRequest,
@@ -328,15 +328,6 @@ async def refresh_token(request: Request, data: RefreshRequest, db: AsyncSession
     if user.is_banned:
         raise HTTPException(status_code=403, detail="账户已被封禁")
 
-    # Reject refresh tokens that have already been used (blacklisted). A
-    # rotated refresh token is blacklisted at the end of this handler; without
-    # this check, a stolen/old refresh token could mint access tokens forever.
-    if settings.jwt_blacklist_enabled and await is_token_blacklisted(payload.get("jti")):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token has been revoked",
-        )
-
     # Reject refresh tokens issued before the last password change/reset, so a
     # compromised refresh token becomes useless once the user resets their password.
     from app.api.dependencies import _token_issued_before_password_change
@@ -347,16 +338,22 @@ async def refresh_token(request: Request, data: RefreshRequest, db: AsyncSession
             detail="Session expired due to password change. Please log in again.",
         )
 
-    # Blacklist the old refresh token to prevent reuse
+    # 单次消费（A03/BE-05）：把「这个 refresh 是否已被撤销」与「撤销它」合并成
+    # 一个原子 claim。旧实现在最前面读黑名单、校验完再写黑名单，两个并发请求都能
+    # 读到「尚未撤销」，于是同一个 refresh 铸出两条后继链；若旧 token 被盗，合法
+    # 用户与攻击者可以同时续期。现在只有抢到 key 的那一个能继续，重放一律 401。
+    # 放在其他校验之后：被封禁或改过密码的 token 不必再占一个键。
     if settings.jwt_blacklist_enabled:
-        old_jti = payload.get("jti")
         old_exp = payload.get("exp")
-        if old_jti:
-            if old_exp:
-                remaining = int(old_exp - datetime.now(UTC).timestamp())
-            else:
-                remaining = settings.jwt_refresh_expire_days * 24 * 60 * 60  # refresh token TTL
-            await blacklist_token(old_jti, max(remaining, 0))
+        if old_exp:
+            remaining = int(old_exp - datetime.now(UTC).timestamp())
+        else:
+            remaining = settings.jwt_refresh_expire_days * 24 * 60 * 60  # refresh token TTL
+        if not await claim_token_once(payload.get("jti"), max(remaining, 0)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token has been revoked",
+            )
 
     new_token = create_token(user.id)
     new_refresh_token = create_token(user.id, token_type="refresh")

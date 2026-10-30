@@ -41,6 +41,40 @@ async def blacklist_token(jti: str, ttl_seconds: int) -> None:
         logger.warning("token_blacklist_redis_error", jti=jti, exc_info=True)
 
 
+async def claim_token_once(jti: str | None, ttl_seconds: int) -> bool:
+    """Atomically consume a single-use token.
+
+    Returns True when this caller won the claim (and may therefore mint a
+    successor), False when the jti was already claimed or blacklisted.
+
+    This replaces the old "read the blacklist, then write to it" pair used by
+    the refresh endpoint. Two concurrent refreshes could both observe "not yet
+    revoked" and both rotate, minting two successor chains from one refresh
+    token. ``SET NX`` makes the claim atomic, and because it reuses the
+    ``token_blacklist:{jti}`` key, winning the claim *is* revoking the old
+    token — there is no second write to lose.
+
+    Redis outage fails open (True) for the same reason as the rest of this
+    module: an outage must not lock every user out of their session. The
+    tradeoff is stated rather than hidden — during an outage the concurrent
+    rotation window comes back.
+    """
+    if not jti:
+        # Tokens issued before the jti claim was added cannot be deduplicated.
+        return True
+    if ttl_seconds <= 0:
+        return False
+
+    try:
+        from app.core.redis import get_redis
+
+        r = get_redis()
+        return await r.set(f"token_blacklist:{jti}", "1", nx=True, ex=ttl_seconds) is not None
+    except Exception:
+        logger.warning("token_blacklist_claim_redis_error", jti=jti, exc_info=True)
+        return True
+
+
 async def is_token_blacklisted(jti: str | None) -> bool:
     """Check whether a token JTI has been blacklisted.
 

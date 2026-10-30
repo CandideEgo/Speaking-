@@ -19,6 +19,9 @@ class BehaviorEventRequest(BaseModel):
     event_payload: dict | None = None
     session_id: str | None = None
     client_ts: int | None = None
+    # Client-generated idempotency key (A02). Optional for older clients; when
+    # present, a repeat delivery is dropped before any side effect runs.
+    event_id: str | None = Field(None, max_length=36)
 
     @field_validator("event_payload")
     @classmethod

@@ -30,12 +30,17 @@ EVENT_PRACTICED_ITEMS = "practiced_items"
 EVENT_REVIEWED_WORDS = "reviewed_words"
 EVENT_SHADOWED_SENTENCES = "shadowed_sentences"
 EVENT_MET_DAILY_GOAL = "met_daily_goal"
+# A02/MET-01: 当天第一次产生有效观看时长时发一条，用来把「只看了视频、没背词
+# 也没看完」的用户放上学习日历。由 behavior_service 每天去重一次，不参与任何
+# 每日计数器（_update_daily_progress 里没有它的列），只提供「这天学过」这个事实。
+EVENT_WATCHED_VIDEO = "watched_video"
 
 VALID_EVENT_TYPES = {
     EVENT_COMPLETED_VIDEO,
     EVENT_LEARNED_WORDS,
     EVENT_PRACTICED_ITEMS,
     EVENT_REVIEWED_WORDS,
+    EVENT_WATCHED_VIDEO,
     EVENT_MET_DAILY_GOAL,
 }
 

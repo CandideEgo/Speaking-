@@ -26,7 +26,7 @@ import { useWordLookup } from "@/hooks/useWordLookup";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
 import { api, mediaUrl } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
-import { track, trackWatchTime } from "@/lib/analytics";
+import { endWatchTime, track, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { resolveWatchReturn, watchFocusIssue, watchHref } from "@/lib/watchEntry";
 import type { Subtitle, VideoDetail, VocabSet, VocabSetCreateResponse } from "@/types";
@@ -290,19 +290,19 @@ export default function WatchPage() {
     clearOnIntentRef.current();
   }, []);
 
-  // Playback-time tick shared by both backends (HTML5 timeupdate / YouTube
-  // poll): keeps the current-subtitle highlight and watch-time tracking in sync.
+  // Playback-time tick shared by both backends (HTML5 poll / YouTube poll):
+  // keeps the current-subtitle highlight in sync. 学习时长不在这里累加 —— 它只
+  // 认「播放状态 + 可见性 + 墙钟」（见下方 effect 与 lib/watchTime.ts）。
   const handleTimeTick = useCallback(
     (t: number) => {
       const v = videoForTickRef.current;
       if (!v) return;
       const idx = findSubtitleIndex(v.subtitles, t);
       if (idx !== -1) setSubtitleIndexRef.current(idx);
-      trackWatchTime(id, t);
       if (clipId) setClipPosition(t);
       currentIndexRef.current = idx === -1 ? currentIndexRef.current : idx;
     },
-    [id, clipId]
+    [clipId]
   );
 
   const {
@@ -352,6 +352,19 @@ export default function WatchPage() {
   useEffect(() => {
     if (playbackMode !== "ready") setImmersive(false);
   }, [playbackMode, setImmersive]);
+
+  // 有效学习时长（A02）：口径是「播放中且页面可见的墙钟秒数」，细节与边界在
+  // lib/watchTime.ts。这里只按秒喂一次播放状态；`isPlaying` 翻转的那一次会
+  // 立刻结算并补报尾段，所以暂停/切后台不会把最后几秒丢掉。
+  useEffect(() => {
+    trackWatchTime(id, isPlaying);
+    if (!isPlaying) return;
+    const timer = setInterval(() => trackWatchTime(id, true), 1000);
+    return () => clearInterval(timer);
+  }, [id, isPlaying]);
+
+  // 离开观看页时结算尾段（路由切换、关闭标签页）。
+  useEffect(() => endWatchTime, []);
 
   useEffect(() => {
     if (!clipId) {

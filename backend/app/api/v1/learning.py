@@ -1,6 +1,6 @@
 """Learning records API — list and detail endpoints for per-video learning progress."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.limiter import rate_limit
-from app.models.behavior import BehaviorEvent
 from app.models.learning import LearningRecord
 from app.models.learning_plan import LearningEvent
 from app.models.user import User
@@ -25,6 +24,8 @@ from app.schemas.learning import (
     WeeklyStatsResponse,
 )
 from app.schemas.pagination import PaginatedResponse, paginated
+from app.services.local_time import get_user_local_now
+from app.services.study_time_service import watch_seconds_by_local_day, week_start_local
 
 router = APIRouter(prefix="/learning", tags=["learning"])
 
@@ -241,20 +242,6 @@ async def get_watch_progress(
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _week_bounds(now: datetime | None = None) -> tuple[datetime, datetime, datetime]:
-    """Return (this_week_start, last_week_start, last_week_end) using ISO week.
-
-    Week starts Monday 00:00 in the user's local UTC time (server-side
-    approximation; full TZ is a future enhancement).
-    """
-    now = now or datetime.now(UTC)
-    # Monday of this week
-    start_of_today = datetime(now.year, now.month, now.day, tzinfo=UTC)
-    this_monday = start_of_today - timedelta(days=start_of_today.weekday())
-    last_monday = this_monday - timedelta(days=7)
-    return this_monday, last_monday, this_monday
-
-
 @router.get("/stats/weekly", response_model=WeeklyStatsResponse)
 @rate_limit("30/minute")
 async def stats_weekly(
@@ -264,47 +251,46 @@ async def stats_weekly(
 ):
     """Aggregated weekly activity for the profile 学习进度 page.
 
-    - this_week_minutes: watched seconds from ``behavior_events.watch_time``,
-      bucketed by the event's server timestamp. ``LearningRecord
-      .time_spent_seconds`` is a cumulative counter on the record and cannot
-      be sliced by ``last_accessed_at`` (that would attribute all history to
-      the last visit).
-    - last_week_minutes: same for the prior Monday–Sunday window
+    - this_week_minutes / last_week_minutes / daily_minutes: 有效学习秒数，来自
+      ``behavior_events.watch_time``，按**用户本地日**分桶（study_time_service）。
+      与个人页 overview 用同一个函数，两个页面不会给出互相矛盾的「本周学了多久」。
+      旧实现按 UTC 切周、按 UTC 日分桶，Asia/Shanghai 的用户在周一 00:00–08:00
+      的学习会被算进上一周。
     - week_delta_pct: 0.0 when last week is 0 (handle "first week" UI)
     - this_week_words/videos: counted from LearningEvent (learned_words /
       completed_video) so they reflect this calendar week
-    - daily_minutes: 7-element list, Mon→Sun, 0 when no activity
     """
-    now = datetime.now(UTC)
-    this_monday, last_monday, _ = _week_bounds(now)
+    local_now = await get_user_local_now(db, current_user.id)
+    tz = local_now.tzinfo
+    this_monday = week_start_local(local_now)
+    last_monday = this_monday - timedelta(days=7)
 
-    watch_seconds = BehaviorEvent.event_payload["delta_s"].as_float()
+    def _utc_at(day: date) -> datetime:
+        """本地某天 00:00 对应的 UTC 时刻。"""
+        return datetime.combine(day, time.min, tzinfo=tz).astimezone(UTC)
 
-    async def _minutes_since(start: datetime, end: datetime) -> int:
-        result = await db.execute(
-            select(func.coalesce(func.sum(watch_seconds), 0.0)).where(
-                BehaviorEvent.user_id == current_user.id,
-                BehaviorEvent.event_type == "watch_time",
-                BehaviorEvent.server_ts >= start,
-                BehaviorEvent.server_ts < end,
-            )
-        )
-        return int(result.scalars().one() or 0) // 60
+    now_utc = datetime.now(UTC) + timedelta(minutes=1)
+    this_week = await watch_seconds_by_local_day(db, current_user.id, start=_utc_at(this_monday), end=now_utc, tz=tz)
+    last_week = await watch_seconds_by_local_day(
+        db, current_user.id, start=_utc_at(last_monday), end=_utc_at(this_monday), tz=tz
+    )
 
-    this_week_minutes = await _minutes_since(this_monday, now)
-    last_week_minutes = await _minutes_since(last_monday, this_monday)
+    # 逐日取整后再求和 —— 与 overview 的每日卡片同一算法，否则两边会因为
+    # 「先求和再除 60」与「先除 60 再求和」差出几分钟。
+    this_week_minutes = sum(this_week.get(this_monday + timedelta(days=i), 0) // 60 for i in range(7))
+    last_week_minutes = sum(last_week.get(last_monday + timedelta(days=i), 0) // 60 for i in range(7))
 
     if last_week_minutes > 0:
         week_delta_pct = round((this_week_minutes - last_week_minutes) / last_week_minutes * 100, 1)
     else:
         week_delta_pct = None  # "first week" → UI shows no arrow
 
-    async def _event_count(event_type: str, start: datetime) -> int:
+    async def _event_count(event_type: str, start: date) -> int:
         result = await db.execute(
             select(func.coalesce(func.sum(LearningEvent.event_value), 0)).where(
                 LearningEvent.user_id == current_user.id,
                 LearningEvent.event_type == event_type,
-                LearningEvent.event_date >= start.date(),
+                LearningEvent.event_date >= start,
             )
         )
         return result.scalars().one()
@@ -312,27 +298,15 @@ async def stats_weekly(
     this_week_words = await _event_count("learned_words", this_monday)
     this_week_videos = await _event_count("completed_video", this_monday)
 
-    # Daily minutes for the 7 days of this week, Mon→Sun, from watch_time
-    # behavior events (same source as the weekly totals).
-    daily_minutes: list[dict] = []
-    rows = (
-        await db.execute(
-            select(
-                func.date(BehaviorEvent.server_ts).label("d"),
-                func.coalesce(func.sum(watch_seconds), 0.0).label("s"),
-            )
-            .where(
-                BehaviorEvent.user_id == current_user.id,
-                BehaviorEvent.event_type == "watch_time",
-                BehaviorEvent.server_ts >= this_monday,
-            )
-            .group_by(func.date(BehaviorEvent.server_ts))
-        )
-    ).all()
-    by_day = {str(r.d): int(r.s or 0) // 60 for r in rows}
-    for i in range(7):
-        d = (this_monday + timedelta(days=i)).date().isoformat()
-        daily_minutes.append({"date": d, "minutes": by_day.get(d, 0)})
+    # Daily minutes for the 7 days of this week, Mon→Sun, from the same
+    # local-day buckets as the weekly totals above.
+    daily_minutes: list[dict] = [
+        {
+            "date": (this_monday + timedelta(days=i)).isoformat(),
+            "minutes": this_week.get(this_monday + timedelta(days=i), 0) // 60,
+        }
+        for i in range(7)
+    ]
 
     return {
         "this_week_minutes": this_week_minutes,

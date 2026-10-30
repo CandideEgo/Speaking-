@@ -23,6 +23,7 @@ import {
   type BaseAuthUser,
 } from "@/lib/authHelpers";
 import { useProfileStore } from "@/stores/profileStore";
+import { requestTokenRefresh, type RefreshOutcome } from "@/lib/sessionRefresh";
 
 /** JWT payload shape we care about (role 不在 JWT 里，见 authHelpers.BaseAuthUser) */
 export type AuthUser = BaseAuthUser;
@@ -64,9 +65,11 @@ interface AuthActions {
    * Attempt to refresh the access token using the stored refresh token.
    * Uses a mutex to prevent concurrent refresh calls - if a refresh is
    * already in progress, returns the same promise.
-   * Returns true on success, false on failure (logout is called).
+   *
+   * 只有 ``"expired"`` 会清会话；``"unavailable"``（断网/超时/5xx）保留凭据，
+   * 让下一次请求再试，不能因为一次抖动把用户踢下线。
    */
-  refreshAccessToken: () => Promise<boolean>;
+  refreshAccessToken: () => Promise<RefreshOutcome>;
 }
 
 /** One-time migration: move tokens from old "speaking_*" keys to new "seeword_*" keys. */
@@ -78,7 +81,24 @@ const MIGRATION_MAPPINGS: [string, string][] = [
 type AuthStore = AuthState & AuthActions;
 
 /** Module-level mutex for preventing concurrent refresh calls */
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<RefreshOutcome> | null = null;
+
+/**
+ * 另一个标签页可能已经把 refresh 轮换掉了：它会写新的 token 对到 localStorage。
+ * 服务端现在保证同一个旧 refresh 只能换出一条后继，所以抢输的一方会拿到 401；
+ * 这时先看看存储里是不是别人写进来的新会话，有就接着用，而不是把用户登出。
+ */
+function adoptStoredSession(attempted: string | null): boolean {
+  if (typeof window === "undefined") return false;
+  const storedRefresh = localStorage.getItem(USER_SESSION_KEYS.refreshToken);
+  const storedToken = localStorage.getItem(USER_SESSION_KEYS.token);
+  if (!storedRefresh || !storedToken) return false;
+  // 还是自己这一份 —— 没有别人刷新过，这次确实是失效。
+  if (storedRefresh === attempted) return false;
+  if (isTokenExpired(storedToken)) return false;
+  useAuthStore.getState().login(storedToken, storedRefresh);
+  return true;
+}
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
   token: null,
@@ -192,15 +212,19 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     if (isTokenExpired(token)) {
       // Access token expired - try refreshing before giving up
       if (refreshToken) {
-        // Store the refresh token temporarily so refreshAccessToken can use it
-        set({ refreshToken });
+        // 把（已过期的）token 与 refresh token 一起放进 store 再刷新：刷新遇到
+        // 临时故障时不清会话，后续请求带着这个 token 会得到 401 并再次触发刷新，
+        // 网络恢复后自动接上，不需要用户重新登录。
+        set({
+          token,
+          refreshToken,
+          user: decodeJwt(token) as AuthUser | null,
+          isAuthenticated: false,
+        });
         get()
           .refreshAccessToken()
-          .then((success) => {
-            if (!success) {
-              // Refresh failed - clear everything (logout already called)
-            }
-            // On success, login() already updated the state
+          .then(() => {
+            // "expired" 时 logout() 已清场并跳转；"unavailable" 保留会话等重试。
             set({ isLoading: false });
           });
         return;
@@ -250,40 +274,35 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     remirrorSessionCookie(USER_SESSION_KEYS, token);
   },
 
-  async refreshAccessToken(): Promise<boolean> {
+  async refreshAccessToken(): Promise<RefreshOutcome> {
     // If already refreshing, return the existing promise
     if (refreshPromise) return refreshPromise;
 
-    refreshPromise = (async () => {
-      const { refreshToken } = get();
-      if (!refreshToken) {
+    const attempted = get().refreshToken;
+    refreshPromise = (async (): Promise<RefreshOutcome> => {
+      if (!attempted) {
         get().logout();
-        return false;
+        return "expired";
       }
-      try {
-        const res = await fetch("/api/v1/auth/refresh", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-        if (!res.ok) {
-          get().logout();
-          return false;
-        }
-        const data = await res.json();
-        if (typeof data?.token !== "string" || !data.token) {
-          get().logout();
-          return false;
-        }
-        get().login(data.token, typeof data.refresh_token === "string" ? data.refresh_token : null);
-        return true;
-      } catch {
-        get().logout();
-        return false;
-      } finally {
-        refreshPromise = null;
+
+      const result = await requestTokenRefresh(attempted);
+
+      if (result.outcome === "refreshed") {
+        get().login(result.pair.token, result.pair.refreshToken);
+        return "refreshed";
       }
-    })();
+      if (result.outcome === "unavailable") {
+        // 断网 / 超时 / 5xx：会话可能仍然有效。保留 token，不 redirect。
+        return "unavailable";
+      }
+      // 服务端明确拒绝：先看是不是另一个标签页已经轮换成功。
+      if (adoptStoredSession(attempted)) return "refreshed";
+
+      get().logout();
+      return "expired";
+    })().finally(() => {
+      refreshPromise = null;
+    });
 
     return refreshPromise;
   },

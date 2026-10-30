@@ -117,7 +117,11 @@ class TestWeeklyMinutes:
         assert data["this_week_minutes"] == 5
         assert data["last_week_minutes"] == 5
         assert data["week_delta_pct"] == 0.0
-        today = now.date().isoformat()
+        # A02：日桶按**用户本地日**切（默认 Asia/Shanghai），不是 UTC 日。
+        # 用 UTC 的 today 去找行会在 UTC 16:00 之后永远命中前一天。
+        from app.services.local_time import user_local_date
+
+        today = user_local_date(None).isoformat()
         today_row = next(row for row in data["daily_minutes"] if row["date"] == today)
         assert today_row["minutes"] == 5
 

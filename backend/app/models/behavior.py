@@ -24,12 +24,18 @@ class BehaviorEvent(Base):
         # Weekly play ranking: event_type IN ('play','complete') AND
         # server_ts >= Monday, grouped by video_id.
         Index("ix_behavior_events_server_ts_type", "server_ts", "event_type"),
+        # Client-generated event id (A02): the unique index is what makes ingest
+        # idempotent — a retried or double-delivered batch cannot accumulate the
+        # same watch_time twice. Historical rows are NULL, which is allowed to
+        # repeat under a unique index in both PostgreSQL and SQLite.
+        Index("uq_behavior_events_event_id", "event_id", unique=True),
     )
 
     # SQLite (tests) only auto-increments an exact INTEGER PRIMARY KEY, so the
     # BigInteger PK falls back to Integer there — production (Postgres) keeps
     # BIGINT autoincrement.
     id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    event_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )

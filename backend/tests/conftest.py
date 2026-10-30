@@ -147,7 +147,13 @@ class _FakeRedis:
         self._purge(key)
         return self._store.get(key)
 
-    async def set(self, key: str, value: str, ex: int | None = None) -> str | None:
+    async def set(
+        self, key: str, value: str, ex: int | None = None, nx: bool = False
+    ) -> str | None:
+        if nx:
+            self._purge(key)
+            if key in self._store:
+                return None
         self._store[key] = value
         if ex is not None:
             self._expires[key] = time.monotonic() + ex

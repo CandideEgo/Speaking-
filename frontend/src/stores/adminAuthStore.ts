@@ -21,6 +21,7 @@ import {
   remirrorSessionCookie,
   type BaseAuthUser,
 } from "@/lib/authHelpers";
+import { requestTokenRefresh, type RefreshOutcome } from "@/lib/sessionRefresh";
 
 /** JWT payload（role 不在 JWT 里，admin role 经 /users/me DB 查询 + get_admin_user 叠加）。 */
 export type AdminAuthUser = BaseAuthUser;
@@ -38,7 +39,8 @@ interface AdminAuthActions {
   logout: () => void;
   /** Read tokens from localStorage into state (no network, no redirect). */
   bootstrap: () => void;
-  refreshAccessToken: () => Promise<boolean>;
+  /** 只有 "expired" 会登出；"unavailable" 保留会话（A03/FE-07）。 */
+  refreshAccessToken: () => Promise<RefreshOutcome>;
 }
 
 /** One-time migration: move admin tokens from old "speaking_*" keys to new "seeword_*" keys. */
@@ -47,7 +49,7 @@ const MIGRATION_MAPPINGS: [string, string][] = [
   ["speaking_admin_refresh_token", ADMIN_SESSION_KEYS.refreshToken],
 ];
 
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<RefreshOutcome> | null = null;
 /** Bumped by logout() so a refresh that lands later cannot resurrect the session. */
 let sessionEpoch = 0;
 
@@ -154,41 +156,33 @@ export const useAdminAuthStore = create<AdminAuthState & AdminAuthActions>((set,
     }
   },
 
-  async refreshAccessToken(): Promise<boolean> {
+  async refreshAccessToken(): Promise<RefreshOutcome> {
     if (refreshPromise) return refreshPromise;
     const epoch = sessionEpoch;
-    refreshPromise = (async () => {
-      const { refreshToken } = get();
-      if (!refreshToken) {
+    const attempted = get().refreshToken;
+    refreshPromise = (async (): Promise<RefreshOutcome> => {
+      if (!attempted) {
         if (epoch === sessionEpoch) get().logout();
-        return false;
+        return "expired";
       }
-      try {
-        const res = await fetch("/api/v1/auth/refresh", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-        if (epoch !== sessionEpoch) return false;
-        if (!res.ok) {
-          get().logout();
-          return false;
-        }
-        const data = await res.json();
-        if (epoch !== sessionEpoch) return false;
-        if (typeof data?.token !== "string" || !data.token) {
-          get().logout();
-          return false;
-        }
-        get().login(data.token, typeof data.refresh_token === "string" ? data.refresh_token : null);
-        return true;
-      } catch {
-        if (epoch === sessionEpoch) get().logout();
-        return false;
-      } finally {
-        refreshPromise = null;
+
+      const result = await requestTokenRefresh(attempted);
+      // 刷新期间用户可能已经登出：结果一律作废，不能把会话「复活」。
+      if (epoch !== sessionEpoch) return result.outcome;
+
+      if (result.outcome === "refreshed") {
+        get().login(result.pair.token, result.pair.refreshToken);
+        return "refreshed";
       }
-    })();
+      if (result.outcome === "unavailable") {
+        // 临时故障：保留会话，交给下一次请求重试。
+        return "unavailable";
+      }
+      get().logout();
+      return "expired";
+    })().finally(() => {
+      refreshPromise = null;
+    });
     return refreshPromise;
   },
 }));

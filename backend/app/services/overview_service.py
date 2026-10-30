@@ -6,13 +6,15 @@ vocabulary/stats, learning/records, exams/stats) and still could not answer
 and lets the client render the overview in a single round trip.
 
 All figures are facts, not predictions: streak comes from the cached
-``UserLearningProfile``, minutes from ``LearningRecord.time_spent_seconds``,
-and the exam block reuses ``exam_service.exam_stats``.
+``UserLearningProfile``, this week's minutes from ``behavior_events`` watch_time
+bucketed by the user's local day (``study_time_service``), the all-time total
+from the cumulative ``LearningRecord.time_spent_seconds`` counter (it cannot be
+sliced by day), and the exam block reuses ``exam_service.exam_stats``.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, date, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select
@@ -24,6 +26,7 @@ from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.user_content import SentenceFavorite
 from app.services import exam_service, vocabulary_service
 from app.services.local_time import get_user_local_now
+from app.services.study_time_service import watch_seconds_by_local_day
 from app.services.unlock_service import is_active_pro
 
 if TYPE_CHECKING:
@@ -38,40 +41,30 @@ async def build_overview(db: AsyncSession, user: User) -> dict:
     # 本周从**用户本地日**的周一起算：按 UTC 切周时，Asia/Shanghai 的用户
     # 周一 00:00–08:00 的学习会被算进上一周。
     this_monday = local_now.date() - timedelta(days=local_now.date().weekday())
+    # 周窗换算成 UTC 交给事件聚合，分桶仍在本地日做（study_time_service）。
+    week_start_utc = datetime.combine(this_monday, time.min, tzinfo=tz).astimezone(UTC)
+    seconds_by_day = await watch_seconds_by_local_day(
+        db,
+        user.id,
+        start=week_start_utc,
+        end=datetime.now(UTC) + timedelta(minutes=1),
+        tz=tz,
+    )
 
     profile = (
         await db.execute(select(UserLearningProfile).where(UserLearningProfile.user_id == user.id))
     ).scalar_one_or_none()
 
-    # Days studied: union of local event dates and record access dates. A user
-    # who watched before learning events existed still gets credit for it.
+    # 学过几天只认不可变的学习事件日期。旧实现还把
+    # ``LearningRecord.last_accessed_at`` 与 ``created_at`` 并进来：前者会随
+    # 每次观看移动（今天重看去年的视频就把那天记成今天），后者是「第一次打开
+    # 这个视频」的日子，都不等于「那天学过」。因此历史用户的天数可能变少——
+    # 这是真实值，不是回退，也不靠累计时长伪造缺失的日期。
     event_dates = set(
         (await db.execute(select(LearningEvent.event_date).where(LearningEvent.user_id == user.id).distinct()))
         .scalars()
         .all()
     )
-    access_rows = (
-        await db.execute(
-            select(
-                LearningRecord.last_accessed_at,
-                LearningRecord.created_at,
-                LearningRecord.time_spent_seconds,
-            ).where(LearningRecord.user_id == user.id)
-        )
-    ).all()
-    # 顺带按本地日累计本周观看秒数：这里已经拿到全部观看记录，再查一次
-    # `func.date()` 只会把日界换成数据库时区（UTC），对 Asia/Shanghai 是错的。
-    seconds_by_day: dict[date, int] = {}
-    for last_accessed, created, seconds in access_rows:
-        stamp = last_accessed or created
-        if stamp is None:
-            continue
-        if stamp.tzinfo is None:
-            stamp = stamp.replace(tzinfo=UTC)
-        day = stamp.astimezone(tz).date()
-        event_dates.add(day)
-        if day >= this_monday:
-            seconds_by_day[day] = seconds_by_day.get(day, 0) + int(seconds or 0)
     days_studied = len(event_dates)
 
     total_seconds = (

@@ -11,8 +11,18 @@
  */
 import { api, getApiUrl } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import {
+  WATCH_TIME_SCHEMA_VERSION,
+  createWatchTimeState,
+  flushWatchTime,
+  updateWatchTime,
+  type WatchTimeReport,
+  type WatchTimeState,
+} from "@/lib/watchTime";
 
 interface BehaviorEvent {
+  /** 客户端生成的事件 id：服务端按它去重，重发/重试不会重复累计学习时长。 */
+  event_id: string;
   video_id?: string;
   event_type: string;
   event_payload?: Record<string, unknown>;
@@ -34,6 +44,13 @@ function makeSessionId(): string {
   return Math.random().toString(36).slice(2);
 }
 const SESSION_ID = makeSessionId();
+
+function makeEventId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 // A second batch sent while the first is pending can land before the older
@@ -62,6 +79,7 @@ export function track(
 ): void {
   if (typeof window === "undefined") return;
   QUEUE.push({
+    event_id: makeEventId(),
     video_id: videoId,
     event_type: eventType,
     event_payload: payload,
@@ -112,34 +130,68 @@ function flushBeacon(): void {
 
 if (typeof window !== "undefined") {
   window.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") flushBeacon();
+    if (document.visibilityState === "hidden") {
+      // 先结算学习时长再冲刷：切到后台的那一刻正是尾段最容易被丢掉的时刻。
+      endWatchTime();
+      flushBeacon();
+    }
   });
-  window.addEventListener("pagehide", flushBeacon);
+  window.addEventListener("pagehide", () => {
+    endWatchTime();
+    flushBeacon();
+  });
 }
 
-// --- Watch-time accumulator (called from <video> onTimeUpdate) ---
-// Emits a `watch_time` event every 10s with the delta since the last report.
-// Delta is clamped to [0, 60] so a seek doesn't emit a huge spike.
-let wtVideoId: string | null = null;
-let wtLastReportTs = 0;
-let wtLastPos = 0;
+// ---------------------------------------------------------------------------
+// 有效学习时长（A02 / FE-02）
+// ---------------------------------------------------------------------------
+//
+// 口径与边界在 `lib/watchTime.ts`（纯函数，有单测）。这里只做三件事：
+// 注入真实时钟与可见性、把结算结果排进上报队列、在离页时冲刷。
 
-export function trackWatchTime(videoId: string, currentTime: number): void {
-  if (wtVideoId !== videoId) {
-    wtVideoId = videoId;
-    wtLastReportTs = Date.now();
-    wtLastPos = currentTime;
-    return;
-  }
-  const now = Date.now();
-  if (now - wtLastReportTs >= 10000) {
-    const delta_s = Math.min(60, Math.max(0, currentTime - wtLastPos));
-    if (delta_s > 0.5) {
-      track("watch_time", { delta_s: Math.round(delta_s * 10) / 10 }, videoId);
-    }
-    wtLastReportTs = now;
-    wtLastPos = currentTime;
-  }
+let watchState: WatchTimeState = createWatchTimeState();
+
+function monotonicNow(): number {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+}
+
+function pageVisible(): boolean {
+  return typeof document === "undefined" || document.visibilityState !== "hidden";
+}
+
+function emitWatchReport(report: WatchTimeReport | null): void {
+  if (!report) return;
+  track(
+    "watch_time",
+    { delta_s: report.deltaSeconds, v: WATCH_TIME_SCHEMA_VERSION },
+    report.videoId
+  );
+}
+
+/**
+ * 喂一次播放状态。播放期间按秒调用即可（每次调用都很便宜，只有攒够 10 秒
+ * 或播放停下时才产生一条事件）；`playing` 变 false 的那一次会结算尾段。
+ */
+export function trackWatchTime(videoId: string, playing: boolean): void {
+  if (typeof window === "undefined") return;
+  const result = updateWatchTime(watchState, {
+    videoId,
+    playing,
+    visible: pageVisible(),
+    nowMs: monotonicNow(),
+  });
+  watchState = result.state;
+  emitWatchReport(result.report);
+}
+
+/** 离开观看页：结算并冲刷尾段。 */
+export function endWatchTime(): void {
+  if (typeof window === "undefined") return;
+  const result = flushWatchTime(watchState, monotonicNow());
+  watchState = result.state;
+  emitWatchReport(result.report);
 }
 
 export function trackClick(videoId: string, source: string): void {
