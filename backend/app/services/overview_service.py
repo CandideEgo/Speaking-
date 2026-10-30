@@ -25,7 +25,7 @@ from app.models.learning import LearningRecord
 from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.user_content import SentenceFavorite
 from app.services import exam_service, vocabulary_service
-from app.services.local_time import get_user_local_now
+from app.services.local_time import get_user_local_now, local_zone
 from app.services.study_time_service import watch_seconds_by_local_day
 from app.services.unlock_service import is_active_pro
 
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 async def build_overview(db: AsyncSession, user: User) -> dict:
     local_now = await get_user_local_now(db, user.id)
-    tz = local_now.tzinfo
+    tz = local_zone(local_now)
     # 本周从**用户本地日**的周一起算：按 UTC 切周时，Asia/Shanghai 的用户
     # 周一 00:00–08:00 的学习会被算进上一周。
     this_monday = local_now.date() - timedelta(days=local_now.date().weekday())

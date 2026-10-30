@@ -60,9 +60,7 @@ class TestUserOverview:
         # 与 created_at 顶替，前者会随每次观看移动，等于把历史伪分配到最近一天。
         assert data["learning"]["days_studied"] == 0
 
-    async def test_days_studied_counts_learning_event_dates(
-        self, client: AsyncClient, auth_headers: dict, db_session
-    ):
+    async def test_days_studied_counts_learning_event_dates(self, client: AsyncClient, auth_headers: dict, db_session):
         from datetime import timedelta
 
         from app.models.learning_plan import LearningEvent

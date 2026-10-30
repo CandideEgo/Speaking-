@@ -77,9 +77,7 @@ class TestWatchTimeIngest:
         event = _watch_event(video_id, 10, "evt-dup-1")
 
         for _ in range(2):
-            resp = await client.post(
-                "/api/v1/behavior/events", json=event, headers=auth_headers
-            )
+            resp = await client.post("/api/v1/behavior/events", json=event, headers=auth_headers)
             assert resp.status_code == 200, resp.text
 
         assert await _time_spent(user_id, video_id) == 10
@@ -118,9 +116,7 @@ class TestWatchTimeIngest:
         assert resp.status_code == 200
         assert await _time_spent(user_id, video_id) == 1
 
-    async def test_first_watch_of_the_day_writes_one_learning_event(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_first_watch_of_the_day_writes_one_learning_event(self, client: AsyncClient, auth_headers: dict):
         """只看视频的用户也要出现在学习日历上，但一天只记一条。"""
         user_id, video_id = await _video_with_record(client, auth_headers)
         for index in range(3):
@@ -146,9 +142,7 @@ class TestWatchTimeIngest:
 
 
 class TestAggregationAgreement:
-    async def test_overview_and_weekly_report_the_same_minutes(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_overview_and_weekly_report_the_same_minutes(self, client: AsyncClient, auth_headers: dict):
         """两个页面给用户的「本周学了多久」必须是同一个数。"""
         from app.models.behavior import BehaviorEvent
 
@@ -180,6 +174,5 @@ class TestAggregationAgreement:
         assert weekly["this_week_minutes"] == 7
         assert overview["this_week"]["minutes"] == 7
         assert weekly["daily_minutes"] == [
-            {"date": row["date"], "minutes": row["minutes"]}
-            for row in overview["this_week"]["daily"]
+            {"date": row["date"], "minutes": row["minutes"]} for row in overview["this_week"]["daily"]
         ]

@@ -89,9 +89,7 @@ class TestRefreshToken:
         resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh})
         assert resp.status_code == 401
 
-    async def test_concurrent_refresh_mints_at_most_one_successor(
-        self, client: AsyncClient, test_user_data: dict
-    ):
+    async def test_concurrent_refresh_mints_at_most_one_successor(self, client: AsyncClient, test_user_data: dict):
         """同一个 refresh 并发两次，最多一方能铸出新 token 对（A03/BE-05）。
 
         旧实现是「先读黑名单，校验完再写黑名单」，两个请求都能读到「尚未撤销」，

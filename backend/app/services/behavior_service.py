@@ -12,7 +12,9 @@ scoring_service / recommendation_service (P1/P2).
 """
 
 import math
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -22,6 +24,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.behavior import BehaviorEvent
 from app.models.learning import LearningRecord
 from app.models.video import Video
+
+# Dialect-specific INSERT constructors for the event_id dedup. Typed as
+# ``Callable[..., Any]`` on purpose: ``on_conflict_do_nothing`` lives on the
+# dialect copies, not on the generic ``Insert`` both of them subclass.
+_DIALECT_INSERTS: dict[str, Callable[..., Any]] = {
+    "postgresql": pg_insert,
+    "sqlite": sqlite_insert,
+}
 
 # Event types that carry LearningRecord/Video side-effects beyond the raw log.
 EVENT_WATCH_TIME = "watch_time"
@@ -68,7 +78,7 @@ async def _insert_event(db: AsyncSession, event: dict, user_id: str | None) -> b
         db.add(BehaviorEvent(**values))
         return True
 
-    insert = {"postgresql": pg_insert, "sqlite": sqlite_insert}.get(db.get_bind().dialect.name)
+    insert = _DIALECT_INSERTS.get(db.get_bind().dialect.name)
     if insert is None:  # pragma: no cover - only Postgres/SQLite are supported
         db.add(BehaviorEvent(**values))
         return True
@@ -99,7 +109,7 @@ async def ingest_event(db: AsyncSession, event: dict, user_id: str | None) -> bo
         return False
 
     # Side-effects only for logged-in users on a video-scoped event.
-    if user_id and video_id:
+    if user_id and video_id and isinstance(event_type, str):
         return await _mirror_to_learning_record(db, user_id, video_id, event_type, payload, event.get("session_id"))
     return False
 
@@ -244,13 +254,13 @@ async def _mirror_to_learning_record(
         return True
 
     elif event_type == EVENT_COMPLETE:
-        result = await db.execute(
+        record_result = await db.execute(
             select(LearningRecord).where(
                 LearningRecord.user_id == user_id,
                 LearningRecord.video_id == video_id,
             )
         )
-        record = result.scalar_one_or_none()
+        record = record_result.scalar_one_or_none()
         if not record:
             return False
         # Idempotency: a replayed `complete` (retry / duplicate flush / two

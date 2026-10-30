@@ -48,6 +48,19 @@ async def get_user_local_now(db: AsyncSession, user_id: str) -> datetime:
     return user_local_now(result.scalar_one_or_none())
 
 
+def local_zone(local_now: datetime) -> ZoneInfo:
+    """用户本地时刻所在的时区。
+
+    typeshed 把 ``datetime.tzinfo`` 声明成可选的，而 ``user_local_now()``
+    只会返回带 ``ZoneInfo`` 的时刻；把这条不变量收在这里（一处窄化），调用点
+    就不必各写一遍 assert。
+    """
+    tz = local_now.tzinfo
+    if not isinstance(tz, ZoneInfo):
+        raise ValueError(f"expected a ZoneInfo-aware datetime, got tzinfo={tz!r}")
+    return tz
+
+
 async def get_user_local_date(db: AsyncSession, user_id: str) -> date:
     """读偏好并算出该用户的本地日期。"""
     return (await get_user_local_now(db, user_id)).date()

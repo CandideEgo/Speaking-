@@ -24,7 +24,7 @@ from app.schemas.learning import (
     WeeklyStatsResponse,
 )
 from app.schemas.pagination import PaginatedResponse, paginated
-from app.services.local_time import get_user_local_now
+from app.services.local_time import get_user_local_now, local_zone
 from app.services.study_time_service import watch_seconds_by_local_day, week_start_local
 
 router = APIRouter(prefix="/learning", tags=["learning"])
@@ -261,7 +261,7 @@ async def stats_weekly(
       completed_video) so they reflect this calendar week
     """
     local_now = await get_user_local_now(db, current_user.id)
-    tz = local_now.tzinfo
+    tz = local_zone(local_now)
     this_monday = week_start_local(local_now)
     last_monday = this_monday - timedelta(days=7)
 
