@@ -14,6 +14,7 @@ from app.models.jinshuju_payment import JinshujuPayment
 from app.models.learning import LearningRecord, Vocabulary
 from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.listening import ListeningSession
+from app.models.media_cleanup import MediaCleanupTask
 from app.models.milestone import MasterySnapshot, UserMilestone
 from app.models.notification import Notification
 from app.models.order import Order

@@ -118,6 +118,12 @@ celery_app.conf.update(
             "task": "app.tasks.account_tasks.purge_deleted_accounts",
             "schedule": crontab(minute=30, hour=18),
         },
+        # A08/BE-04：注销后媒体删除失败（文件被占用、主机重启）时重试。
+        # 清理队列在删除用户的同一事务里写入，失败行带退避，永不静默丢失。
+        "retry-media-cleanup": {
+            "task": "app.tasks.account_tasks.retry_media_cleanup",
+            "schedule": 900,  # every 15 minutes
+        },
     },
 )
 

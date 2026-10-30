@@ -161,12 +161,12 @@ async def test_export_builds_zip_with_media_and_serves_once(client: AsyncClient,
         assert "vocabulary.csv" in names
         assert "vocabulary.json" in names
         assert "learning_records.json" in names
-        assert "notification_preferences.json" in names
+        assert "preferences.json" in names
         assert "behavior_events.csv" in names
         assert any(n.startswith("media/avatar/") for n in names)
-        # Retired features must stay out of the archive.
+        # Retired features have no data tables; historical shadowing audio
+        # is still account-owned media (privacy page promises it in export).
         assert "shadowing.csv" not in names
-        assert not any(n.startswith("media/shadowing/") for n in names)
 
     status = (await client.get(f"/api/v1/users/me/export/{task_id}", headers=auth_headers)).json()
     assert status["status"] == "ready"

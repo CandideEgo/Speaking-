@@ -1,4 +1,4 @@
-# 迭代 3 · 实施与演练记录（A09、A07）
+# 迭代 3 · 实施与演练记录（A09、A07、A10、A08）
 
 日期：2026-10-30。任务定义见 [`docs/comprehensive-audit-2026-10-29/execution-plan.md`](../../comprehensive-audit-2026-10-29/execution-plan.md)：
 A09 的 **OPS-05/OPS-06** 与 A07 的 **OPS-03**。
@@ -233,3 +233,94 @@ async hub，直接读 socket，`restore_visible` 根本不会周期性运行。�
 - **真实 GPU worker（torch/whisperx）未跑**：本机没有 `gpu-worker/.venv`；桩 worker 只验证
   broker/ACL 面，不验证转录本身。
 - 两个 GPU worker 的横向扩容与启动恢复不兼容（见上）。
+
+## A08：数据导出与注销清理（BE-04）
+
+隔离环境：一次性 Postgres（compose 的 `pg` profile，`127.0.0.1:15432`）+ 临时媒体目录；
+真实服务与任务代码（`app.services.account_data`、`app.tasks.account_tasks`）。未接触开发栈/生产。
+
+### 1 交付物
+
+| 文件 | 作用 |
+| --- | --- |
+| [`backend/app/services/account_data.py`](../../../backend/app/services/account_data.py) | 唯一的数据清单：导出收集（全部用户数据 + 媒体原件）与可重试媒体清理 |
+| [`backend/app/tasks/account_tasks.py`](../../../backend/app/tasks/account_tasks.py) | 导出 ZIP 生成；注销在**同一事务**里写清理队列，再 drain；beat `retry_media_cleanup` |
+| [`backend/app/models/media_cleanup.py`](../../../backend/app/models/media_cleanup.py) + 迁移 `f1a2b3c4d5e6` | `media_cleanup_tasks`：待删路径、重试次数、退避；无外键，活得比用户行久 |
+| [`backend/scripts/inventory_orphan_media.py`](../../../backend/scripts/inventory_orphan_media.py) | **只读**孤儿媒体盘点：孤儿/悬空引用/已排队删除；不删除任何文件 |
+| [`backend/tests/test_account_data.py`](../../../backend/tests/test_account_data.py) | 导出完整性与跨用户隔离、注销清理、媒体重试 |
+| [`frontend/src/app/privacy/page.tsx`](../../../frontend/src/app/privacy/page.tsx) | 隐私政策补上导出内容、注销清理、匿名化与财务保留口径 |
+| [a08_account_data_drill.py](a08_account_data_drill.py) / [a08-2026-10-30.json](a08-2026-10-30.json) | 隔离 PG 演练脚本与结果（28/28） |
+
+### 2 导出内容（按审计要求逐项）
+
+`profile` / `preferences` / `learning_profile` / `vocabulary` / `learning_records` /
+`learning_events` / `vocab_sets`（含每个词的过筛状态）/ `study_sessions`（含逐词状态）/
+`favorites` / `notes` / `sentence_favorites` / `channel_subscriptions` / `video_likes` /
+`video_unlocks` / `listening_sessions` / `exam_sessions`（含逐题快照与答案）/ `videos`
+（上传元数据）/ `orders` / `payments`（不含第三方原始表单）/ `notifications` / `feedbacks` /
+`mastery_snapshots` / `user_milestones` / `behavior_events`，以及 `media/` 下的头像、
+上传视频文件与 **历史跟读音频**（按 `shadowing/<user_id>/` 归属）。
+
+每条查询都按 `user.id` 过滤，子行只通过该用户的父 id 读取；演练与测试都验证过导出包中
+不出现另一个账号的标记或 id。
+
+### 3 注销清理与重试
+
+- 删除用户的**同一事务**里写入 `media_cleanup_tasks`（头像、视频封面/清晰度文件、原始
+  上传、导出 ZIP、`exports/<uid>` 与 `shadowing/<uid>` 目录）；提交后立即 drain。
+- 单个路径删除失败（文件被占用、目录被当成文件等）→ 行保持 `pending`、`attempts+1`、
+  指数退避（上限 1 小时），beat `retry_media_cleanup` 每 15 分钟重试；每日注销扫描结束
+  时也会再 drain 一次。**不会因为一次 unlink 失败永久残留**。
+- 官方（`is_official=true`）视频视为平台内容：保留行、把 `user_id` 置空；只有非官方
+  上传视频随账号删除。
+
+### 4 本轮发现并修掉的问题
+
+
+1. **通用删除把 SET NULL 表也删了。** 原来的实现按「有 `user_id` 外键就删」遍历，连
+   `jinshuju_payments` 这种 `ondelete=SET NULL` 的财务流水也一起删除；而模型设计是保留
+   金额用于对账。现在显式区分：`behavior_events` 与收款流水匿名化，其余直接删。
+2. **管理员账号注销会删掉官方视频及其媒体。** `videos.user_id` 是 CASCADE，旧逻辑会把该
+   账号上传的官方内容一并删掉；现在官方视频保留、解除账号关联，其媒体文件也不进入清理队列。
+3. **媒体删除不可重试。** 旧代码删完用户行再 unlink，失败只记日志；现在用持久队列 +
+   beat 重试（见上）。
+4. **导出缺收藏/笔记/各类练习/媒体。** 隐私页承诺「观看记录与进度、单词训练与词库、
+   收藏与笔记、练习记录、学习偏好」「历史跟读录音供导出与注销清理」，旧导出只有词汇、
+   学习记录、通知偏好和行为事件。现在按上面的清单补齐，并同步更新隐私页的说明。
+
+全量套件前两次各出现一个与本任务无关的 flaky：`backfill_video_titles_zh` 的翻译顺序与
+channel 订阅的 `latest_video` 都按 `created_at` 排序，而测试里两条视频在同一时钟刻度创建时
+退化成随机 UUID 次序。两处测试改为显式时间戳（不放宽任何检查），第三次全量 **1492 passed /
+0 failed / 0 skipped**。
+
+### 5 演练结果（28/28）
+
+| 组 | 检查 |
+| --- | --- |
+| 导出 | 全部区段存在；A 的 `note-alpha` 在包内；包内无 `bravo` 标记/用户 id；头像、视频、跟读音频都在；`payments.json` 无 `raw_json` |
+| 注销 | 只清 A；B 与其媒体不受影响；A 的非官方视频删除、官方视频保留且 `user_id` 为空、官方视频的媒体文件也保留；行为事件匿名化；收款流水 `user_id/phone/raw_json` 清空、金额保留；清理队列全部 `done`；头像/跟读/视频/原始文件/导出目录都没了 |
+| 盘点 | 只读脚本识别出故意放入的 `orphan/junk.bin`，且文件仍在（脚本不删除） |
+
+### 6 门禁
+
+| 检查 | 结果 |
+| --- | --- |
+| `pytest tests/test_account_data.py tests/test_account_deletion.py` | **11 passed** |
+| 迁移 `f1a2b3c4d5e6` 在隔离 PG 上 `upgrade → downgrade → upgrade` | 通过，`alembic_version = f1a2b3c4d5e6` |
+| `ruff check` / `format --check`（新代码与脚本） | 通过 |
+| mypy 基线门 | 38 个 `file:code` 对，无新增 |
+| 前端 `npm run check` | 通过（隐私页改动） |
+| 全量 `pytest tests/ -q`（`PG_TEST_URL` 指向一次性库） | **1492 passed / 0 failed / 0 skipped**（1285.76s） |
+| 隔离演练 | [a08-2026-10-30.json](a08-2026-10-30.json)：28/28 |
+
+### 7 未执行 / 边界
+
+- **已注销用户留下的历史跟读音频不会自动归因**：没有用户行可对照时，只能由只读盘点脚本
+  报成孤儿；删除需运维按盘点结果另行执行（审计要求的「先盘点、另行清理」）。
+- **站外收款流水保留是产品/法务口径**：金额、档位、状态、交易号保留用于对账，账号关联、
+  手机号与第三方原始表单已清除；隐私页已写明。若要连金额一并删除，需要财务确认后改。
+- 生产上真实上传/转码媒体的删除只按 URL 与命名约定收集；如果历史上存在不在这些路径里的
+  文件，会进入孤儿盘点结果，而不是被自动删除。
+- **非官方上传视频**随账号删除，按 `videos` 外键的 CASCADE 语义会连带删除其他用户对该视频
+  的学习记录/收藏/句子收藏（当前生产没有用户上传入口，INV-003；官方视频保留，所以实际
+  影响面为 0）。将来开放 UGC 前需要先决定「休眠行保留历史」还是「连内容一起删」。
