@@ -101,9 +101,13 @@ export function mediaUrl(
  * The backend sets ``plan = "pro"`` on upgrade but does NOT reset it on
  * expiry — instead ``plan_expires_at`` is checked.  A naive
  * ``user.plan === "pro"`` would show Pro UI to expired users who then
- * get 403 from the API.  This helper mirrors the backend's
- * ``/payments/status`` logic: plan must be "pro" **and** the expiry
- * must be in the future.
+ * get 403 from the API.
+ *
+ * Shared contract with the backend (A13/FE-04, decided 2026-10-29):
+ * ``plan_expires_at === null`` is **invalid/missing data, not an infinite
+ * membership** — ``GET /payments/status``, ``unlock_service.is_active_pro``
+ * and the admin KPI all use `plan === "pro" && expiry > now`. Keep the four
+ * in step; a null expiry must never read as "Pro" on one side only.
  */
 export function isProUser(
   user: { plan: string; plan_expires_at: string | null } | null | undefined

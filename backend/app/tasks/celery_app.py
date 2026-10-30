@@ -58,6 +58,14 @@ celery_app.conf.update(
             "task": "app.tasks.video_processing.watchdog_stale_pipeline",
             "schedule": 600,  # every 10 minutes
         },
+        # A05/BE-01: re-send pipeline hand-offs whose DB state committed but
+        # whose Celery message never reached the broker (broker down / crash in
+        # the gap). Runs every minute so the recovery window stays short; also
+        # prunes settled rows and alerts on a backlog that will not drain.
+        "dispatch-pipeline-tasks": {
+            "task": "app.tasks.pipeline_dispatch_tasks.dispatch_pipeline_tasks",
+            "schedule": 60,
+        },
         # Re-attempt failed YouTube downloads for ready videos that fell back
         # to embed playback (阶段 3). Daily; refreshes cookies first, respects
         # the 3-strike limit via localize_video's force=False path.
@@ -119,6 +127,7 @@ import app.tasks.home_content_tasks
 import app.tasks.notification_tasks
 import app.tasks.order_tasks
 import app.tasks.payment_tasks
+import app.tasks.pipeline_dispatch_tasks  # noqa: F401  (A05: beat re-dispatches pending pipeline intents)
 import app.tasks.ranking_tasks
 import app.tasks.reminder_tasks
 import app.tasks.scoring_tasks

@@ -219,6 +219,40 @@ class TestPaymentStatus:
         assert resp.json()["is_pro"] is False
 
 
+class TestActiveProContract:
+    """A13/FE-04：会员有效性的唯一口径是 ``plan == pro AND plan_expires_at > now``。
+
+    ``plan_expires_at IS NULL`` 表示数据缺失/无效，不是永久会员。前端
+    ``isProUser``、``/payments/status``、``unlock_service.is_active_pro`` 与后台
+    KPI 必须一致（决策 2026-10-29）。
+    """
+
+    def test_null_expiry_is_not_active_pro(self):
+        from app.models.user import PlanType, User
+        from app.services.unlock_service import is_active_pro
+
+        assert is_active_pro(User(plan=PlanType.pro, plan_expires_at=None)) is False
+        assert is_active_pro(User(plan=PlanType.free, plan_expires_at=None)) is False
+        assert is_active_pro(None) is False
+
+    async def test_status_endpoint_sees_null_expiry_as_not_pro(self, client: AsyncClient, auth_headers: dict):
+        from sqlalchemy import select
+
+        from app.models.user import PlanType, User
+        from tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as db:
+            user = (await db.execute(select(User).where(User.phone == "13800138000"))).scalar_one()
+            user.plan = PlanType.pro
+            user.plan_expires_at = None
+            await db.commit()
+
+        resp = await client.get("/api/v1/payments/status", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["plan"] == "pro"
+        assert resp.json()["is_pro"] is False
+
+
 class TestVocabulary:
     async def test_add_word(self, client: AsyncClient, auth_headers: dict):
         resp = await client.post(

@@ -133,7 +133,12 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     # plan overstates the paying base (audit measured 611 stored vs 284 active).
     # ``pro_expired_count`` keeps the lapsed rows visible, and ``users_by_plan``
     # below intentionally stays an as-stored distribution (see its comment).
-    active_pro_condition = or_(User.plan_expires_at.is_(None), User.plan_expires_at > now)
+    #
+    # A13/FE-04: ``plan_expires_at IS NULL`` is *invalid*, not infinite — the
+    # same rule as ``unlock_service.is_active_pro`` and the frontend. Row without
+    # an expiry counts as lapsed (visible) instead of active (flattering).
+    active_pro_condition = User.plan_expires_at > now
+    expired_pro_condition = or_(User.plan_expires_at.is_(None), User.plan_expires_at < now)
     (
         total_users,
         new_users_7d,
@@ -151,11 +156,7 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
                 func.count(User.id).filter(func.date(User.last_active_at) == today),
                 func.count(User.id).filter(User.last_active_at >= ago_7d),
                 func.count(User.id).filter(func.date(User.created_at) == today),
-                func.count(User.id).filter(
-                    User.plan == PlanType.pro,
-                    User.plan_expires_at.is_not(None),
-                    User.plan_expires_at < now,
-                ),
+                func.count(User.id).filter(User.plan == PlanType.pro, expired_pro_condition),
             )
         )
     ).one()

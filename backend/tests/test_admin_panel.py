@@ -101,11 +101,15 @@ class TestAdminStatsActivePro:
         from app.models.user import PlanType, User
 
         # admin_headers fixture user is Pro until 2099 → active.
-        # Stored-plan distribution: admin + active + expired = 3.
+        # Stored-plan distribution: admin + active + expired + null-expiry = 4.
+        # A13/FE-04: a null expiry is invalid, not an infinite membership — it
+        # must not inflate ``pro_users`` (that was the old definition) and it
+        # stays visible in ``pro_expired_count``.
         db_session.add_all(
             [
                 User(phone="13600136001", name="Expired Pro", plan=PlanType.pro, plan_expires_at=datetime(2020, 1, 1)),
                 User(phone="13500135001", name="Active Pro", plan=PlanType.pro, plan_expires_at=datetime(2099, 1, 1)),
+                User(phone="13400134001", name="Null Expiry Pro", plan=PlanType.pro, plan_expires_at=None),
             ]
         )
         await db_session.commit()
@@ -113,11 +117,11 @@ class TestAdminStatsActivePro:
         resp = await client.get("/api/v1/admin/stats", headers=admin_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["pro_users"] == 2  # admin + active; expired one excluded
-        assert data["pro_expired_count"] == 1
+        assert data["pro_users"] == 2  # admin + active; expired and null excluded
+        assert data["pro_expired_count"] == 2  # expired + null-expiry (both invalid)
         assert data["funnel"]["pro"] == data["pro_users"]
         pro_bucket = next(b for b in data["users_by_plan"] if b["plan"] == "pro")
-        assert pro_bucket["count"] == 3  # stored-plan bucket stays as-stored
+        assert pro_bucket["count"] == 4  # stored-plan bucket stays as-stored
 
 
 class TestAdminUserFilterValidation:

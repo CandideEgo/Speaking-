@@ -55,6 +55,41 @@ class TestWatchdogStalePipeline:
             assert fetched.step_started_at is None
 
     @pytest.mark.asyncio
+    async def test_video_waiting_on_an_undelivered_dispatch_is_not_failed(self, db_session, monkeypatch):
+        """A05/BE-01: a lost broker message is not a dead worker.
+
+        The callback committed ``ready_subtitles/translating`` and the tail
+        intent is still pending in the outbox. Failing the video here would
+        throw away a run the dispatcher is about to start, so the watchdog has
+        to leave such videos alone (the dispatch backlog alert owns the
+        "broker is down for good" case).
+        """
+        await _patch_async_session(monkeypatch)
+        from app.services.pipeline_dispatch import FINALIZE_VIDEO_TASK, enqueue
+        from app.tasks.video_processing import _run_watchdog_pipeline
+
+        v = Video(
+            title="waiting on dispatch",
+            source_url="x",
+            status=VideoStatus.ready_subtitles,
+            processing_step="translating",
+            step_started_at=datetime.now(UTC) - timedelta(hours=2),
+            processing_progress=70,
+        )
+        db_session.add(v)
+        await db_session.commit()
+        vid = v.id
+        await enqueue(db_session, video_id=vid, task_name=FINALIZE_VIDEO_TASK, args=[vid])
+        await db_session.commit()
+
+        await _run_watchdog_pipeline()
+
+        async with TestSessionLocal() as db:
+            fetched = (await db.execute(select(Video).where(Video.id == vid))).scalar_one()
+            assert fetched.status == VideoStatus.ready_subtitles
+            assert fetched.processing_step == "translating"
+
+    @pytest.mark.asyncio
     async def test_stuck_pipeline_alerts_admins_and_webhook(self, db_session, monkeypatch):
         """A watchdog kill must be observable: in-app admin + external alert."""
         await _patch_async_session(monkeypatch)

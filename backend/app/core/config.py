@@ -144,6 +144,14 @@ class Settings(BaseSettings):
     pipeline_step_timeout_transcoding: int = 1800  # 30 min (ffmpeg)
     pipeline_step_timeout_default: int = 3600  # fallback for unmapped steps
 
+    # A05/BE-01: durable pipeline dispatch (``pipeline_dispatches`` outbox).
+    # Settled rows (sent / abandoned) are pruned after this window; the beat
+    # dispatcher alerts when the undelivered backlog is bigger than the
+    # threshold or older than the age limit (throttled to one alert / 30 min).
+    pipeline_dispatch_retention_hours: int = 72
+    pipeline_dispatch_backlog_alert_threshold: int = 5
+    pipeline_dispatch_backlog_alert_age_seconds: int = 1800
+
     # Translation quality gate (阶段 2 of PIPELINE-QUALITY-IMPROVEMENTS-2026-07).
     # Coverage below ``translation_quality_block_coverage`` -> ``quality_blocked``
     # + ``status=error``, and the pipeline stops WITHOUT a Celery retry (same

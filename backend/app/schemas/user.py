@@ -24,7 +24,10 @@ class PhoneLoginRequest(BaseModel):
     """Phone + password login (the password set at /auth/sms/register)."""
 
     phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
-    password: str
+    # No strength check on login (the stored hash decides), but bounded so a
+    # huge body cannot reach bcrypt. 128 chars is the widest a legacy account
+    # could have set; new passwords are capped at 72 UTF-8 bytes.
+    password: str = Field(..., max_length=128)
 
 
 class SmsRegisterRequest(BaseModel):
@@ -37,7 +40,10 @@ class SmsRegisterRequest(BaseModel):
 
     phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
     code: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$")
-    password: str | None = Field(default=None, min_length=8, max_length=128)
+    # Length is enforced by ``validate_password_strength`` (8 chars minimum,
+    # 72 UTF-8 bytes maximum) so the 422 message is ours, not pydantic's
+    # generic character-count text — characters and bytes differ for CJK.
+    password: str | None = Field(default=None, min_length=8)
     name: str | None = Field(default=None, max_length=100)
 
     @field_validator("password")
@@ -53,7 +59,7 @@ class SmsResetPasswordRequest(BaseModel):
 
     phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
     code: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$")
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=8)
 
     @field_validator("new_password")
     @classmethod
@@ -67,7 +73,8 @@ class ChangePhoneRequest(BaseModel):
 
     new_phone: str = Field(..., pattern=r"^1[3-9]\d{9}$")
     code: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$")
-    password: str
+    # Current password, verified against the stored hash — not a strength check.
+    password: str = Field(..., max_length=128)
 
 
 class UserUpdate(BaseModel):
@@ -139,8 +146,8 @@ class RefreshResponse(BaseModel):
 class ChangePasswordRequest(BaseModel):
     # First-time password setup (phone-only account, hashed_password is NULL)
     # omits current_password; a real change requires it.
-    current_password: str | None = None
-    new_password: str = Field(min_length=8, max_length=128)
+    current_password: str | None = Field(default=None, max_length=128)
+    new_password: str = Field(min_length=8)
 
     @field_validator("new_password")
     @classmethod

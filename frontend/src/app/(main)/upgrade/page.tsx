@@ -228,6 +228,19 @@ export default function UpgradePage() {
       <div className="py-6 sm:py-12">
         <PageHeader crumb="会员" title="升级 SeeWord 会员" variant="eyebrow" />
 
+        {/* 文案必须与代码一致（A13 / FE-03）：内测期所有登录用户全站免费，
+            `unlock_service.get_video_access_info` 对任何登录用户都返回 unlocked。
+            因此这里把「现在免费」和「付款买了什么」分开讲清楚，而不是继续把
+            已经免费的能力列成会员专属。 */}
+        <Card variant="soft" padding={5} className="mb-6">
+          <p className="text-copy font-semibold text-ink">内测期：全站免费，购买是支持开发</p>
+          <p className="mt-1 text-meta leading-relaxed text-body">
+            现在所有登录用户都能直接使用点读、复习、真题与多端记录，不需要购买。
+            付款后会自动开通会员身份并计入到期日，是对本站开发的直接支持；内测结束、正式收费后，
+            会员权益按届时公示的说明执行。已保存的收藏、词库与学习记录始终保留。
+          </p>
+        </Card>
+
         {/* items-start：右侧收款卡比权益卡高一大截，默认 stretch 会把左侧卡片
             撑成同高，下半张全是空白。设计稿左侧是深色 member-card + 权益卡。 */}
         <div className="grid items-start gap-6 lg:grid-cols-2">
@@ -251,8 +264,8 @@ export default function UpgradePage() {
                   aria-hidden
                 />
                 {pro
-                  ? `体验中 · 有效期至 ${expiryText(me)}`
-                  : "未开通 · 支付确认后自动更新会员状态"}
+                  ? `会员 · 有效期至 ${expiryText(me)}`
+                  : "未开通 · 内测期免费使用全部已上线功能"}
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-2">
                 <LinkButton href="/vocabulary" variant="secondary" size="sm">
@@ -270,9 +283,9 @@ export default function UpgradePage() {
                   <Crown size={18} />
                 </span>
                 <div>
-                  <h2 className="text-copy font-semibold text-ink">会员能做什么</h2>
+                  <h2 className="text-copy font-semibold text-ink">现在所有人都能免费用</h2>
                   <p className="mt-0.5 text-meta text-muted">
-                    所有已接入视频与逐句字幕，配合词汇和真题练习。
+                    内测期间对登录用户全部开放，不需要购买。
                   </p>
                 </div>
               </div>
@@ -298,8 +311,10 @@ export default function UpgradePage() {
           </div>
 
           <Card padding={5}>
-            <p className="text-copy font-semibold text-ink">选择档位</p>
-            <p className="mt-1 text-meta text-muted">付款后自动开通至当前账号。</p>
+            <p className="text-copy font-semibold text-ink">支持开发</p>
+            <p className="mt-1 text-meta text-muted">
+              付款后自动开通到当前账号：本次金额与天数即时计入会员到期日。内测期的免费使用不受是否购买影响。
+            </p>
 
             {link ? (
               <div className="mt-4 space-y-2">
@@ -418,6 +433,11 @@ export default function UpgradePage() {
             <dl className="mt-4 space-y-3">
               {[
                 {
+                  term: "现在免费，为什么还能购买",
+                  detail:
+                    "内测期所有登录用户免费使用全部已上线功能。购买是支持开发：付款后自动开通会员身份并计入到期日，正式收费后按届时公示的会员权益执行。",
+                },
+                {
                   term: "怎么付款",
                   detail: "微信内扫码或打开支付链接完成付款；本站不收集银行卡信息。",
                 },
@@ -427,11 +447,12 @@ export default function UpgradePage() {
                 },
                 {
                   term: "会自动续费吗",
-                  detail: "不会。每次购买只延长所选天数，到期后自动回到免费版。",
+                  detail: "不会。每次购买只延长所选天数（从现在或本次已购到期日往后顺延）。",
                 },
                 {
                   term: "到期之后",
-                  detail: "已保存的收藏、词库与学习记录都会保留，只是不再解锁会员内容。",
+                  detail:
+                    "内测期内到期不影响继续免费使用；正式收费后按届时公示执行。已保存的收藏、词库与学习记录始终保留。",
                 },
               ].map((item) => (
                 <div key={item.term}>

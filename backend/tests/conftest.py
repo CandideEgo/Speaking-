@@ -277,6 +277,15 @@ def _mock_celery(monkeypatch):
         monkeypatch.setattr(task, "delay", delay_fn)
         monkeypatch.setattr(task, "apply_async", apply_fn)
 
+    # ``send_task`` is the name-based dispatch path (and the seam the pipeline
+    # outbox uses — the GPU task is not registered in this app, only known by
+    # name). Recording it here keeps every dispatch testable without a broker.
+    def _send_task(name, args=None, kwargs=None, **options):
+        calls.append((name, tuple(args or ()), options))
+        return _FakeAsyncResult()
+
+    monkeypatch.setattr(celery_app, "send_task", _send_task)
+
     # Expose recorded calls for tests that want to assert dispatch happened.
     monkeypatch._celery_calls = calls  # type: ignore[attr-defined]
     yield calls

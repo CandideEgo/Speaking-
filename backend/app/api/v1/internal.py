@@ -190,13 +190,22 @@ async def transcription_callback(
         video.status = VideoStatus.ready_subtitles
         video.processing_step = "translating"
         video.processing_progress = 70
+        # A05/BE-01: the intent to run the tail is committed **in this same
+        # transaction** as the status change. `delay()` after the commit lost
+        # the tail whenever the broker was down or the process died in the gap
+        # (and the callback's own retries were then acknowledged as duplicates).
+        # The outbox row survives that gap; the beat dispatcher re-sends it, and
+        # `dispatch_now` below is only the fast path.
+        from app.services.pipeline_dispatch import FINALIZE_VIDEO_TASK, dispatch_now, enqueue
+
+        dispatch_id = await enqueue(
+            db,
+            video_id=payload.video_id,
+            task_name=FINALIZE_VIDEO_TASK,
+            args=[payload.video_id],
+        )
         await db.commit()
-
-        # Enqueue the tail (translate → download → transcode). Imported here to
-        # avoid a circular import at module load.
-        from app.tasks.video_processing import finalize_video
-
-        finalize_video.delay(payload.video_id)
+        await dispatch_now(db, dispatch_id)
     finally:
         # Release lock so a future retry (if needed) can proceed.
         await _release_callback_lock(payload.video_id)

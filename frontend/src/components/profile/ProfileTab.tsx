@@ -232,7 +232,7 @@ export default function ProfileTab({ user, onUpdate }: ProfileTabProps) {
             <p className="mt-0.5 text-meta text-muted">
               {isProUser(user) && user.plan_expires_at
                 ? `有效期至 ${new Date(user.plan_expires_at).toLocaleDateString("zh-CN")}`
-                : "免费账号"}
+                : "内测期免费使用全部功能"}
             </p>
           </div>
           <Link

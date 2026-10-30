@@ -97,7 +97,9 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 
 ### 鉴权
 
-手机号 + 短信验证码，**没有邮箱**。`app/core/security.py` 用 PyJWT HS256 签 token（access 30 分钟、refresh 7 天，带 `jti`/`type`）。`app/api/dependencies.py` 的 `get_current_user` 会解 token、校验类型、查 token 黑名单、拒绝早于 `password_changed_at` 的 token、拒绝被封禁用户。另有 `get_optional_user` / `get_admin_user`；内测免费期没有 Pro 访问门（`unlock_service` 里额度逻辑保留 dormant），原 `require_pro_user` 已删除。
+另有一行密码契约：新密码 8 位起、**最多 72 个 UTF-8 字节**（bcrypt 只消费前 72 字节，bcrypt ≥ 5 对更长输入直接抛错）。`security.validate_password_strength` 统一校验、schema 转 422；`hash_password` 拒绝超长而**不截断**；`verify_password` 对历史 hash 按前 72 字节比对，让旧密码仍可登录。
+
+手机号 + 短信验证码，**没有邮箱**。`app/core/security.py` 用 PyJWT HS256 签 token（access 30 分钟、refresh 7 天，带 `jti`/`type`）。`app/api/dependencies.py` 的 `get_current_user` 会解 token、校验类型、查 token 黑名单、拒绝早于 `password_changed_at` 的 token、拒绝被封禁用户。另有 `get_optional_user` / `get_admin_user`；内测免费期没有 Pro 访问门（`unlock_service` 里额度逻辑保留 dormant），原 `require_pro_user` 已删除。「有效会员」只有一个口径：`plan == pro` 且 `plan_expires_at` 晚于当前时间；**到期时间为空是无效数据，不是永久会员**（前端 `isProUser`、`/payments/status`、`unlock_service.is_active_pro`、后台 KPI 四处一致，2026-10-29 定）。
 
 **不走 Bearer 的入口共用同一条校验链**：媒体 `?token=`、原卷 PDF、通知 WebSocket 握手都调 `dependencies.resolve_token_user()`，而不是各自解 token——黑名单、改密失效、封禁一条不落。新增这类入口（`<video>`/`<audio>`/WS/下载）必须走它。
 
@@ -109,14 +111,14 @@ head 与 tail 在 `backend/app/tasks/video_processing.py`，**中间的 GPU 段�
 
 1. **head** `process_video`：yt-dlp 取元信息，本地上传的素材先 stage 到 OSS，然后 `celery_app.send_task(GPU_TRANSCRIBE_TASK, args=[video_id, source, platform], queue=settings.transcription_gpu_queue_name)` 入队并释放锁——云端用任务名常量入队，不 import GPU 代码
 2. **GPU 段** `transcribe_video_gpu`：任务名**故意保留旧名** `app.tasks.video_processing.transcribe_video_gpu`（兼容队列里已入队的消息），实现在 `gpu-worker/gpu_worker/tasks.py`：GPU 机器上的 Celery 只消费 `transcription_gpu` 队列，跑 `TranscriptionService._sync_transcribe`（WhisperX = VAD → 批量 ASR → wav2vec2 强制对齐，失败回退 faster-whisper），完事后 POST 回云端
-3. **回调** `app/api/v1/internal.py::transcription_callback`：验共享密钥 + Redis 去重锁 → 质量门 → 写 `Subtitle` → 置 `ready_subtitles` → 入队 tail
+3. **回调** `app/api/v1/internal.py::transcription_callback`：验共享密钥 + Redis 去重锁 → 质量门 → 写 `Subtitle` → 置 `ready_subtitles`，并在**同一事务**写入待派发意图（`pipeline_dispatches` outbox），提交后立即入队 tail；派发失败不丢意图，由 beat `dispatch_pipeline_tasks` 补发（A05/BE-01）
 4. **tail** `finalize_video`：翻译（`TranslationService`）→ 质量门 → ECDICT 本地查词注释 → 预热词注 → 分类 → 下载 → 转码 → `ready`，随后注册标准、自动发布、评分、难度与语速指标
 
 `watchdog_stale_pipeline` 每 10 分钟把卡过各步骤超时的视频标失败，覆盖 `processing` 与 `ready_subtitles` 两个相位。
 
 ### Celery
 
-`backend/app/tasks/celery_app.py` 定义 `celery_app` 与常量 `GPU_TRANSCRIBE_TASK`（值是**保留的旧任务名** `app.tasks.video_processing.transcribe_video_gpu`，task_routes 用它），两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `GPU_TRANSCRIBE_TASK` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。GPU 侧的 Celery 应用与任务在 `gpu-worker/gpu_worker/celery_app.py` / `tasks.py`，只声明、只消费 `transcription_gpu`。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理。**Pro/兑换码 beat 与周报空任务壳已在 2026-10-26 清理中删除**（兑换码任务文件一并删除，已入队的旧消息会以 unregistered task 结束，影响面可忽略）；`reminder_tasks.send_pro_expiring_reminders` 的任务体保留但无调度，供未来恢复付费到期提醒时复用。
+`backend/app/tasks/celery_app.py` 定义 `celery_app` 与常量 `GPU_TRANSCRIBE_TASK`（值是**保留的旧任务名** `app.tasks.video_processing.transcribe_video_gpu`，task_routes 用它），两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `GPU_TRANSCRIBE_TASK` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。GPU 侧的 Celery 应用与任务在 `gpu-worker/gpu_worker/celery_app.py` / `tasks.py`，只声明、只消费 `transcription_gpu`。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、**管线派发补发（每 60 秒，`app.services.pipeline_dispatch` 的 outbox）**、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理。**Pro/兑换码 beat 与周报空任务壳已在 2026-10-26 清理中删除**（兑换码任务文件一并删除，已入队的旧消息会以 unregistered task 结束，影响面可忽略）；`reminder_tasks.send_pro_expiring_reminders` 的任务体保留但无调度，供未来恢复付费到期提醒时复用。
 
 Windows 上这些以 NSSM 服务托管：云端与 beat 用 `backend/scripts/run_celery_worker.ps1`；GPU worker 用 `gpu-worker/scripts/run_gpu_worker.ps1`，隧道用 `gpu-worker/scripts/gpu_worker_tunnel.ps1`（服务名见 [`gpu-worker/README.md`](gpu-worker/README.md)）。
 

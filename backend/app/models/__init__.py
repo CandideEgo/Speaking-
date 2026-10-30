@@ -17,6 +17,7 @@ from app.models.listening import ListeningSession
 from app.models.milestone import MasterySnapshot, UserMilestone
 from app.models.notification import Notification
 from app.models.order import Order
+from app.models.pipeline_dispatch import PipelineDispatch
 from app.models.preferences import UserPreferences
 from app.models.study_session import StudySession, StudySessionItem
 from app.models.subtitle import Subtitle

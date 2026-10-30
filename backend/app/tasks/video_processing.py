@@ -261,9 +261,19 @@ def process_video(self, video_id: str):
                     video.processing_step = "translating"
                     touch_step_started_at(video)
                     video.processing_progress = 70
+                    # Same durable hand-off as the callback: the row is written in
+                    # this transaction, then sent (A05/BE-01).
+                    from app.services.pipeline_dispatch import FINALIZE_VIDEO_TASK, dispatch_now, enqueue
+
+                    dispatch_id = await enqueue(
+                        db,
+                        video_id=video.id,
+                        task_name=FINALIZE_VIDEO_TASK,
+                        args=[video_id],
+                    )
                     await db.commit()
                     release_lock(video_id)
-                    finalize_video.delay(video_id)
+                    await dispatch_now(db, dispatch_id)
                     return
 
                 # --- Pre-check: refresh YouTube cookies if needed ---
@@ -341,18 +351,29 @@ def process_video(self, video_id: str):
                 video.processing_step = "transcribing"
                 touch_step_started_at(video)
                 video.processing_progress = 30
-                await db.commit()
-                await update_progress(video_id, "transcribing")
 
                 # The transcription implementation lives in the standalone
                 # ``gpu-worker/`` component (GPU machine). The cloud only knows
                 # the Celery task name — it has no import path to the worker.
-                celery_app.send_task(
-                    GPU_TRANSCRIBE_TASK,
+                #
+                # A05/BE-01: record the hand-off in the same transaction as the
+                # status change, then send. A broker outage no longer fails the
+                # head (which used to mark the video error and retry the whole
+                # extraction): the intent stays pending and the beat dispatcher
+                # re-sends it.
+                from app.services.pipeline_dispatch import dispatch_now, enqueue
+
+                dispatch_id = await enqueue(
+                    db,
+                    video_id=video.id,
+                    task_name=GPU_TRANSCRIBE_TASK,
                     args=[video.id, gpu_source, gpu_platform],
                     queue=settings.transcription_gpu_queue_name,
                 )
-                logger.info("Video %s: enqueued GPU transcription", video_id)
+                await db.commit()
+                await update_progress(video_id, "transcribing")
+                await dispatch_now(db, dispatch_id)
+                logger.info("Video %s: GPU transcription handed off", video_id)
 
                 # Release the lock but keep the step-set; the gap to the tail is
                 # bridged by DB status, not a held lock.
@@ -973,6 +994,21 @@ async def _run_watchdog_pipeline() -> None:
             if v.id not in stuck_ids and not is_lock_held(v.id):
                 stuck.append(v)
                 stuck_ids.add(v.id)
+
+        # A05/BE-01: a video whose pipeline hand-off never reached the broker is
+        # waiting on the dispatcher, not stuck on a dead worker. Failing it here
+        # would throw away a run that is about to start; the dispatch backlog
+        # alert owns the "broker is down for good" case.
+        if stuck:
+            from app.services.pipeline_dispatch import pending_video_ids
+
+            undelivered = await pending_video_ids(db, [v.id for v in stuck])
+            if undelivered:
+                logger.info(
+                    "Watchdog: leaving videos with undelivered pipeline dispatches alone",
+                    video_ids=sorted(undelivered),
+                )
+                stuck = [v for v in stuck if v.id not in undelivered]
 
         for v in stuck:
             step = v.processing_step
