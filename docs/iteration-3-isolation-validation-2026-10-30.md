@@ -28,7 +28,7 @@ A09（站外告警与备份恢复）先于 A07/A10 实施，仍是迭代 3 的�
 | 可选 PG | `127.0.0.1:15432`，库 `seeword_isolation` | 只给 A07 的「按 DB 状态补偿」用例；用完删除 |
 | 可选 sshd | 容器 `seeword-isolation-sshd`，端口 `127.0.0.1:12222` | 只给 A10 的隧道限制用例 |
 | 镜像 | `redis:7-alpine`、`postgres:16-alpine`（与生产同 tag） | 不引入新镜像 |
-| 清理 | `docker compose -p seeword-isolation down -v` | 一条命令回收全部；禁止 `docker system prune` |
+| 清理 | `docker compose -p seeword-isolation --profile pg down -v` | 一条命令回收全部（`pg` 在 profile 里，普通 `down` 不会带走它）；禁止 `docker system prune` |
 
 安全约束：不在隔离环境里使用生产凭据；不填真实 `TRANSCRIPTION_CALLBACK_SECRET`（用一次性值）；
 GPU 侧用 `gpu-worker` 的**桩任务**（`gpu_stub_worker.py`，只 sleep 后调回调），不加载 torch/whisperx 与模型。
@@ -77,6 +77,15 @@ GPU 侧用 `gpu-worker` 的**桩任务**（`gpu_stub_worker.py`，只 sleep 后�
 | `token_blacklist:*` | 已登出/撤销但未过期的 token 在窗口内重新可用 | 既有 fail-open 契约；封禁与改密仍由 DB 判定；**不新增**兜底表 |
 | 回调去重锁、派发告警节流 | 可能重复处理/重复告警 | 处理端幂等（状态守卫、A05 去重） |
 | 限流与会话计数 | 短时间内限流变宽 | 可接受，记录 |
+
+### 3.4 实施结果（2026-10-30）
+
+A07 的隔离验收已按本矩阵执行，**8/8 通过**：`deploy/redis/redis.conf` 与
+`docker-compose.isolation.yml` 落地，逐条命令、原始输出与丢失后果表见
+[`docs/evidence/iteration-3/README.md`](evidence/iteration-3/README.md) 与
+[`a07-2026-10-30.json`](evidence/iteration-3/a07-2026-10-30.json)。两条口径修正：
+SIGKILL 测的是进程级持久化（实测 0 丢失），everysec 的宿主掉电窗口未实测；卷迁移不能
+直接拷 RDB 后开 AOF 启动（§5.1 已改）。生产放量仍未执行。
 
 ## 4 A10：GPU 服务端权限边界
 
@@ -129,7 +138,10 @@ user gpu    on >{REDIS_GPU_PASSWORD} resetchannels &"" \
 ### 5.1 A07（Redis 持久化）
 
 1. 生产先取备份：`ACL SAVE`（若已启用）、卷/`docker cp` 快照、compose 与 `.env` 备份（沿用 `/deploy` 的备份步骤）。
-2. 迁移旧数据：停 Redis → 把现有（匿名）卷内容复制进新命名卷 → 用新配置启动。A07-T8 已演练这条路径；若现场不可拷贝，则按「空卷冷启动」处理，
+2. 迁移旧数据：停 Redis → 把现有（匿名）卷内容复制进新命名卷 → **先用 `appendonly no` 启动加载
+   RDB，`CONFIG SET appendonly yes` 触发重写生成 AOF，再切到 `deploy/redis/redis.conf` 启动**。
+   A07-T8 实测：AOF 开启且没有 manifest 时 Redis 7 **不会回退加载 RDB**，直接切配置会得到空库
+   （日志 `Creating AOF base file ... on server start`）。若现场不可拷贝，则按「空卷冷启动」处理，
    提前通知并接受 3.3 表中的丢失面。
 3. 核验：`INFO persistence`、AOF 文件存在、`redis-check-aof` 通过、键数与抽样一致、`/health` 正常。
 4. 回滚：恢复旧 compose 与旧匿名卷（保留到观察期结束）。数据不变，无需迁移回滚。

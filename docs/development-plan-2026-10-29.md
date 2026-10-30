@@ -52,7 +52,7 @@ flowchart TB
 | 0 恢复交付 | 第 1 周 | A01、A04 | 2.5–5 | 门禁在 CI 原样环境真实执行；迁移失败非零；`npm audit --omit=dev` 无未处理公告；默认 build 有确定结论；列表失败后重试同一页 | 已完成（2026-10-29，`6f3da310`/`186d9738`/`08ddc186`） |
 | 1 计时与会话 | 第 2–3 周 | A02、A03 | 5–9 | 拖动不加时、短会话保留尾段、循环/倍速按定义计时；同一旧 refresh 最多铸一条后继 | 已完成（2026-10-29，`76e5a7dd`） |
 | 2 完整性 | 第 4–5 周 | A05、A06、A13 | 3.5–8 | 管线派发最终收敛且不重复；两次并发提交只产生一套答案一次事件；72/73 字节密码行为一致 | A06 已完成（`47dd51d6`）；A05、A13 已完成（2026-10-29）；三项出口条件 2026-10-30 复核通过，证据见 [`docs/evidence/iteration-2/verification-2026-10-30.md`](../evidence/iteration-2/verification-2026-10-30.md) |
-| 3 可恢复 | 第 6–8 周 | A09 → A07 → A10 → A08 | 8–14 | 站外告警可达；Redis 有命名卷与允许损失窗口；GPU 身份越权操作被服务端拒绝；导出含全部活跃数据、注销清理旧媒体 | 进行中：A09 已完成（2026-10-30，见 [`docs/evidence/iteration-3/`](../evidence/iteration-3/README.md)）；A07/A10 的隔离验证方案已定（D6，见 [`docs/iteration-3-isolation-validation-2026-10-30.md`](iteration-3-isolation-validation-2026-10-30.md)），A07 未开始 |
+| 3 可恢复 | 第 6–8 周 | A09 → A07 → A10 → A08 | 8–14 | 站外告警可达；Redis 有命名卷与允许损失窗口；GPU 身份越权操作被服务端拒绝；导出含全部活跃数据、注销清理旧媒体 | 进行中：A09 已完成（2026-10-30，见 [`docs/evidence/iteration-3/`](../evidence/iteration-3/README.md)）；A07 隔离验收已完成（8/8，2026-10-30），生产放量待窗口；A10 未开始 |
 | 4 测量 | 第 9–11 周 | A12、A11 | 5–8 | 事件带版本且有去重与缺失率；激活/D1/D7 分母固定；生产构建与移动闭环进 CI；GPU 有独立依赖审计 | 未开始 |
 | 5 按证据优化 | 第 12 周起 | A14、A15、轨道 B 放量 | 每轮 2–4 | 每轮只验证一项假设，预先写主指标/护栏/撤回条件 | 未开始 |
 
@@ -69,6 +69,7 @@ flowchart TB
 ### 迭代 3 的实施记录（2026-10-30 起）
 
 - **A09**：站外告警与备份恢复。生产 compose 的白名单补上 `SENTRY_DSN` / `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_SECRET`（此前宿主 `.env` 写了也进不了容器）；worker/beat 由 daemon 线程写心跳（任务写心跳会被长任务拖成假死），web 进程内新增健康监控（worker/beat 心跳、云端队列、GPU 离线积压、磁盘、DB 可达性、管线失败率），每类问题 Redis 节流；`GET /health/heartbeats` 给站外 uptime，worker/beat 过期即 503。Sentry 覆盖 web/worker/beat 三进程并在 `before_send` 去除凭据头；新增统一脱敏（`?token=`、`Bearer`、`user:pass@`）供告警与 Sentry 共用。管线失败记录走 Redis 列表（`videos` 无失败时间列，不为此加迁移），告警带 `video_id`。备份侧新增 `scripts/backup/backup.sh` / `restore.sh`（`pg_dump -Fc` + TOC/SHA256 校验、revision 与行数比对、媒体归档、`SUCCESS`/`FAILED` 标记、站外与 GPG 旋钮），部署技能里的 `pg_dump | gzip` 换成带校验的 `-Fc`。演练：真实 worker/beat/uvicorn + 一次性 Redis/PG + 本机 webhook，验证健康静默、停 worker、停 beat、队列积压、DB 停机五类告警与脱敏；备份恢复在独立容器完成恢复且行数/revision 一致（小数据集 RTO 5s），故障注入不写 `SUCCESS`。**未执行**：生产真实 webhook/Sentry 投递、站外定时备份的 cron 安装与异地恢复演练（需生产凭据与窗口）。证据见 [`docs/evidence/iteration-3/`](../evidence/iteration-3/README.md)。
+- **A07**：Redis 恢复契约。按 D6 在隔离环境完成验收（compose 项目 `seeword-isolation`、Redis `127.0.0.1:16379`、命名卷、一次性 PG），**8/8 用例通过**。新增 `deploy/redis/redis.conf`（AOF `appendfsync everysec`、关闭 RDB、`noeviction`、`aof-load-truncated`）与 `docker-compose.isolation.yml`（Redis + `pg` profile，只差项目名/端口/密码），演练脚本 `scripts/isolation/test_a07_redis_recovery.py` 逐条记录命令与原始输出。实测：容器重启与替换（同卷）后键与 TTL 全在、启动日志显示从 AOF 加载；3 轮 SIGKILL 进程级丢失 0.000s 且 `redis-check-aof` 全绿；空卷后 dbsize 842→0 并逐类核对丢失面；broker 全丢后 DB outbox 恰好补发 1 条到 `transcription_gpu`、重复扫描不重复；撤销状态丢失后 token 重新可用（既有 fail-open）、封禁与改密仍拒绝。两条口径修正：SIGKILL 测的是进程级持久化，everysec 的宿主掉电窗口未实测（按配置语义 ≤1s + 抖动，契约取 2s）；**AOF 开启且无 manifest 时 Redis 7 不回退加载 RDB**，直接拷旧卷再切 AOF 配置会得到空库，迁移须先 `appendonly no` 加载 RDB、`CONFIG SET appendonly yes` 生成 AOF 再切配置（D6 §5.1 已按此修正，T8 验证通过）。**未执行**：生产 Redis 配置与命名卷的放量（需负责人确认窗口，走备份/回滚），以及宿主掉电窗口实测。证据见 [`docs/evidence/iteration-3/`](../evidence/iteration-3/README.md)。
 
 ## 4 轨道 B：学习闭环产品增量（TypeWords 参考）
 

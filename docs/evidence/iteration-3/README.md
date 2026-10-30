@@ -1,12 +1,19 @@
-# 迭代 3 · A09 实施与演练记录（站外告警 + 备份恢复）
+# 迭代 3 · 实施与演练记录（A09、A07）
 
-日期：2026-10-30。任务定义见 [`docs/comprehensive-audit-2026-10-29/execution-plan.md`](../../comprehensive-audit-2026-10-29/execution-plan.md) 的 **A09（OPS-05/OPS-06）**。
+日期：2026-10-30。任务定义见 [`docs/comprehensive-audit-2026-10-29/execution-plan.md`](../../comprehensive-audit-2026-10-29/execution-plan.md)：
+A09 的 **OPS-05/OPS-06** 与 A07 的 **OPS-03**。
 
-环境：Windows 11；`backend/.venv`（Python 3.12.10）；Docker 29.9.2（WSL2 Ubuntu-24.04）；演练用一次性 Redis（宿主 6391）、一次性 Postgres（宿主 15433）、本机 webhook 接收器（18080）。未接触开发栈（6379/5432）、未接触生产。
+环境：Windows 11；`backend/.venv`（Python 3.12.10）；Docker 29.9.2（WSL2 Ubuntu-24.04）。未接触开发栈（6379/5432）、未接触生产。
 
-## 1 本任务的实现
+## A09：站外告警与备份恢复（OPS-05/06）
 
-### 站外告警（OPS-05）
+### 0 环境
+
+演练用一次性 Redis（宿主 6391）、一次性 Postgres（宿主 15433）、本机 webhook 接收器（18080）。
+
+### 1 本任务的实现
+
+#### 站外告警（OPS-05）
 
 | 改动 | 说明 |
 | --- | --- |
@@ -19,7 +26,7 @@
 | 外部探针 | `GET /health/heartbeats`：worker/beat 心跳缺失或过期返回 503，供站外 uptime 使用；GPU 离线只报告不判死（可能是有意离线） |
 | 管线失败信号 | `app/services/pipeline_alerting.py`：在失败写入点（`commit_error_state`、看门狗、转录回调 error、转录质量门、翻译质量门）向 Redis 追加带时间的失败记录（上限 200 条、3h TTL），监控据此做窗口计数并带 `video_id` 告警。`videos` 表没有失败时间列，这是不新增迁移的代价与选择 |
 
-### 备份与恢复（OPS-06）
+#### 备份与恢复（OPS-06）
 
 | 文件 | 说明 |
 | --- | --- |
@@ -28,7 +35,7 @@
 | `scripts/backup/README.md` | cron 示例、站外/加密旋钮、恢复步骤、RPO ≤24h / RTO ≤2h 目标与演练口径 |
 | `.claude/skills/deploy/SKILL.md` | 第 5 步改为 `pg_dump -Fc` + `pg_restore --list` 校验（旧命令 `pg_dump \| gzip` 没有 pipefail，失败也可能留下合法空 gzip），回滚说明同步改成 `pg_restore --clean` |
 
-## 2 告警演练（真实进程，非单元测试替身）
+### 2 告警演练（真实进程，非单元测试替身）
 
 组件：真实 Celery worker + 真实 beat + 真实 uvicorn（内嵌监控）+ 一次性 Redis/Postgres + 本机 webhook 接收器。
 监控参数为缩短窗口：巡检 5s、worker 过期 45s、beat 过期 80s、队列积压阈值 10、节流 600s。
@@ -47,7 +54,7 @@
 原始告警载荷：[a09-webhook-received.jsonl](a09-webhook-received.jsonl)（5 条，节流生效后同类问题不重复发）。
 接收器：[webhook_receiver.py](webhook_receiver.py)。
 
-## 3 备份 / 恢复演练
+### 3 备份 / 恢复演练
 
 种子数据：2 用户、2 视频、6 字幕、2 词汇、2 学习记录、1 套试卷 2 题（[seed_a09.py](seed_a09.py)），媒体目录 3 个文件。
 演练脚本：[a09_backup_restore_drill.sh](a09_backup_restore_drill.sh)，输出在 [backup-restore/](backup-restore/)。
@@ -65,7 +72,7 @@
 演练中修掉两个脚本缺陷：`BACKUP_CONFIG_FILES=""` 被 `:-` 回退成默认值（改为 `${VAR-}` 语义），
 `restore.sh` 的 EXIT trap 里 `[ -n "" ] && rm` 返回 1，把成功的恢复“判成”失败（trap 末条命令改为恒返回 0）。
 
-## 4 门禁
+### 4 门禁
 
 | 检查 | 结果 |
 | --- | --- |
@@ -76,10 +83,69 @@
 | 全量 `pytest tests/ -q`（`PG_TEST_URL` 指向一次性库） | **1488 passed / 0 skipped**（1283.55s，PG 集成真实执行） |
 | `docker compose -f docker-compose.prod.yml config -q` | 通过（补齐的环境白名单不破坏 compose 解析） |
 
-## 5 未执行 / 边界
+### 5 未执行 / 边界
 
 - **生产站外投递未验证**：本机没有真实钉钉/Slack webhook 与 Sentry DSN，演练用的是本机接收器；生产配置透传后需在 `/deploy` 后用一次真实告警确认。
 - **站外定时备份未安装**：cron 需要生产主机上的 rclone/对象存储凭据与密钥，本任务只交付脚本与口径；RPO ≤24h 依赖该 cron 落地。
 - **异地恢复未演练**：只在同一台机器的独立容器上恢复；全新主机（含镜像、nginx、媒体卷）的恢复属于生产演练窗口。
 - **Sentry 实际收取未验证**：没有 DSN；代码路径由单元/演练覆盖到“初始化 + 脱敏函数”。
 - **磁盘近满**：阈值逻辑有单测，没有真的写满磁盘（会破坏开发机）。
+
+## A07：Redis 恢复契约（OPS-03）
+
+隔离环境按 [D6 方案](../../iteration-3-isolation-validation-2026-10-30.md) 第 2 节搭建：compose 项目
+`seeword-isolation`、Redis `127.0.0.1:16379`、命名卷 `seeword-isolation_redisdata`、一次性 PG
+`127.0.0.1:15432/seeword_isolation`。未接触开发栈（6379/5432）与生产。
+
+### 1 交付物
+
+| 文件 | 作用 | 生产是否复用 |
+| --- | --- | --- |
+| [`deploy/redis/redis.conf`](../../../deploy/redis/redis.conf) | AOF（`appendfsync everysec`）、关闭 RDB、`noeviction`、`aof-load-truncated` | **是**，放量时原样进生产 |
+| [`docker-compose.isolation.yml`](../../../docker-compose.isolation.yml) | 隔离栈：Redis + `pg` profile；只差项目名、端口与一次性密码 | 否 |
+| [`scripts/isolation/test_a07_redis_recovery.py`](../../../scripts/isolation/test_a07_redis_recovery.py) | T1–T8 用例矩阵，逐条记录命令与原始输出；`--cases` 可单跑，`--keep` 留现场 | 否 |
+| [a07-2026-10-30.json](a07-2026-10-30.json) | 本次运行结果（8/8 PASS）与每条用例的命令、原始输出 | — |
+| [`scripts/isolation/README.md`](../../../scripts/isolation/README.md) | 运行与清理方式 | — |
+
+### 2 用例结果
+
+| # | 用例 | 实测 |
+| --- | --- | --- |
+| A07-T1 | 容器重启 | 100 个带 TTL 的键全在，TTL 未重置（重启后继续倒数） |
+| A07-T2 | 容器替换（`down` 不删卷） | 100 键全在；启动日志 `DB loaded from append only file` |
+| A07-T3 | SIGKILL 异常停机 | 3 轮、每轮约 245 键，**进程级丢失 0.000s**；`redis-check-aof` 全绿 |
+| A07-T4 | AOF 配置生效 | `appendonly=yes`、`appendfsync=everysec`、`save=''`、`maxmemory-policy=noeviction`、`aof_last_write_status=ok` |
+| A07-T5 | 卷丢失（最坏情况） | 空卷重启前 dbsize=842 → 重启后 0；13 类状态逐项确认全部丢失，后果表见 JSON `loss_table` |
+| A07-T6 | 按 DB 状态补偿 | broker 全丢后 beat 扫描：第一次 `sent=1`，`transcription_gpu` llen=1；第二次 `sent=0`、llen 仍 1（不重复） |
+| A07-T7 | 撤销状态丢失 | 清空前黑名单命中（请求被拒）；清空后同一 token 重新可用（既有 fail-open）；封禁与改密仍拒绝 |
+| A07-T8 | 旧卷迁移 | 旧 RDB 卷 → 新命名卷 → AOF：键、TTL（599s→590s）、list 全部保留，启动日志从 AOF 加载 |
+
+### 3 两条必须写进口径的结论
+
+**（1）`docker kill` 测的是进程级持久化，不是 everysec 窗口。**
+Redis 在每轮事件循环里已经把 AOF buffer `write(2)` 进文件，`appendfsync everysec` 只决定
+`fsync` 的时机；SIGKILL 杀进程不会清空内核页缓存，所以实测丢失为 0。宿主内核崩溃/掉电才会
+暴露 everysec 的未 fsync 窗口——本演练不重启宿主（会同时打断开发栈与 Docker），因此该窗口
+**未实测**，按配置语义给出 ≤1s 上界加调度抖动，契约取 2s。不要把这个 0 当成掉电也零丢失。
+
+**（2）AOF 开启时 Redis 7 不会回退加载 RDB。**
+第一轮演练把旧 RDB 卷直接拷进新卷、用 AOF 配置启动，得到的是空库，日志只有
+`Creating AOF base file ... on server start`。正确的迁移路径（T8 已按此验证）：
+`appendonly no` 启动加载 RDB → `CONFIG SET appendonly yes` 触发重写生成 AOF → 再切到
+`deploy/redis/redis.conf` 启动。生产放量清单（D6 §5.1）已按此修正。
+
+### 4 门禁
+
+| 检查 | 结果 |
+| --- | --- |
+| 演练脚本 `ruff check` / `ruff format --check`（与 backend 同口径） | 通过 |
+| `docker compose -p seeword-isolation -f docker-compose.isolation.yml config -q` | 通过 |
+| 演练本身 | **8/8 PASS**，`docs/evidence/iteration-3/a07-2026-10-30.json` |
+| 后端应用代码 | 本任务未改动；未重跑全量 pytest（上一轮 A09 结束时 1488 passed / 0 skipped） |
+
+### 5 未执行 / 边界
+
+- **生产 Redis 配置与命名卷未改**：按 D6，A07 放量是独立发布，需要负责人确认窗口，并按
+  D6 §5.1 做「备份 → 卷迁移 → 核验 → 回滚点保留」。
+- 宿主崩溃/掉电的 everysec 窗口未实测（见上）；生产数据量下的 AOF 重写耗时未测。
+- 空卷冷启动（现场不可拷贝旧卷）的提前通知与接受面未在生产演练。
