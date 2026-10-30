@@ -36,6 +36,15 @@ describe("nextPageToLoad", () => {
     ).toBeNull();
   });
 
+  it("双击「重试」不会重复发同一页的请求", () => {
+    // The retry button is now a plain user-clickable control, so two clicks in
+    // the same tick are a real hazard: the second must see the first's in-flight
+    // request and bail out instead of queueing a duplicate fetch.
+    expect(
+      nextPageToLoad({ requestedPage: 2, hasMore: true, failed: true, inflight: true })
+    ).toBeNull();
+  });
+
   it("does nothing once the last page is loaded", () => {
     expect(
       nextPageToLoad({ requestedPage: 5, hasMore: false, failed: false, inflight: false })

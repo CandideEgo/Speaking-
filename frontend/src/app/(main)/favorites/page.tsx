@@ -16,6 +16,7 @@ import { VideoCard, VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { ErrorState } from "@/components/common/ErrorState";
+import { LoadMoreError } from "@/components/common/LoadMoreError";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
@@ -94,7 +95,7 @@ export default function FavoritesPage() {
     []
   );
 
-  const { items, setItems, loading, error, hasMore, loaderRef, total, reload } =
+  const { items, setItems, loading, error, hasMore, loaderRef, total, loadMore, reload } =
     usePaginatedList<VideoCardDTO>({
       fetcher,
       mode: "append",
@@ -330,7 +331,14 @@ export default function FavoritesPage() {
                       </div>
                       {hasMore && (
                         <div ref={loaderRef} className="flex justify-center py-6">
-                          <span className="text-meta text-muted">加载更多…</span>
+                          {error ? (
+                            // 空列表的失败由上面的 ErrorState 负责，这里只管「后面还有内容」。
+                            items.length > 0 ? (
+                              <LoadMoreError message={error} onRetry={loadMore} />
+                            ) : null
+                          ) : (
+                            <span className="text-meta text-muted">加载更多…</span>
+                          )}
                         </div>
                       )}
                     </>

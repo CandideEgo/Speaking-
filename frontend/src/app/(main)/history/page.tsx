@@ -16,6 +16,7 @@ import { scrollKey } from "@/lib/scrollMemory";
 import { watchHref } from "@/lib/watchEntry";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
+import { LoadMoreError } from "@/components/common/LoadMoreError";
 import { InlineSpinner } from "@/components/common/Spinner";
 import { PageTransition } from "@/components/common/PageTransition";
 import { LinkButton } from "@/components/ui/LinkButton";
@@ -122,6 +123,7 @@ export default function HistoryPage() {
     loading,
     error,
     loaderRef,
+    loadMore,
     reload,
   } = usePaginatedList<LearningRecord>({
     fetcher: (pg) => {
@@ -440,6 +442,9 @@ export default function HistoryPage() {
             <div ref={loaderRef} className="mt-8 flex justify-center">
               {loading && records.length > 0 && (
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-soft border-t-ink" />
+              )}
+              {!loading && error && records.length > 0 && (
+                <LoadMoreError message={error} onRetry={loadMore} />
               )}
               {!hasMore && records.length > 0 && !loading && (
                 <p className="text-meta text-muted">已加载全部内容</p>

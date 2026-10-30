@@ -10,6 +10,7 @@ import { TabPills } from "@/components/ui/TabPills";
 import { VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { HomeFeedCard } from "@/components/home/HomeFeedCard";
 import { ErrorState } from "@/components/common/ErrorState";
+import { LoadMoreError } from "@/components/common/LoadMoreError";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FEED_SORT_OPTIONS, usePlatformFeed, type FeedSort } from "@/hooks/usePlatformFeed";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
@@ -222,11 +223,7 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
         {!loading && !error && uniqueVideos.length > 0 && hasMore && remaining > 0 && (
           <p className="text-meta text-muted">还有 {remaining} 段 · 继续向下滚动加载</p>
         )}
-        {error && uniqueVideos.length > 0 && (
-          <Button variant="outline" size="sm" onClick={loadMore}>
-            加载更多失败，重试
-          </Button>
-        )}
+        {error && uniqueVideos.length > 0 && <LoadMoreError message={error} onRetry={loadMore} />}
       </div>
     </>
   );
