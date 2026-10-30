@@ -14,8 +14,12 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
@@ -288,3 +292,26 @@ class TestPendingVideoIds:
         assert await pending_video_ids(db_session, [str(uuid.uuid4())]) == set()
         async with TestSessionLocal() as db:
             assert await db.scalar(select(func.count()).select_from(PipelineDispatch)) == 0
+
+
+class TestImportOrder:
+    def test_service_imports_before_the_celery_app(self):
+        """The service must not depend on celery_app being imported first.
+
+        ``app.services.pipeline_dispatch`` imports the Celery instance for the
+        GPU task name, so ``dispatch_pipeline_tasks`` has to import the service
+        lazily — otherwise ``celery_app``'s bottom-of-file import closes a cycle
+        that only bites entry points importing the service directly (scripts,
+        one-off drills). The in-process suite can't catch this: conftest loads
+        the app (and therefore celery_app) before any test module.
+        """
+        backend_dir = Path(__file__).resolve().parents[1]
+        result = subprocess.run(
+            [sys.executable, "-c", "import app.services.pipeline_dispatch"],
+            cwd=backend_dir,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "PYTHONUTF8": "1"},
+        )
+        assert result.returncode == 0, result.stderr

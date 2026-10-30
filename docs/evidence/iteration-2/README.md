@@ -3,6 +3,9 @@
 日期：2026-10-30。环境：本机 dev 栈（backend :8000、Celery worker、Next dev :3000、Docker Postgres/Redis 已在运行），
 `ego-browser` ego lite 2.1.0。用途：A13（FE-03 / FE-04）的「免费、付费、过期三类账号页面承诺可逐条对照」验收。
 
+迭代 2 三项出口条件的收尾复核（真实 broker 停机演练、真实 PG 并发提交、门禁重跑）见
+[verification-2026-10-30.md](verification-2026-10-30.md)。
+
 ## 账号与结果
 
 四个账号写在本地库（手机号前缀 137000000xx，密码 `Testpass123!`，仅本机 dev）：

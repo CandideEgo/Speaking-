@@ -51,7 +51,7 @@ flowchart TB
 | --- | --- | --- | --- | --- | --- |
 | 0 恢复交付 | 第 1 周 | A01、A04 | 2.5–5 | 门禁在 CI 原样环境真实执行；迁移失败非零；`npm audit --omit=dev` 无未处理公告；默认 build 有确定结论；列表失败后重试同一页 | 已完成（2026-10-29，`6f3da310`/`186d9738`/`08ddc186`） |
 | 1 计时与会话 | 第 2–3 周 | A02、A03 | 5–9 | 拖动不加时、短会话保留尾段、循环/倍速按定义计时；同一旧 refresh 最多铸一条后继 | 已完成（2026-10-29，`76e5a7dd`） |
-| 2 完整性 | 第 4–5 周 | A05、A06、A13 | 3.5–8 | 管线派发最终收敛且不重复；两次并发提交只产生一套答案一次事件；72/73 字节密码行为一致 | A06 已完成（`47dd51d6`）；A05、A13 已完成（2026-10-29） |
+| 2 完整性 | 第 4–5 周 | A05、A06、A13 | 3.5–8 | 管线派发最终收敛且不重复；两次并发提交只产生一套答案一次事件；72/73 字节密码行为一致 | A06 已完成（`47dd51d6`）；A05、A13 已完成（2026-10-29）；三项出口条件 2026-10-30 复核通过，证据见 [`docs/evidence/iteration-2/verification-2026-10-30.md`](../evidence/iteration-2/verification-2026-10-30.md) |
 | 3 可恢复 | 第 6–8 周 | A09 → A07 → A10 → A08 | 8–14 | 站外告警可达；Redis 有命名卷与允许损失窗口；GPU 身份越权操作被服务端拒绝；导出含全部活跃数据、注销清理旧媒体 | 未开始 |
 | 4 测量 | 第 9–11 周 | A12、A11 | 5–8 | 事件带版本且有去重与缺失率；激活/D1/D7 分母固定；生产构建与移动闭环进 CI；GPU 有独立依赖审计 | 未开始 |
 | 5 按证据优化 | 第 12 周起 | A14、A15、轨道 B 放量 | 每轮 2–4 | 每轮只验证一项假设，预先写主指标/护栏/撤回条件 | 未开始 |
@@ -62,8 +62,9 @@ flowchart TB
 
 ### 迭代 2 的实施记录（2026-10-29）
 
-- **A05**：新增 `pipeline_dispatches` outbox（迁移 `d5e6f7a8b9c0`）与 beat `dispatch_pipeline_tasks`（60 秒）。回调、head 续跑、GPU 转写三处派发改为「意图与状态同事务落库 → 提交 → 立即派发」，失败留在 pending 由扫描补发；看门狗不再把「有意待在派发中的视频」判死，积压超阈值/超时长时告警。确定性故障注入已覆盖：broker 抛错、提交后未派发、重复回调、重复扫描、视频状态已推进、看门狗豁免；本地 PostgreSQL 上迁移 `upgrade`/`downgrade` 往返通过。**未执行**：真实 Redis/broker 停机演练、积压告警的站外投递（依赖 A09 的告警链路）。
+- **A05**：新增 `pipeline_dispatches` outbox（迁移 `d5e6f7a8b9c0`）与 beat `dispatch_pipeline_tasks`（60 秒）。回调、head 续跑、GPU 转写三处派发改为「意图与状态同事务落库 → 提交 → 立即派发」，失败留在 pending 由扫描补发；看门狗不再把「有意待在派发中的视频」判死，积压超阈值/超时长时告警。确定性故障注入已覆盖：broker 抛错、提交后未派发、重复回调、重复扫描、视频状态已推进、看门狗豁免；本地 PostgreSQL 上迁移 `upgrade`/`downgrade` 往返通过。2026-10-30 用一次性 Redis + 一次性 PG 跑通真实 broker 停机演练：broker 不可达时意图留 pending（attempts=1、10s 退避、记录错误），broker 恢复后 beat 扫描恰好派发一次，消息落在 `transcription_gpu` 队列（`llen=1`），证据见 [`docs/evidence/iteration-2/`](../evidence/iteration-2/README.md)。**未执行**：积压告警的站外投递（依赖 A09 的告警链路）。
 - **A13**：密码契约统一为「最多 72 个 UTF-8 字节」（schema 422、`hash_password` 不截断、历史 hash 按前 72 字节仍可验证）；`plan_expires_at` 为空的语义定为无效并统一前后端与后台 KPI；购买页按 D1/D7 改写为「内测期全站免费 + 购买是支持开发」。2026-10-30 已用 `ego-browser` 起本机 dev 栈走查四类账号（免费／付费／已过期／空到期）的购买页与个人页文案，证据见 [`docs/evidence/iteration-2/`](../evidence/iteration-2/README.md)（截图因本机 CDP 截图超时未产出，以 DOM 文本为证）。**未执行**：真实微信客户端付款链路，以及生产 `JINSHUJU_ENABLED` 实际状态核对。
+- **2026-10-30 收尾复核**：A06 的并发用例此前在本机因没有 `PG_TEST_URL` 被跳过，本轮在一次性 PG 库上真实执行（`asyncio.Barrier` 强制「两边先读未提交再同时写」+ HTTP 双提交，3 passed）；全量后端测试在 PG 集成真实参与下 **1465 passed / 0 skipped**，ruff、format、mypy 基线门与前端 `npm run check` / 单测均通过。复核同时修掉两个遗留问题：`pipeline_dispatch_tasks` 顶层 import 与 `celery_app` 形成循环（直接 import 服务模块即 ImportError，改为函数内惰性 import 并加子进程回归用例）；`celery_app.py` 中一条失效的 `noqa: F401` 让 ruff 门实际为红（已删除，未放宽任何检查器）。逐项证据见 [`docs/evidence/iteration-2/verification-2026-10-30.md`](../evidence/iteration-2/verification-2026-10-30.md)。
 
 ## 4 轨道 B：学习闭环产品增量（TypeWords 参考）
 

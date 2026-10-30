@@ -127,7 +127,7 @@ import app.tasks.home_content_tasks
 import app.tasks.notification_tasks
 import app.tasks.order_tasks
 import app.tasks.payment_tasks
-import app.tasks.pipeline_dispatch_tasks  # noqa: F401  (A05: beat re-dispatches pending pipeline intents)
+import app.tasks.pipeline_dispatch_tasks  # A05: beat re-dispatches pending pipeline intents
 import app.tasks.ranking_tasks
 import app.tasks.reminder_tasks
 import app.tasks.scoring_tasks

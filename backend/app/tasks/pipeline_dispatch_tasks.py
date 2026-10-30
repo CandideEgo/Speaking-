@@ -14,16 +14,15 @@ the backlog matters.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.services.pipeline_dispatch import (
-    DispatchSweep,
-    backlog,
-    dispatch_pending,
-    prune_settled,
-)
 from app.tasks.celery_app import celery_app
 from app.tasks.pipeline_helpers import get_pipeline_redis, run_pipeline_task
+
+if TYPE_CHECKING:
+    from app.services.pipeline_dispatch import DispatchSweep
 
 logger = get_logger(__name__)
 
@@ -44,7 +43,12 @@ def _alert_allowed() -> bool:
 
 async def _run_dispatch_pipeline() -> DispatchSweep:
     """Module-level so it can be unit-tested with a patched ``async_session``."""
+    # Imported here, not at module scope: ``app.services.pipeline_dispatch``
+    # imports this app's celery instance, so a top-level import would close the
+    # cycle celery_app → this module → services.pipeline_dispatch → celery_app
+    # for any entry point that imports the service first.
     from app.core.database import async_session
+    from app.services.pipeline_dispatch import backlog, dispatch_pending, prune_settled
 
     settings = get_settings()
     async with async_session() as db:
