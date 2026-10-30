@@ -1,6 +1,6 @@
 {
   "task": "A07 / OPS-03 Redis recovery contract",
-  "date": "2026-10-30T14:17:16.117857+00:00",
+  "date": "2026-10-30T15:41:40.022459+00:00",
   "environment": {
     "isolation_project": "seeword-isolation",
     "redis": "127.0.0.1:16379",
@@ -9,12 +9,12 @@
     "redis_conf": "deploy/redis/redis.conf",
     "allowed_loss_seconds": 2.0
   },
-  "duration_seconds": 58.7,
+  "duration_seconds": 58.1,
   "cases": [
     {
       "id": "A07-T1",
       "title": "容器重启后键与 TTL 不丢",
-      "started_at": "2026-10-30T14:16:17.383480+00:00",
+      "started_at": "2026-10-30T15:40:41.963202+00:00",
       "status": "PASS",
       "detail": "100 键写入后 docker restart：缺失 0 个，TTL 被重置/过期 0 个",
       "evidence": {
@@ -35,7 +35,7 @@
         "missing": [],
         "ttl_reset": []
       },
-      "duration_seconds": 1.8,
+      "duration_seconds": 1.898,
       "commands": [
         {
           "cmd": "docker restart seeword-isolation-redis",
@@ -49,7 +49,7 @@
     {
       "id": "A07-T2",
       "title": "容器替换（同卷）后恢复，且从 AOF 加载",
-      "started_at": "2026-10-30T14:16:19.183625+00:00",
+      "started_at": "2026-10-30T15:40:43.861005+00:00",
       "status": "PASS",
       "detail": "down/up 后缺失 0 个键；aof_enabled=1；启动日志显示从 AOF 加载=True",
       "evidence": {
@@ -74,7 +74,7 @@
         },
         "startup_log_loaded_from_aof": true
       },
-      "duration_seconds": 3.211,
+      "duration_seconds": 3.637,
       "commands": [
         {
           "cmd": "docker compose down",
@@ -91,7 +91,7 @@
         {
           "cmd": "docker logs --tail 40 seeword-isolation-redis",
           "rc": 0,
-          "out": "1:C 30 Oct 2026 14:16:21.913 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n1:C 30 Oct 2026 14:16:21.913 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n1:C 30 Oct 2026 14:16:21.913 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started\n1:C 30 Oct 2026 14:16:21.913 * Configuration loaded\n1:M 30 Oct 2026 14:16:21.913 * Increased maximum number of open files to 10032 (it was originally set to 1024).\n1:M 30 Oct 2026 14:16:21.913 * monotonic clock: POSIX clock_gettime\n1:M 30 Oct 2026 14:16:21.919 * Running mode=standalone, port=6379.\n1:M 30 Oct 2026 14:16:21.920 * Server initialized\n1:M 30 Oct 2026 14:16:21.920 * Reading RDB base file on AOF loading...\n1:M 30 Oct 2026 14:16:21.920 * Loading RDB produced by version 7.4.12\n1:M 30 Oct 2026 14:16:21.920 * RDB age 5 seconds\n1:M 30 Oct 2026 14:16:21.920 * RDB memory usage when created 0.90 Mb\n1:M 30 Oct 2026 14:16:21.920 * RDB is base AOF\n1:M 30 Oct 2026 14:16:21.920 * Done loading RDB, keys loaded: 0, keys expired: 0.\n1:M 30 Oct 2026 14:16:21.920 * DB loaded from base file appendonly.aof.1.base.rdb: 0.000 seconds\n1:M 30 Oct 2026 14:16:21.921 * DB loaded from incr file appendonly.aof.1.incr.aof: 0.000 seconds\n1:M 30 Oct 2026 14:16:21.921 * DB loaded from append only file: 0.001 seconds\n1:M 30 Oct 2026 14:16:21.921 * Opening AOF incr file appendonly.aof.1.incr.aof on server start\n1:M 30 Oct 2026 14:16:21.921 * Ready to accept connections tcp\n",
+          "out": "1:C 30 Oct 2026 15:40:46.511 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n1:C 30 Oct 2026 15:40:46.511 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n1:C 30 Oct 2026 15:40:46.511 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started\n1:C 30 Oct 2026 15:40:46.511 * Configuration loaded\n1:M 30 Oct 2026 15:40:46.512 * Increased maximum number of open files to 10032 (it was originally set to 1024).\n1:M 30 Oct 2026 15:40:46.512 * monotonic clock: POSIX clock_gettime\n1:M 30 Oct 2026 15:40:46.513 * Running mode=standalone, port=6379.\n1:M 30 Oct 2026 15:40:46.517 * Server initialized\n1:M 30 Oct 2026 15:40:46.517 * Reading RDB base file on AOF loading...\n1:M 30 Oct 2026 15:40:46.517 * Loading RDB produced by version 7.4.12\n1:M 30 Oct 2026 15:40:46.517 * RDB age 5 seconds\n1:M 30 Oct 2026 15:40:46.517 * RDB memory usage when created 0.91 Mb\n1:M 30 Oct 2026 15:40:46.517 * RDB is base AOF\n1:M 30 Oct 2026 15:40:46.517 * Done loading RDB, keys loaded: 0, keys expired: 0.\n1:M 30 Oct 2026 15:40:46.517 * DB loaded from base file appendonly.aof.1.base.rdb: 0.000 seconds\n1:M 30 Oct 2026 15:40:46.519 * DB loaded from incr file appendonly.aof.1.incr.aof: 0.001 seconds\n1:M 30 Oct 2026 15:40:46.519 * DB loaded from append only file: 0.002 seconds\n1:M 30 Oct 2026 15:40:46.519 * Opening AOF incr file appendonly.aof.1.incr.aof on server start\n1:M 30 Oct 2026 15:40:46.519 * Ready to accept connections tcp\n",
           "err": ""
         }
       ],
@@ -102,22 +102,22 @@
     {
       "id": "A07-T3",
       "title": "SIGKILL 异常停机的损失窗口 ≤ 2s",
-      "started_at": "2026-10-30T14:16:22.394457+00:00",
+      "started_at": "2026-10-30T15:40:47.497997+00:00",
       "status": "PASS",
       "detail": "3 轮 SIGKILL：最大丢失窗口 0.000s（判定上限 2.0s，进程级）；各轮丢失 [0.0, 0.0, 0.0]；redis-check-aof rc=0",
       "evidence": {
         "rounds": [
           {
             "round": 1,
-            "written": 246,
-            "surviving": 246,
+            "written": 245,
+            "surviving": 245,
             "lost_seconds": 0.0,
-            "max_internal_gap_seconds": 0.02
+            "max_internal_gap_seconds": 0.023
           },
           {
             "round": 2,
-            "written": 244,
-            "surviving": 244,
+            "written": 243,
+            "surviving": 243,
             "lost_seconds": 0.0,
             "max_internal_gap_seconds": 0.019
           },
@@ -126,7 +126,7 @@
             "written": 245,
             "surviving": 245,
             "lost_seconds": 0.0,
-            "max_internal_gap_seconds": 0.018
+            "max_internal_gap_seconds": 0.019
           }
         ],
         "max_lost_seconds_by_sigkill": 0.0,
@@ -138,9 +138,9 @@
           "appendonly.aof.manifest"
         ],
         "redis_check_aof_rc": 0,
-        "redis_check_aof_output": "Start checking Multi Part AOF\nStart to check BASE AOF (RDB format).\n[offset 0] Checking RDB file /data/appendonlydir/appendonly.aof.1.base.rdb\n[offset 27] AUX FIELD redis-ver = '7.4.12'\n[offset 41] AUX FIELD redis-bits = '64'\n[offset 53] AUX FIELD ctime = '1793369776'\n[offset 68] AUX FIELD used-mem = '948944'\n[offset 80] AUX FIELD aof-base = '1'\n[offset 89] Checksum OK\n[offset 89] \\o/ RDB looks OK! \\o/\n[info] 0 keys read\n[info] 0 expires\n[info] 0 already expired\n[info] 0 subexpires\nRDB preamble is OK, proceeding with AOF tail...\nAOF analyzed: filename=appendonly.aof.1.base.rdb, size=89, ok_up_to=89, ok_up_to_line=1, diff=0\nBASE AOF appendonly.aof.1.base.rdb is valid\nStart to check INCR files.\nAOF analyzed: filename=appendonly.aof.1.incr.aof, size=48131, ok_up_to=48131, ok_up_to_line=6272, diff=0\nINCR AOF appendonly.aof.1.incr.aof is valid\nAll AOF files and manifest are valid"
+        "redis_check_aof_output": "Start checking Multi Part AOF\nStart to check BASE AOF (RDB format).\n[offset 0] Checking RDB file /data/appendonlydir/appendonly.aof.1.base.rdb\n[offset 27] AUX FIELD redis-ver = '7.4.12'\n[offset 41] AUX FIELD redis-bits = '64'\n[offset 53] AUX FIELD ctime = '1793374841'\n[offset 68] AUX FIELD used-mem = '950904'\n[offset 80] AUX FIELD aof-base = '1'\n[offset 89] Checksum OK\n[offset 89] \\o/ RDB looks OK! \\o/\n[info] 0 keys read\n[info] 0 expires\n[info] 0 already expired\n[info] 0 subexpires\nRDB preamble is OK, proceeding with AOF tail...\nAOF analyzed: filename=appendonly.aof.1.base.rdb, size=89, ok_up_to=89, ok_up_to_line=1, diff=0\nBASE AOF appendonly.aof.1.base.rdb is valid\nStart to check INCR files.\nAOF analyzed: filename=appendonly.aof.1.incr.aof, size=48019, ok_up_to=48019, ok_up_to_line=6258, diff=0\nINCR AOF appendonly.aof.1.incr.aof is valid\nAll AOF files and manifest are valid"
       },
-      "duration_seconds": 16.131,
+      "duration_seconds": 15.404,
       "commands": [
         {
           "cmd": "docker kill seeword-isolation-redis",
@@ -187,7 +187,7 @@
         {
           "cmd": "docker exec seeword-isolation-redis redis-check-aof /data/appendonlydir/appendonly.aof.manifest",
           "rc": 0,
-          "out": "Start checking Multi Part AOF\nStart to check BASE AOF (RDB format).\n[offset 0] Checking RDB file /data/appendonlydir/appendonly.aof.1.base.rdb\n[offset 27] AUX FIELD redis-ver = '7.4.12'\n[offset 41] AUX FIELD redis-bits = '64'\n[offset 53] AUX FIELD ctime = '1793369776'\n[offset 68] AUX FIELD used-mem = '948944'\n[offset 80] AUX FIELD aof-base = '1'\n[offset 89] Checksum OK\n[offset 89] \\o/ RDB looks OK! \\o/\n[info] 0 keys read\n[info] 0 expires\n[info] 0 already expired\n[info] 0 subexpires\nRDB preamble is OK, proceeding with AOF tail...\nAOF analyzed: filename=appendonly.aof.1.base.rdb, size=89, ok_up_to=89, ok_up_to_line=1, diff=0\nBASE AOF appendonly.aof.1.base.rdb is valid\nStart to check INCR files.\nAOF analyzed: filename=appendonly.aof.1.incr.aof, size=48131, ok_up_to=48131, ok_up_to_line=6272, diff=0\nINCR AOF appendonly.aof.1.incr.aof is valid\nAll AOF files and manifest are valid\n",
+          "out": "Start checking Multi Part AOF\nStart to check BASE AOF (RDB format).\n[offset 0] Checking RDB file /data/appendonlydir/appendonly.aof.1.base.rdb\n[offset 27] AUX FIELD redis-ver = '7.4.12'\n[offset 41] AUX FIELD redis-bits = '64'\n[offset 53] AUX FIELD ctime = '1793374841'\n[offset 68] AUX FIELD used-mem = '950904'\n[offset 80] AUX FIELD aof-base = '1'\n[offset 89] Checksum OK\n[offset 89] \\o/ RDB looks OK! \\o/\n[info] 0 keys read\n[info] 0 expires\n[info] 0 already expired\n[info] 0 subexpires\nRDB preamble is OK, proceeding with AOF tail...\nAOF analyzed: filename=appendonly.aof.1.base.rdb, size=89, ok_up_to=89, ok_up_to_line=1, diff=0\nBASE AOF appendonly.aof.1.base.rdb is valid\nStart to check INCR files.\nAOF analyzed: filename=appendonly.aof.1.incr.aof, size=48019, ok_up_to=48019, ok_up_to_line=6258, diff=0\nINCR AOF appendonly.aof.1.incr.aof is valid\nAll AOF files and manifest are valid\n",
           "err": ""
         }
       ],
@@ -196,7 +196,7 @@
     {
       "id": "A07-T4",
       "title": "AOF 启动参数与运行时状态",
-      "started_at": "2026-10-30T14:16:38.525583+00:00",
+      "started_at": "2026-10-30T15:41:02.902166+00:00",
       "status": "PASS",
       "detail": "appendonly=yes appendfsync=everysec save='' maxmemory-policy=noeviction aof_enabled=1 aof_last_write_status=ok",
       "evidence": {
@@ -219,25 +219,25 @@
           "aof_rewrite_in_progress": 0,
           "aof_last_bgrewrite_status": "ok",
           "aof_last_write_status": "ok",
-          "aof_current_size": 48220,
+          "aof_current_size": 48108,
           "aof_base_size": 89,
           "aof_pending_rewrite": 0,
           "aof_last_cow_size": 0,
           "rdb_last_bgsave_status": "ok"
         }
       },
-      "duration_seconds": 0.017,
+      "duration_seconds": 0.016,
       "commands": [],
       "notes": []
     },
     {
       "id": "A07-T5",
       "title": "卷丢失（最坏情况）的丢失面与后果表",
-      "started_at": "2026-10-30T14:16:38.542580+00:00",
+      "started_at": "2026-10-30T15:41:02.918650+00:00",
       "status": "PASS",
-      "detail": "空卷重启前 dbsize=848，重启后 dbsize=0；逐类核对 全部丢失",
+      "detail": "空卷重启前 dbsize=846，重启后 dbsize=0；逐类核对 全部丢失",
       "evidence": {
-        "dbsize_before": 848,
+        "dbsize_before": 846,
         "dbsize_after": 0,
         "checks_after": {
           "celery": 0,
@@ -292,7 +292,7 @@
           }
         }
       },
-      "duration_seconds": 2.426,
+      "duration_seconds": 2.805,
       "commands": [
         {
           "cmd": "docker rm -f seeword-isolation-redis",
@@ -318,7 +318,7 @@
     {
       "id": "A07-T6",
       "title": "broker 全丢后按 DB outbox 补偿且不重复",
-      "started_at": "2026-10-30T14:16:40.968727+00:00",
+      "started_at": "2026-10-30T15:41:05.723901+00:00",
       "status": "PASS",
       "detail": "清空 Redis 后 beat 扫描：第一次 sent=1、队列 transcription_gpu llen=1；第二次 sent=0、llen=1（不重复补发）",
       "evidence": {
@@ -332,8 +332,8 @@
           "second_sweep_sent_none": true,
           "queue_still_one": true
         },
-        "dispatch_id": "4c766366-93ee-482e-b723-841ef476ce5a",
-        "video_id": "0ca18565-c82f-4815-9fa0-63f5bd9adae2",
+        "dispatch_id": "5d11774f-8a75-413d-936a-0f92b372e521",
+        "video_id": "1e41e05c-f6ea-4980-a006-f072a6043320",
         "queue": "transcription_gpu",
         "redis_queue_before": 0,
         "sweep_1": {
@@ -359,7 +359,7 @@
         "status_after_second": "dispatched",
         "redis_queue_after_second": 1
       },
-      "duration_seconds": 13.398,
+      "duration_seconds": 12.594,
       "commands": [
         {
           "cmd": "docker compose --profile pg up -d pg",
@@ -387,13 +387,13 @@
         }
       ],
       "notes": [
-        "在 PG 中留下 pending 意图 4c766366-93ee-482e-b723-841ef476ce5a（视频 0ca18565-c82f-4815-9fa0-63f5bd9adae2），随后清空 Redis"
+        "在 PG 中留下 pending 意图 5d11774f-8a75-413d-936a-0f92b372e521（视频 1e41e05c-f6ea-4980-a006-f072a6043320），随后清空 Redis"
       ]
     },
     {
       "id": "A07-T7",
       "title": "撤销状态丢失的 fail-open 与其余护栏",
-      "started_at": "2026-10-30T14:16:54.366579+00:00",
+      "started_at": "2026-10-30T15:41:18.317844+00:00",
       "status": "PASS",
       "detail": "清空 Redis 前黑名单命中=True（请求被拒）；清空后黑名单命中=False，同一 token 重新可用=True（fail-open）；封禁与改密仍拒绝=True",
       "evidence": {
@@ -406,7 +406,7 @@
           "banned_still_rejected": true,
           "password_change_still_rejected": true
         },
-        "jti": "b3ba0666389744d8804d41597aa67efc",
+        "jti": "cc53050a63a14c1c8931a45d30e3ef0b",
         "blacklisted_before_loss": true,
         "user_before_loss": false,
         "redis_dbsize_after_loss": 1,
@@ -416,7 +416,7 @@
         "user_when_banned": false,
         "user_when_password_changed": false
       },
-      "duration_seconds": 4.962,
+      "duration_seconds": 4.545,
       "commands": [
         {
           "cmd": "docker compose --profile pg up -d pg",
@@ -450,7 +450,7 @@
     {
       "id": "A07-T8",
       "title": "旧卷（RDB）迁移到新命名卷 + AOF",
-      "started_at": "2026-10-30T14:16:59.328258+00:00",
+      "started_at": "2026-10-30T15:41:22.863038+00:00",
       "status": "PASS",
       "detail": "旧卷（RDB，无 AOF）拷入命名卷 → appendonly no 加载（keep='survives'） → CONFIG SET appendonly yes 生成 AOF → 切到 AOF 配置启动：keep='survives' ttl='survives-with-ttl'（旧 TTL=599s → 新 590s）；list=['a', 'b', 'c']；从 AOF 加载=True",
       "evidence": {
@@ -487,7 +487,7 @@
           "current_save_keys_total": "0",
           "rdb_changes_since_last_save": "0",
           "rdb_bgsave_in_progress": "0",
-          "rdb_last_save_time": "1793369828",
+          "rdb_last_save_time": "1793374892",
           "rdb_last_bgsave_status": "ok",
           "rdb_last_bgsave_time_sec": "-1",
           "rdb_current_bgsave_time_sec": "-1",
@@ -504,7 +504,7 @@
           "aof_rewrites": "1",
           "aof_rewrites_consecutive_failures": "0",
           "aof_last_write_status": "ok",
-          "aof_last_cow_size": "626688",
+          "aof_last_cow_size": "327680",
           "module_fork_in_progress": "0",
           "module_fork_last_cow_size": "0",
           "aof_current_size": "196",
@@ -514,9 +514,9 @@
           "aof_pending_bio_fsync": "0",
           "aof_delayed_fsync": "0"
         },
-        "startup_log_excerpt": "1:C 30 Oct 2026 14:17:12.357 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n1:C 30 Oct 2026 14:17:12.358 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n1:C 30 Oct 2026 14:17:12.358 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started\n1:C 30 Oct 2026 14:17:12.358 * Configuration loaded\n1:M 30 Oct 2026 14:17:12.358 * Increased maximum number of open files to 10032 (it was originally set to 1024).\n1:M 30 Oct 2026 14:17:12.358 * monotonic clock: POSIX clock_gettime\n1:M 30 Oct 2026 14:17:12.360 * Running mode=standalone, port=6379.\n1:M 30 Oct 2026 14:17:12.361 * Server initialized\n1:M 30 Oct 2026 14:17:12.362 * Reading RDB base file on AOF loading...\n1:M 30 Oct 2026 14:17:12.362 * Loading RDB produced by version 7.4.12\n1:M 30 Oct 2026 14:17:12.362 * RDB age 3 seconds\n1:M 30 Oct 2026 14:17:12.362 * RDB memory usage when created 0.99 Mb\n1:M 30 Oct 2026 14:17:12.362 * RDB is base AOF\n1:M 30 Oct 2026 14:17:12.362 * Done loading RDB, keys loaded: 3, keys expired: 0.\n1:M 30 Oct 2026 14:17:12.363 * DB loaded from base file appendonly.aof.1.base.rdb: 0.001 seconds\n1:M 30 Oct 2026 14:17:12.363 * DB loaded from append only file: 0.001 seconds\n1:M 30 Oct 2026 14:17:12.363 * Opening AOF incr file appendonly.aof.1.incr.aof on server start\n1:M 30 Oct 2026 14:17:12.363 * Ready to accept connections tcp\n"
+        "startup_log_excerpt": "1:C 30 Oct 2026 15:41:36.092 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n1:C 30 Oct 2026 15:41:36.092 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n1:C 30 Oct 2026 15:41:36.092 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started\n1:C 30 Oct 2026 15:41:36.092 * Configuration loaded\n1:M 30 Oct 2026 15:41:36.092 * Increased maximum number of open files to 10032 (it was originally set to 1024).\n1:M 30 Oct 2026 15:41:36.092 * monotonic clock: POSIX clock_gettime\n1:M 30 Oct 2026 15:41:36.094 * Running mode=standalone, port=6379.\n1:M 30 Oct 2026 15:41:36.098 * Server initialized\n1:M 30 Oct 2026 15:41:36.099 * Reading RDB base file on AOF loading...\n1:M 30 Oct 2026 15:41:36.099 * Loading RDB produced by version 7.4.12\n1:M 30 Oct 2026 15:41:36.099 * RDB age 3 seconds\n1:M 30 Oct 2026 15:41:36.099 * RDB memory usage when created 0.99 Mb\n1:M 30 Oct 2026 15:41:36.099 * RDB is base AOF\n1:M 30 Oct 2026 15:41:36.099 * Done loading RDB, keys loaded: 3, keys expired: 0.\n1:M 30 Oct 2026 15:41:36.100 * DB loaded from base file appendonly.aof.1.base.rdb: 0.001 seconds\n1:M 30 Oct 2026 15:41:36.100 * DB loaded from append only file: 0.002 seconds\n1:M 30 Oct 2026 15:41:36.100 * Opening AOF incr file appendonly.aof.1.incr.aof on server start\n1:M 30 Oct 2026 15:41:36.100 * Ready to accept connections tcp\n"
       },
-      "duration_seconds": 15.428,
+      "duration_seconds": 15.712,
       "commands": [
         {
           "cmd": "docker rm -f seeword-isolation-a07old",
@@ -545,7 +545,7 @@
         {
           "cmd": "docker run -d --name seeword-isolation-a07old -v seeword-isolation_a07old:/data redis:7-alpine redis-server --appendonly no --save 60 1",
           "rc": 0,
-          "out": "dcecb5312331402e5fc6c67d9e1c14cb0021fa85ceab054fbda0630eaed07dd5\n",
+          "out": "4eeb28b6212db8bc7ca9632c53c30c685eb77c82aa10d1af03ff0ac291c4ddff\n",
           "err": ""
         },
         {
@@ -623,7 +623,7 @@
         {
           "cmd": "docker run -d --name seeword-isolation-a07migrate -v seeword-isolation_redisdata:/data redis:7-alpine redis-server --appendonly no --save ",
           "rc": 0,
-          "out": "949903a6755effe0938a67b3ba7e2499dc89d68db47a1228b8255c83003b0eeb\n",
+          "out": "7221d9f653448e41f418176a4f85b364fbec46e3cd1e8ab0c303a80e1f212479\n",
           "err": ""
         },
         {
@@ -647,7 +647,7 @@
         {
           "cmd": "docker exec seeword-isolation-a07migrate redis-cli info persistence",
           "rc": 0,
-          "out": "# Persistence\r\nloading:0\r\nasync_loading:0\r\ncurrent_cow_peak:0\r\ncurrent_cow_size:0\r\ncurrent_cow_size_age:0\r\ncurrent_fork_perc:0.00\r\ncurrent_save_keys_processed:0\r\ncurrent_save_keys_total:0\r\nrdb_changes_since_last_save:0\r\nrdb_bgsave_in_progress:0\r\nrdb_last_save_time:1793369828\r\nrdb_last_bgsave_status:ok\r\nrdb_last_bgsave_time_sec:-1\r\nrdb_current_bgsave_time_sec:-1\r\nrdb_saves:0\r\nrdb_last_cow_size:0\r\nrdb_last_load_keys_expired:0\r\nrdb_last_load_keys_loaded:3\r\naof_enabled:1\r\naof_rewrite_in_progress:0\r\naof_rewrite_scheduled:0\r\naof_last_rewrite_time_sec:0\r\naof_current_rewrite_time_sec:-1\r\naof_last_bgrewrite_status:ok\r\naof_rewrites:1\r\naof_rewrites_consecutive_failures:0\r\naof_last_write_status:ok\r\naof_last_cow_size:626688\r\nmodule_fork_in_progress:0\r\nmodule_fork_last_cow_size:0\r\naof_current_size:196\r\naof_base_size:196\r\naof_pending_rewrite:0\r\naof_buffer_length:0\r\naof_pending_bio_fsync:0\r\naof_delayed_fsync:0\r\n",
+          "out": "# Persistence\r\nloading:0\r\nasync_loading:0\r\ncurrent_cow_peak:0\r\ncurrent_cow_size:0\r\ncurrent_cow_size_age:0\r\ncurrent_fork_perc:0.00\r\ncurrent_save_keys_processed:0\r\ncurrent_save_keys_total:0\r\nrdb_changes_since_last_save:0\r\nrdb_bgsave_in_progress:0\r\nrdb_last_save_time:1793374892\r\nrdb_last_bgsave_status:ok\r\nrdb_last_bgsave_time_sec:-1\r\nrdb_current_bgsave_time_sec:-1\r\nrdb_saves:0\r\nrdb_last_cow_size:0\r\nrdb_last_load_keys_expired:0\r\nrdb_last_load_keys_loaded:3\r\naof_enabled:1\r\naof_rewrite_in_progress:0\r\naof_rewrite_scheduled:0\r\naof_last_rewrite_time_sec:0\r\naof_current_rewrite_time_sec:-1\r\naof_last_bgrewrite_status:ok\r\naof_rewrites:1\r\naof_rewrites_consecutive_failures:0\r\naof_last_write_status:ok\r\naof_last_cow_size:327680\r\nmodule_fork_in_progress:0\r\nmodule_fork_last_cow_size:0\r\naof_current_size:196\r\naof_base_size:196\r\naof_pending_rewrite:0\r\naof_buffer_length:0\r\naof_pending_bio_fsync:0\r\naof_delayed_fsync:0\r\n",
           "err": ""
         },
         {
@@ -666,12 +666,12 @@
           "cmd": "docker compose up -d redis",
           "rc": 0,
           "out": "",
-          "err": "time=\"2026-10-30T07:17:11-07:00\" level=warning msg=\"volume \\\"seeword-isolation_redisdata\\\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume\"\n Container seeword-isolation-redis Creating \n Container seeword-isolation-redis Created \n Container seeword-isolation-redis Starting \n Container seeword-isolation-redis Started \n"
+          "err": "time=\"2026-10-30T08:41:35-07:00\" level=warning msg=\"volume \\\"seeword-isolation_redisdata\\\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume\"\n Container seeword-isolation-redis Creating \n Container seeword-isolation-redis Created \n Container seeword-isolation-redis Starting \n Container seeword-isolation-redis Started \n"
         },
         {
           "cmd": "docker logs --tail 60 seeword-isolation-redis",
           "rc": 0,
-          "out": "1:C 30 Oct 2026 14:17:12.357 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n1:C 30 Oct 2026 14:17:12.358 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n1:C 30 Oct 2026 14:17:12.358 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started\n1:C 30 Oct 2026 14:17:12.358 * Configuration loaded\n1:M 30 Oct 2026 14:17:12.358 * Increased maximum number of open files to 10032 (it was originally set to 1024).\n1:M 30 Oct 2026 14:17:12.358 * monotonic clock: POSIX clock_gettime\n1:M 30 Oct 2026 14:17:12.360 * Running mode=standalone, port=6379.\n1:M 30 Oct 2026 14:17:12.361 * Server initialized\n1:M 30 Oct 2026 14:17:12.362 * Reading RDB base file on AOF loading...\n1:M 30 Oct 2026 14:17:12.362 * Loading RDB produced by version 7.4.12\n1:M 30 Oct 2026 14:17:12.362 * RDB age 3 seconds\n1:M 30 Oct 2026 14:17:12.362 * RDB memory usage when created 0.99 Mb\n1:M 30 Oct 2026 14:17:12.362 * RDB is base AOF\n1:M 30 Oct 2026 14:17:12.362 * Done loading RDB, keys loaded: 3, keys expired: 0.\n1:M 30 Oct 2026 14:17:12.363 * DB loaded from base file appendonly.aof.1.base.rdb: 0.001 seconds\n1:M 30 Oct 2026 14:17:12.363 * DB loaded from append only file: 0.001 seconds\n1:M 30 Oct 2026 14:17:12.363 * Opening AOF incr file appendonly.aof.1.incr.aof on server start\n1:M 30 Oct 2026 14:17:12.363 * Ready to accept connections tcp\n",
+          "out": "1:C 30 Oct 2026 15:41:36.092 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n1:C 30 Oct 2026 15:41:36.092 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n1:C 30 Oct 2026 15:41:36.092 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started\n1:C 30 Oct 2026 15:41:36.092 * Configuration loaded\n1:M 30 Oct 2026 15:41:36.092 * Increased maximum number of open files to 10032 (it was originally set to 1024).\n1:M 30 Oct 2026 15:41:36.092 * monotonic clock: POSIX clock_gettime\n1:M 30 Oct 2026 15:41:36.094 * Running mode=standalone, port=6379.\n1:M 30 Oct 2026 15:41:36.098 * Server initialized\n1:M 30 Oct 2026 15:41:36.099 * Reading RDB base file on AOF loading...\n1:M 30 Oct 2026 15:41:36.099 * Loading RDB produced by version 7.4.12\n1:M 30 Oct 2026 15:41:36.099 * RDB age 3 seconds\n1:M 30 Oct 2026 15:41:36.099 * RDB memory usage when created 0.99 Mb\n1:M 30 Oct 2026 15:41:36.099 * RDB is base AOF\n1:M 30 Oct 2026 15:41:36.099 * Done loading RDB, keys loaded: 3, keys expired: 0.\n1:M 30 Oct 2026 15:41:36.100 * DB loaded from base file appendonly.aof.1.base.rdb: 0.001 seconds\n1:M 30 Oct 2026 15:41:36.100 * DB loaded from append only file: 0.002 seconds\n1:M 30 Oct 2026 15:41:36.100 * Opening AOF incr file appendonly.aof.1.incr.aof on server start\n1:M 30 Oct 2026 15:41:36.100 * Ready to accept connections tcp\n",
           "err": ""
         },
         {

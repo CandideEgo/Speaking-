@@ -45,6 +45,7 @@ PG_CONTAINER = "seeword-isolation-pg"
 REDIS_HOST = "127.0.0.1"
 REDIS_PORT = int(os.environ.get("A07_REDIS_PORT", "16379"))
 REDIS_PASSWORD = os.environ.get("ISOLATION_REDIS_PASSWORD", "isolation-only")
+GPU_PASSWORD = os.environ.get("ISOLATION_REDIS_GPU_PASSWORD", "isolation-gpu-only")
 PG_HOST = "127.0.0.1"
 PG_PORT = int(os.environ.get("A07_PG_PORT", "15432"))
 PG_USER = "seeword"
@@ -56,6 +57,7 @@ REDIS_VOLUME = f"{PROJECT}_redisdata"
 OLD_VOLUME = f"{PROJECT}_a07old"
 OLD_CONTAINER = "seeword-isolation-a07old"
 MIGRATE_CONTAINER = "seeword-isolation-a07migrate"
+ACL_OUT = REPO_ROOT / "deploy" / "redis" / "users.acl.generated"
 
 # App modules read settings at import time, so this must happen before the
 # first `import app.*` (which only happens inside T6/T7).
@@ -92,8 +94,30 @@ def _compose_env() -> dict[str, str]:
     return {
         **os.environ,
         "ISOLATION_REDIS_PASSWORD": REDIS_PASSWORD,
+        "ISOLATION_REDIS_GPU_PASSWORD": GPU_PASSWORD,
         "ISOLATION_PG_PASSWORD": PG_PASSWORD,
     }
+
+
+def render_acl() -> None:
+    """Render the ACL file the isolation Redis starts from (added for A10).
+
+    The file is git-ignored and carries both one-off passwords, so it is
+    re-rendered on every run. `default` keeps the same password A07's client
+    uses, which is why the recovery cases are unaffected by the ACL.
+    """
+    env = {**_compose_env(), "REDIS_PASSWORD": REDIS_PASSWORD, "REDIS_GPU_PASSWORD": GPU_PASSWORD}
+    script = REPO_ROOT / "scripts" / "isolation" / "render_redis_acl.py"
+    proc = subprocess.run(
+        [sys.executable, str(script), "--out", str(ACL_OUT)],
+        capture_output=True,
+        timeout=60,
+        env=env,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"ACL render failed:\n{proc.stdout.decode('utf-8', 'replace')}\n{proc.stderr.decode('utf-8', 'replace')}"
+        )
 
 
 def _run(args: list[str], *, check: bool, timeout: int = 300) -> tuple[int, str, str]:
@@ -933,6 +957,7 @@ def main() -> int:
 
     # Rebuild from nothing so a previous failed run cannot poison T1.
     # `--profile pg` matters: a plain `down` leaves profiled services running.
+    render_acl()
     compose("--profile", "pg", "down", "-v", check=False)
     compose("up", "-d", "redis")
     wait_redis()

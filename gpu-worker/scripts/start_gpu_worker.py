@@ -98,12 +98,24 @@ def main():
     _security_guard()
 
     # Lazy import to avoid side effects during module import
+    from gpu_worker.broker_recovery import restore_orphaned_unacked
+    from gpu_worker.broker_settings import broker_transport_options
     from gpu_worker.celery_app import celery_app
     from gpu_worker.config import get_settings
     from gpu_worker.logging import configure_logging
 
     configure_logging()
     settings = get_settings()
+
+    # A10/OPS-04: re-queue in-flight messages left by a hard-killed previous
+    # process. Celery's async loop never runs kombu's visibility restore, so
+    # without this a killed transcription would sit in gpu_unacked forever.
+    try:
+        restored = restore_orphaned_unacked(settings.redis_url, broker_transport_options())
+        if restored:
+            print(f"[recovery] restored {restored} orphaned unacked message(s) to the queue")
+    except Exception as exc:
+        print(f"[recovery] skipped orphan restore: {exc}", file=sys.stderr)
 
     print("=" * 60)
     print("SeeWord — Local GPU Worker + Heartbeat")

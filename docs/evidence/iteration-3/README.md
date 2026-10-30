@@ -149,3 +149,87 @@ Redis 在每轮事件循环里已经把 AOF buffer `write(2)` 进文件，`appen
   D6 §5.1 做「备份 → 卷迁移 → 核验 → 回滚点保留」。
 - 宿主崩溃/掉电的 everysec 窗口未实测（见上）；生产数据量下的 AOF 重写耗时未测。
 - 空卷冷启动（现场不可拷贝旧卷）的提前通知与接受面未在生产演练。
+
+## A10：GPU 服务端权限边界（OPS-04）
+
+隔离环境同 A07（compose 项目 `seeword-isolation`、Redis `127.0.0.1:16379`、一次性 PG）。
+本次 Redis 改为从渲染出的 ACL 文件启动（`default` / `cloud` / `gpu` 三个身份），其余不变。
+
+### 1 交付物
+
+| 文件 | 作用 | 生产是否复用 |
+| --- | --- | --- |
+| [`deploy/redis/users.acl.template`](../../../deploy/redis/users.acl.template) | ACL 身份与白名单；模板不含密码 | **是**，放量时渲染后挂载 |
+| [`scripts/isolation/render_redis_acl.py`](../../../scripts/isolation/render_redis_acl.py) | 由模板 + 环境变量渲染；剥掉注释（Redis ACL 文件不接受注释，实测） | 是 |
+| [`gpu-worker/gpu_worker/broker_settings.py`](../../../gpu-worker/gpu_worker/broker_settings.py) | GPU 私有未确认命名空间（`gpu_unacked` / `gpu_unacked_index` / `gpu_unacked_mutex`） | **是** |
+| [`gpu-worker/gpu_worker/broker_recovery.py`](../../../gpu-worker/gpu_worker/broker_recovery.py) | worker 启动时把孤儿未确认消息按原 exchange/routing key 重新入队 | **是** |
+| [`gpu-worker/gpu_worker/celery_app.py`](../../../gpu-worker/gpu_worker/celery_app.py) | 接上上述 transport options；`task_ignore_result=True`；`worker_enable_remote_control=False` | **是** |
+| [`gpu-worker/scripts/start_gpu_worker.py`](../../../gpu-worker/scripts/start_gpu_worker.py) | 启动时调用孤儿恢复 | **是** |
+| [`gpu-worker/tests/test_broker_settings.py`](../../../gpu-worker/tests/test_broker_settings.py) | 不加载 torch 的配置断言（与生产共用同一份定义） | 是 |
+| [`scripts/isolation/gpu_stub_worker.py`](../../../scripts/isolation/gpu_stub_worker.py) | 以 gpu 身份消费的桩 worker（无 torch/whisperx） | 否 |
+| [`scripts/isolation/test_a10_gpu_acl.py`](../../../scripts/isolation/test_a10_gpu_acl.py) | T1–T10 用例矩阵 | 否 |
+| [a10-2026-10-30.json](a10-2026-10-30.json) | 本次运行结果（9 PASS / 0 FAIL / 1 SKIP） | — |
+
+### 2 用例结果
+
+| # | 用例 | 实测 |
+| --- | --- | --- |
+| A10-T1 | 云身份不受影响 | cloud 身份写黑名单/限流/队列/缓存全成功；`ACL WHOAMI=cloud` |
+| A10-T2 | GPU 正常消费 | 桩 worker 消费 1 条并回调；心跳 TTL=87s；无 `celery-task-meta-*`；`celery.pidbox` 订阅 0；**正常路径 ACL LOG 0 条拒绝** |
+| A10-T3 | 未确认消息隔离 | 消费中被杀：`gpu_unacked=1`、云 `unacked=0`、队列 0；重启后恢复回调，最终 `gpu_unacked=0` |
+| A10-T4 | 撤销状态被拒 | `GET/SET/EXISTS token_blacklist:*` 全部 NOPERM |
+| A10-T5 | 写云队列被拒 | `LPUSH celery`、`SADD _kombu.binding.celery` 全部 NOPERM |
+| A10-T6 | 危险命令被拒 | `FLUSHALL/FLUSHDB/CONFIG GET/CONFIG SET/DEBUG/MONITOR/CLIENT KILL/ACL SETUSER/ACL LIST/KEYS/SCAN/SHUTDOWN` 共 12 条全部被拒 |
+| A10-T7 | 其它键被拒 | `ai_cache:*`、`cache:*`、`worker:gpu:other` 全部 NOPERM |
+| A10-T8 | 结果与遥控关闭 | `SUBSCRIBE/PSUBSCRIBE/PUBLISH/PUBSUB` 全部被拒；结果键 0；pidbox 订阅 0 |
+| A10-T9 | SSH 隧道限制 | **SKIP**：需要生产宿主 sshd；清单见 JSON `evidence`（`authorized_keys` 的 `restrict,port-forwarding,permitopen="127.0.0.1:6379"`、`PermitOpen`、验证命令） |
+| A10-T10 | 回调密钥 | 缺失/错误 → 401；正确 → 200 `acknowledged`；非 ASCII 头 → 401（不是 500）；轮换后旧 401、新 200 |
+
+### 3 ACL 收敛过程（靠 ACL LOG，不靠猜）
+
+最小集合起步后被实测补进的命令/键：
+
+| 触发 | 补进白名单 | 说明 |
+| --- | --- | --- |
+| 队列声明 `_size` | `+llen`、`~transcription_gpu*` | kombu 会 `LLEN` 队列本体 **以及优先级后缀 3/6/9**；精确名 `~transcription_gpu` 会漏掉后三个 |
+| 队列绑定 | `+sadd`、`~_kombu.binding.transcription_gpu*` | 消费者声明队列时写入绑定集合 |
+| 未确认恢复互斥 | `+eval +evalsha` | redis-py 的 `Lock` 释放走 Lua；被拒时恢复会静默失败。Redis 7 在脚本内仍按同一 key 模式校验，但允许 EVAL 是**已知取舍**，已写在模板里 |
+| 孤儿恢复 | `+zrange` | 启动时列出私有未确认索引 |
+
+收敛完成后，正常消费与“杀掉再恢复”两条路径的 `ACL LOG` 均为 0 条拒绝。
+
+### 4 两个结构性问题（本轮实测发现并修正）
+
+**（1）Celery 的 async hub 循环不会执行 kombu 的可见性恢复。**
+kombu 的 `maybe_restore_messages` 只在同步 `Transport.get()` 里调用；Celery worker 默认走
+async hub，直接读 socket，`restore_visible` 根本不会周期性运行。裸 kombu 的
+`drain_events` 能恢复同一条消息，Celery worker 不能——硬杀后消息会永远留在 `gpu_unacked`。
+修正：`gpu_worker/broker_recovery.py` 在 worker 启动时把私有命名空间里的所有条目重新入队
+（启动进程没有任何自己的在途消息，所以它们必然属于上一个已死进程），`start_gpu_worker.py`
+与桩 worker 都调用。T3 用生产默认 `visibility_timeout=3600s` 验证，恢复来自启动路径而不是
+压缩后的可见性窗口。
+**部署假设：一个 GPU worker**（`--pool=solo`、并发 1）。若横向扩到两个 worker，后启动者会把
+另一个活着的 worker 的在途消息也恢复；扩容前必须改这个例程。
+
+**（2）`unacked_mutex_key` 也是共享键。**
+只改 `unacked` / `unacked_index` 时，GPU 仍会碰云端的 `unacked_mutex`。已一并改为
+`gpu_unacked_mutex`，ACL 只放行这三个键与心跳键。
+
+### 5 门禁
+
+| 检查 | 结果 |
+| --- | --- |
+| GPU worker 纯配置/契约/安全守卫测试（`test_broker_settings` / `test_contracts` / `test_security_guard`） | **16 passed**（用 backend venv 跑，不加载 torch） |
+| `ruff check` / `ruff format --check`（`scripts/isolation/`、`gpu-worker/`） | 通过 |
+| 隔离演练 | **9 PASS / 0 FAIL / 1 SKIP**，见 [a10-2026-10-30.json](a10-2026-10-30.json) |
+| 后端应用代码 | 未改动；未重跑全量 pytest（上一轮 1488 passed / 0 skipped） |
+
+### 6 未执行 / 边界
+
+- **生产 Redis ACL、GPU 机 `.env.gpu-worker` 未切换**：按 D6 §5.2 放量（先加身份、再切 GPU、
+  最后收紧 default），需要窗口与回滚点。
+- **T9 未执行**：需要生产宿主 sshd 的 `authorized_keys`/`PermitOpen`；隔离栈没有 sshd，D6 又
+  禁止引入新镜像。配置与验证命令已写进 JSON 的 `SSH_CHECKLIST`。
+- **真实 GPU worker（torch/whisperx）未跑**：本机没有 `gpu-worker/.venv`；桩 worker 只验证
+  broker/ACL 面，不验证转录本身。
+- 两个 GPU worker 的横向扩容与启动恢复不兼容（见上）。

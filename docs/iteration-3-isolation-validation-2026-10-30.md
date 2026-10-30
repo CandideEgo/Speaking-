@@ -100,23 +100,22 @@ SIGKILL 测的是进程级持久化（实测 0 丢失），everysec 的宿主掉
 - GPU 侧同时关闭两条不需要的通道：`task_ignore_result=True`（结果只走 HTTP 回调，不写 `celery-task-meta-*`）、
   `worker_enable_remote_control=False`（不订阅 `celery.pidbox`，避免取得对云 worker 的控制通道）。三项改动在隔离环境验证后再进 GPU 机。
 
-### 4.2 ACL 身份草案
+### 4.2 ACL 身份（最终形态以模板为准）
 
-```text
-# 云：保持全权（放量时可继续沿用 requirepass / default 用户，也可显式建 cloud 用户）
-user cloud  on >{REDIS_PASSWORD} ~* &* +@all
+唯一事实源是 [`deploy/redis/users.acl.template`](deploy/redis/users.acl.template)（密码用占位符，
+渲染见 `scripts/isolation/render_redis_acl.py`）。三个身份：`default`（回滚路径）、`cloud`（全权）、
+`gpu`（只碰自己的队列、未确认命名空间与心跳键）。
 
-# GPU：只碰自己的队列、自己的 unacked、心跳键
-user gpu    on >{REDIS_GPU_PASSWORD} resetchannels &"" \
-            ~transcription_gpu ~_kombu.binding.transcription_gpu \
-            ~gpu_unacked ~gpu_unacked_index ~worker:gpu:heartbeat
-            # 命令允许集 = 实测观测到的最小集合（见 4.3），显式拒绝
-            # flushall flushdb config shutdown debug monitor client acl module
-            # save bgsave bgrewriteaof replicaof slaveof keys scan randomkey publish subscribe psubscribe
-```
+与初稿的差异，全部来自 A10 实测（ACL LOG + 桩 worker）：
 
-命令允许集不靠猜：以「key 模式 + 拒绝清单」起步，跑一遍桩 worker 与全部攻击用例，
-用 `ACL LOG` 找出正常路径里被拒的命令，逐条补进允许集，直到**正常路径零 NOPERM、攻击路径全被拒**，把最终文件固化进 `deploy/redis/users.acl.template`。
+- 队列键模式必须是 `~transcription_gpu*`：kombu 的优先级队列还有 `3/6/9` 后缀，精确名会漏掉。
+- `unacked_mutex_key` 是**第三把**共享键，只私有化 `unacked` / `unacked_index` 不够；已改为
+  `gpu_unacked_mutex`。
+- 正常路径需要 `LLEN`（队列声明时的 `_size`）、`SADD`（绑定集合）与 `EVAL/EVALSHA`
+  （kombu 恢复未确认消息时用 redis-py `Lock` 做互斥，释放走 Lua）。EVAL 是**已知取舍**：
+  Redis 7 仍按同一 key 模式校验脚本访问的键，但 GPU 身份确实获得了执行 Lua 的能力，已写进模板。
+- 命令集是 `-@all` 白名单（不是 `+@all` 减拒绝清单）；最终集合由 ACL LOG 收敛，正常消费与
+  杀掉恢复两条路径均为 0 条拒绝。
 
 ### 4.3 用例矩阵（全部在隔离环境执行）
 
@@ -133,6 +132,23 @@ user gpu    on >{REDIS_GPU_PASSWORD} resetchannels &"" \
 | A10-T9 | 隧道与账户限制 | 隔离 sshd：受限 key 仅允许转发到 16379，尝试 shell、pty、其它端口、反向/动态转发 | 仅目标转发成功，其余被服务端拒绝 |
 | A10-T10 | 回调密钥边界 | 错误 secret → 401；轮换演练（两侧同时换，旧 secret 立即失效） | 均符合；轮换步骤写进放量清单 |
 
+### 4.4 实施结果（2026-10-30）
+
+隔离验收 **9 PASS / 0 FAIL / 1 SKIP**，逐条命令与原始输出见
+[`docs/evidence/iteration-3/a10-2026-10-30.json`](evidence/iteration-3/a10-2026-10-30.json)，
+说明见 [`docs/evidence/iteration-3/README.md`](evidence/iteration-3/README.md)。三处实现：
+`deploy/redis/users.acl.template` + 渲染脚本；GPU 侧 `broker_settings.py`（三把私有键）、
+`celery_app.py`（忽略结果、关闭遥控）、`broker_recovery.py`（启动恢复孤儿未确认消息）；
+`docker-compose.isolation.yml` 的 Redis 改为 `--aclfile` 启动。
+
+**结构性问题（本轮发现并修正）**：Celery 默认的 async hub 循环从不调用 kombu 的
+`maybe_restore_messages`，因此 `visibility_timeout` 的恢复在真实 worker 上不会周期性运行——
+硬杀后消息会永远留在 `gpu_unacked`。修正为 worker 启动时主动恢复私有命名空间里的孤儿消息。
+部署假设是**一个 GPU worker**；横向扩容会让后启动者恢复另一个活 worker 的在途消息。
+
+**T9 未执行**：它验证生产宿主 sshd 的 `authorized_keys` / `PermitOpen`，隔离栈没有 sshd，
+D6 又禁止引入新镜像；配置与验证命令已写进证据 JSON 的 `SSH_CHECKLIST`，放量窗口在宿主上执行。
+
 ## 5 放量与回滚（隔离通过之后才执行）
 
 ### 5.1 A07（Redis 持久化）
@@ -148,10 +164,23 @@ user gpu    on >{REDIS_GPU_PASSWORD} resetchannels &"" \
 
 ### 5.2 A10（ACL）
 
-1. 先加 `cloud` 身份（沿用现有密码）与 `gpu` 身份（新密码），**default 用户保持可用**作为回滚路径。
-2. 改 GPU 机 `.env.gpu-worker` 的 `REDIS_URL` 为新身份，验证 T2/T3 后，再关闭 default 用户。
-3. 同步发布 GPU 侧三项配置（`unacked_key`、`ignore_result`、`remote_control`）；先发 GPU worker 再收紧 ACL 顺序会短暂中断，按「先加身份、再切 GPU、最后收紧」执行。
-4. 回滚：恢复 compose/config 与 GPU `.env`，default 用户重新可用；无数据变更。
+0. 渲染 ACL：`REDIS_PASSWORD=... REDIS_GPU_PASSWORD=... python scripts/isolation/render_redis_acl.py --out <宿主路径>`
+   （产物含密码，权限 600，不进 git）。`default` 与 `cloud` 用现有密码，`gpu` 用新密码。
+1. **先发 GPU worker**：`broker_settings.py`（三把私有键）、`celery_app.py`（`task_ignore_result`、
+   `worker_enable_remote_control=False`）、`broker_recovery.py`（启动恢复）。选择队列空闲时发布——
+   切换的一瞬间旧 `unacked` 里的在途消息不会被新命名空间接管，要么等它 ACK，要么人工搬。
+2. **再切 GPU 身份**：改 GPU 机 `.env.gpu-worker` 的 `REDIS_URL` 为
+   `redis://gpu:<password>@127.0.0.1:16379/0`，跑一次 T2/T3 等价检查（消费、心跳、杀掉重启恢复）。
+3. **最后收紧 default**：确认云端与 GPU 都稳定后，把 `default` 用户改为 `off`（或删除）；
+   `cloud` 身份保留全权。回滚到第 2 步只需改回 `.env` 的 default 密码。
+4. **宿主隧道限制（T9，未在隔离环境执行）**：
+   - `~/.ssh/authorized_keys`：`restrict,port-forwarding,permitopen="127.0.0.1:6379" ssh-ed25519 ... gpu-tunnel`
+   - `sshd_config`：`PermitOpen 127.0.0.1:6379`、`AllowTcpForwarding local`、`PermitTTY no`、
+     `X11Forwarding no`、`PermitTunnel no`
+   - 验证：`ssh -N -L 16379:127.0.0.1:6379` 成功；`-L 15432:127.0.0.1:5432`、`-D`、`-R`、shell 全部被拒。
+5. **回调密钥轮换**：两侧同时替换 `TRANSCRIPTION_CALLBACK_SECRET`（云端 env 与 GPU
+   `.env.gpu-worker`），旧值立即失效；窗口内 GPU 回调会收到 401 并按其重试策略重试。
+6. 回滚：恢复渲染前的 ACL / `.env` 与 GPU 旧配置，`default` 重新可用；无数据变更。
 
 ## 6 不在本方案内
 
