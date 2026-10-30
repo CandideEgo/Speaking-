@@ -390,6 +390,11 @@ async def commit_error_state(video, db, error: Exception, *, step: str | None = 
         if step:
             video.processing_step = step
         await db.commit()
+        # A09: keep a time-windowed failure signal for the health monitor.
+        # Best-effort — this helper's contract is "never break the pipeline".
+        from app.services.pipeline_alerting import record_pipeline_failure
+
+        await record_pipeline_failure(video.id, step=step or video.processing_step, reason=str(error))
     except Exception:
         logger.exception("Failed to commit error state for video %s", video.id)
         try:

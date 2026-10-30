@@ -245,6 +245,24 @@ class Settings(BaseSettings):
     alert_webhook_url: str = ""
     alert_webhook_secret: str = ""  # DingTalk sign secret (optional)
 
+    # A09/OPS-05: web-process health monitor. It watches the worker/beat
+    # heartbeats, queue depth, disk and the pipeline failure rate, and sends
+    # the same off-site webhook alert. Thresholds are settings so ops can tune
+    # them without a rebuild; probes are per-kind throttled in Redis.
+    #
+    # Opt-in (compose passes HEALTH_MONITOR_ENABLED=true for production): in a
+    # dev checkout beat/worker may be intentionally off, and the monitor would
+    # then alert every throttle window and write in-app admin notifications.
+    health_monitor_enabled: bool = False
+    health_monitor_interval_seconds: int = 60
+    health_worker_stale_seconds: int = 300
+    health_beat_stale_seconds: int = 300
+    health_queue_backlog_threshold: int = 200
+    health_disk_percent_threshold: int = 85
+    health_pipeline_failure_threshold: int = 5
+    health_pipeline_failure_window_minutes: int = 60
+    health_alert_throttle_seconds: int = 1800
+
     # Speech-transcription settings (WHISPER_* / TRANSCRIPTION_TEMP_DIR) have
     # moved to the standalone ``gpu-worker/`` component: the cloud no longer
     # runs Whisper. Only the queue name / callback knobs stay here — see the

@@ -125,3 +125,47 @@ def test_dingtalk_sign_deterministic():
     # Different timestamp -> different signature.
     s3 = _dingtalk_sign("mysecret", 1700000000001)
     assert s1 != s3
+
+
+@pytest.mark.asyncio
+async def test_send_alert_redacts_secrets_in_the_payload(monkeypatch):
+    """A09: alert text is user-influenced, so JWTs/connection passwords are
+    stripped before the payload leaves the process."""
+    monkeypatch.setattr(
+        "app.services.alert_service.get_settings",
+        lambda: type("S", (), {"alert_webhook_url": "https://hooks.example.com/alert", "alert_webhook_secret": ""})(),
+    )
+    captured: dict = {}
+
+    class FakeResp:
+        status_code = 200
+        text = "ok"
+
+        def json(self):
+            return {"errcode": 0}
+
+    class FakeClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, json=None):
+            captured["json"] = json
+            return FakeResp()
+
+    with patch("app.services.alert_service.httpx.AsyncClient", FakeClient):
+        await send_alert(
+            "media failed",
+            "GET https://seeword.top/media/a.mp4?token=SECRETJWT failed; "
+            "db postgresql+asyncpg://seeword:DBPASS@db:5432/seeword",
+        )
+
+    content = captured["json"]["text"]["content"]
+    assert "SECRETJWT" not in content
+    assert "DBPASS" not in content
+    assert "token=***" in content

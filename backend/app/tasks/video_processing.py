@@ -494,6 +494,9 @@ async def _run_translating(ctx: PipelineCtx) -> None:
             video.processing_step = None
             video.step_started_at = None
             await db.commit()
+            from app.services.pipeline_alerting import record_pipeline_failure
+
+            await record_pipeline_failure(video_id, step="translating", reason=video.error_message)
             # 阶段 4: alert admins (best-effort; never fails pipeline)
             from app.services.notification_service import notify_admins
 
@@ -1010,8 +1013,10 @@ async def _run_watchdog_pipeline() -> None:
                 )
                 stuck = [v for v in stuck if v.id not in undelivered]
 
+        steps_by_video: dict[str, str | None] = {}
         for v in stuck:
             step = v.processing_step
+            steps_by_video[v.id] = step
             v.status = VideoStatus.error
             v.error_message = f"Pipeline step '{step}' timed out (worker stuck or offline?)"
             v.processing_step = None
@@ -1036,6 +1041,10 @@ async def _run_watchdog_pipeline() -> None:
                 related_url=None,
             )
             await db.commit()
+            from app.services.pipeline_alerting import record_pipeline_failure
+
+            for v in stuck:
+                await record_pipeline_failure(v.id, step=steps_by_video.get(v.id), reason="watchdog step timeout")
             try:
                 from app.services.alert_service import send_alert
 

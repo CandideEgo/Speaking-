@@ -129,6 +129,9 @@ async def transcription_callback(
             video.error_message = payload.error or "Transcription failed"
             video.processing_step = None
             await db.commit()
+            from app.services.pipeline_alerting import record_pipeline_failure
+
+            await record_pipeline_failure(payload.video_id, reason=video.error_message)
             return {"acknowledged": True}
 
         # status == "ok": insert subtitles and hand off to the tail.
@@ -157,6 +160,12 @@ async def transcription_callback(
             )
             video.processing_step = None
             await db.commit()
+            from app.services.pipeline_alerting import record_pipeline_failure
+
+            await record_pipeline_failure(
+                payload.video_id,
+                reason=f"transcription quality: {', '.join(c.detail for c in quality_report.failed_checks)}",
+            )
             # 阶段 4: alert admins (best-effort)
             from app.services.notification_service import notify_admins
 

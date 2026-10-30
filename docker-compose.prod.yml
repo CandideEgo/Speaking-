@@ -153,6 +153,22 @@ services:
       # OVERWRITES X-Forwarded-For with $remote_addr (see nginx.conf) so
       # clients cannot spoof the header.
       FORWARDED_ALLOW_IPS: "*"
+      # A09/OPS-05：站外告警与 Sentry。本文件 environment 是白名单且没有 env_file
+      # （backend/.dockerignore 也排除 .env*），所以宿主 .env 里写了这些值，不在这里
+      # 透传就进不了容器。空值 = 未配置（webhook 回落到站内管理员通知）。
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      ALERT_WEBHOOK_SECRET: ${ALERT_WEBHOOK_SECRET:-}
+      # 健康监控在 web 进程里跑（worker/beat 只写心跳键）；阈值按机器容量调整。
+      HEALTH_MONITOR_ENABLED: ${HEALTH_MONITOR_ENABLED:-true}
+      HEALTH_MONITOR_INTERVAL_SECONDS: ${HEALTH_MONITOR_INTERVAL_SECONDS:-60}
+      HEALTH_WORKER_STALE_SECONDS: ${HEALTH_WORKER_STALE_SECONDS:-300}
+      HEALTH_BEAT_STALE_SECONDS: ${HEALTH_BEAT_STALE_SECONDS:-300}
+      HEALTH_QUEUE_BACKLOG_THRESHOLD: ${HEALTH_QUEUE_BACKLOG_THRESHOLD:-200}
+      HEALTH_DISK_PERCENT_THRESHOLD: ${HEALTH_DISK_PERCENT_THRESHOLD:-85}
+      HEALTH_PIPELINE_FAILURE_THRESHOLD: ${HEALTH_PIPELINE_FAILURE_THRESHOLD:-5}
+      HEALTH_PIPELINE_FAILURE_WINDOW_MINUTES: ${HEALTH_PIPELINE_FAILURE_WINDOW_MINUTES:-60}
+      HEALTH_ALERT_THROTTLE_SECONDS: ${HEALTH_ALERT_THROTTLE_SECONDS:-1800}
     expose:
       - "8000"
     volumes:
@@ -234,6 +250,11 @@ services:
       JINSHUJU_TIER_FIELD: ${JINSHUJU_TIER_FIELD:-field_2}
       JINSHUJU_PHONE_FIELD: ${JINSHUJU_PHONE_FIELD:-field_5}
       JINSHUJU_SYNC_LOOKBACK_HOURS: ${JINSHUJU_SYNC_LOOKBACK_HOURS:-72}
+      # A09/OPS-05：worker 的异常要进 Sentry，管线派发积压告警要走站外 webhook
+      # （此前 compose 没透传，send_alert 只能回落到站内通知，DB 挂了就一起没了）。
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      ALERT_WEBHOOK_SECRET: ${ALERT_WEBHOOK_SECRET:-}
     volumes:
       - media:/app/media
       - ./backend/data:/app/data:ro
@@ -282,6 +303,8 @@ services:
       TRANSLATION_CONCURRENT: ${TRANSLATION_CONCURRENT:-false}
       ENV: ${ENV:-production}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # A09/OPS-05：beat 只排程，不发告警；Sentry 用来看到 scheduler 自身的异常。
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       redis:
         condition: service_healthy

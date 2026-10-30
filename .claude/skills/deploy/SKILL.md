@@ -90,14 +90,19 @@ as production already produced a false "production data is empty" conclusion onc
    TS=\$(date +%Y%m%d%H%M%S)
    cp .env /root/backups/env.\$TS
    cp docker-compose.prod.yml /root/backups/compose.\$TS.yml
-   docker compose -f docker-compose.prod.yml exec -T db sh -c 'pg_dump -U seeword -d seeword' | gzip > /root/backups/pg_predeploy_\$TS.sql.gz
+   docker compose -f docker-compose.prod.yml exec -T db pg_dump -U seeword -d seeword -Fc > /root/backups/pg_predeploy_\$TS.dump
+   docker compose -f docker-compose.prod.yml exec -T db pg_restore --list < /root/backups/pg_predeploy_\$TS.dump > /dev/null
    for s in backend celery celery-beat frontend; do docker tag speaking-\$s:latest speaking-\$s:pre-deploy; done
    gunzip -c /root/images.tgz | docker load
    docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep speaking- | sort
    "
    ```
    Done when `speaking-*:latest` shows the **new** IDs, `speaking-*:pre-deploy` still shows the old
-   ones, and the `.env` / compose / `pg_predeploy_*.sql.gz` backups exist.
+   ones, and the `.env` / compose / `pg_predeploy_*.dump` backups exist.
+   The dump is custom format and `pg_restore --list` must read it — the old
+   `pg_dump | gzip` had no `pipefail`, so a failed dump could still leave a
+   valid-looking empty `.gz`. This is the pre-deploy rollback point; scheduled
+   off-host backups are `scripts/backup/backup.sh` (A09).
 
 6. **Migrate — and stop if the migration fails.**
    ```bash
@@ -167,7 +172,8 @@ as production already produced a false "production data is empty" conclusion onc
   docker compose -f docker-compose.prod.yml up -d --remove-orphans && docker exec speaking-nginx-1 nginx -s reload
   ```
   New tables and columns are purely additive, so rolling back the images normally needs no schema
-  change. To back the schema out too, restore the `pg_predeploy_*.sql.gz` from step 5 first.
+  change. To back the schema out too, restore the `pg_predeploy_*.dump` from step 5 first
+  (`docker compose -f docker-compose.prod.yml exec -T db pg_restore -U seeword -d seeword --clean --if-exists < /root/backups/pg_predeploy_<TS>.dump`).
 - **Sync config only when it changed.** Compare the local and remote checksums:
   ```bash
   sha256sum docker-compose.prod.yml nginx.ssl.conf promtail.yml

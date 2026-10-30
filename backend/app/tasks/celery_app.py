@@ -3,6 +3,7 @@ from celery.schedules import crontab
 from kombu import Queue
 
 from app.core.config import get_settings
+from app.core.observability import celery_role, init_sentry
 
 # Celery task name for the transcription step. The *implementation* now lives in
 # the standalone ``gpu-worker/`` component (the GPU machine consumes the
@@ -13,6 +14,10 @@ from app.core.config import get_settings
 GPU_TRANSCRIBE_TASK = "app.tasks.video_processing.transcribe_video_gpu"
 
 settings = get_settings()
+
+# A09/OPS-05: worker and beat exceptions now reach Sentry with the same
+# scrubbing as the web process (previously only main.py initialised it).
+init_sentry(celery_role())
 
 celery_app = Celery(
     "speaking",
@@ -123,6 +128,7 @@ celery_app.conf.update(
 import app.core.logging
 import app.models
 import app.tasks.account_tasks
+import app.tasks.health_tasks
 import app.tasks.home_content_tasks
 import app.tasks.notification_tasks
 import app.tasks.order_tasks

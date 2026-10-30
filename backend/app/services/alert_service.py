@@ -6,10 +6,13 @@ When ``alert_webhook_url`` is unset, alerts fall back to in-app ``notify_admins`
 (an in-app notification) so no alert is ever silently dropped.
 
 Callers:
-  - No production caller is wired yet — ``send_alert`` is currently exercised
-    only by tests/test_alert_service.py. Health degradation and pipeline
-    quality gates (transcription/translation failures) still call
-    ``notify_admins`` directly.
+  - ``app/tasks/pipeline_dispatch_tasks.py`` — undelivered pipeline backlog.
+  - ``app/services/health_monitor.py`` — worker/beat staleness, queue backlog,
+    disk, DB reachability and pipeline failure rate (A09/OPS-05).
+
+Every message is passed through ``app.core.redaction.redact`` before it leaves
+the process: alert text is user-influenced and this app carries JWTs in media
+URLs and passwords in connection strings.
 """
 
 import base64
@@ -23,6 +26,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.redaction import redact
 
 logger = get_logger(__name__)
 
@@ -67,6 +71,8 @@ async def send_alert(title: str, message: str, *, severity: str = "warning") -> 
     """
     settings = get_settings()
     ts = datetime.now(UTC).isoformat()
+    title = redact(title)
+    message = redact(message)
 
     # No out-of-band channel configured -> fall back to in-app admin notification.
     if not settings.alert_webhook_url:
