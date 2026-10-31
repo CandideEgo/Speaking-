@@ -3,8 +3,21 @@ from celery.schedules import crontab
 from kombu import Queue
 
 from app.core.config import get_settings
+from app.core.observability import celery_role, init_sentry
+
+# Celery task name for the transcription step. The *implementation* now lives in
+# the standalone ``gpu-worker/`` component (the GPU machine consumes the
+# ``transcription_gpu`` queue); the cloud enqueues it by name with
+# ``celery_app.send_task`` and has no import path to the worker. The literal is
+# kept for compatibility with already-queued messages and the documented
+# head/GPU/tail contract — do not rename without draining the queue.
+GPU_TRANSCRIBE_TASK = "app.tasks.video_processing.transcribe_video_gpu"
 
 settings = get_settings()
+
+# A09/OPS-05: worker and beat exceptions now reach Sentry with the same
+# scrubbing as the web process (previously only main.py initialised it).
+init_sentry(celery_role())
 
 celery_app = Celery(
     "speaking",
@@ -21,14 +34,14 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     # Queue topology: the cloud worker consumes the default ``celery`` queue;
-    # the remote GPU worker consumes ``transcription_gpu`` exclusively. Only
-    # the transcription task is routed off the default queue — everything else
-    # (video pipeline head/tail, localize, order expiry) runs
-    # on the cloud.
+    # the remote GPU worker (the standalone ``gpu-worker/`` component) consumes
+    # ``transcription_gpu`` exclusively. Only the transcription task is routed
+    # off the default queue — everything else (video pipeline head/tail,
+    # localize, order expiry) runs on the cloud.
     task_default_queue="celery",
     task_queues=(Queue("celery"), Queue(settings.transcription_gpu_queue_name)),
     task_routes={
-        "app.tasks.video_processing.transcribe_video_gpu": {"queue": settings.transcription_gpu_queue_name},
+        GPU_TRANSCRIBE_TASK: {"queue": settings.transcription_gpu_queue_name},
     },
     beat_schedule={
         "expire-pending-orders": {
@@ -49,6 +62,14 @@ celery_app.conf.update(
         "watchdog-stale-pipeline": {
             "task": "app.tasks.video_processing.watchdog_stale_pipeline",
             "schedule": 600,  # every 10 minutes
+        },
+        # A05/BE-01: re-send pipeline hand-offs whose DB state committed but
+        # whose Celery message never reached the broker (broker down / crash in
+        # the gap). Runs every minute so the recovery window stays short; also
+        # prunes settled rows and alerts on a backlog that will not drain.
+        "dispatch-pipeline-tasks": {
+            "task": "app.tasks.pipeline_dispatch_tasks.dispatch_pipeline_tasks",
+            "schedule": 60,
         },
         # Re-attempt failed YouTube downloads for ready videos that fell back
         # to embed playback (阶段 3). Daily; refreshes cookies first, respects
@@ -97,6 +118,12 @@ celery_app.conf.update(
             "task": "app.tasks.account_tasks.purge_deleted_accounts",
             "schedule": crontab(minute=30, hour=18),
         },
+        # A08/BE-04：注销后媒体删除失败（文件被占用、主机重启）时重试。
+        # 清理队列在删除用户的同一事务里写入，失败行带退避，永不静默丢失。
+        "retry-media-cleanup": {
+            "task": "app.tasks.account_tasks.retry_media_cleanup",
+            "schedule": 900,  # every 15 minutes
+        },
     },
 )
 
@@ -104,14 +131,16 @@ celery_app.conf.update(
 # Register the task_prerun signal that binds request_id (task_id) into
 # structlog context vars so every log line emitted during a Celery task
 # automatically includes request_id for traceability.
-import app.core.logging as _logging
+import app.core.logging
 import app.models
 import app.tasks.account_tasks
+import app.tasks.health_tasks
 import app.tasks.home_content_tasks
 import app.tasks.notification_tasks
 import app.tasks.order_tasks
 import app.tasks.payment_tasks
+import app.tasks.pipeline_dispatch_tasks  # A05: beat re-dispatches pending pipeline intents
 import app.tasks.ranking_tasks
 import app.tasks.reminder_tasks
 import app.tasks.scoring_tasks
-import app.tasks.video_processing
+import app.tasks.video_processing  # noqa: F401  (import registers the tasks with this app)

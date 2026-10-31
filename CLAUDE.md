@@ -7,26 +7,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **SeeWord** — 视频 + 字幕逐词点读的英语学习站。用户看视频、点单词查义、重听原句、做词汇复习与四六级试卷。
 
 - 后端：FastAPI(Python 3.12) + SQLAlchemy 2.0 async + Celery + Alembic，源码在 `backend/`
+- GPU 转录 worker：已从 backend 拆成**独立组件** `gpu-worker/`（自带 `.venv`、`.env.gpu-worker`、requirements 与 NSSM 服务，不 import `app.*`），只消费 `transcription_gpu` 队列并回调云端
 - 前端：Next.js 16 App Router + React 19 + Tailwind v4 + Zustand，源码在 `frontend/`
 - 基础设施：Postgres 16 + Redis 7（Celery 的 broker 和 result backend 都用它）
-- 部署：单机 docker compose + nginx 反代；转写另跑在一台无 DB 的 GPU 机器上
+- 部署：单机 docker compose + nginx 反代；转写另跑在一台无 DB 的 GPU 机器上（就是 `gpu-worker/`）
 
-**仓库根没有 `package.json`，也没有 Makefile。** 所有命令都要先进 `backend/` 或 `frontend/`。子包各自的约定见 [`backend/CLAUDE.md`](backend/CLAUDE.md) 与 [`frontend/CLAUDE.md`](frontend/CLAUDE.md)。
+**仓库根没有 `package.json`，也没有 Makefile。** 所有命令都要先进 `backend/`、`frontend/` 或 `gpu-worker/`。子包各自的约定见 [`backend/CLAUDE.md`](backend/CLAUDE.md) 与 [`frontend/CLAUDE.md`](frontend/CLAUDE.md)；GPU worker 读 [`gpu-worker/README.md`](gpu-worker/README.md)。
 
 ## 命令速查
 
 | 目的                | 命令                                                                                   | 工作目录    |
 | ------------------- | -------------------------------------------------------------------------------------- | ----------- |
-| 全栈 dev（compose） | `docker compose up -d`                                                                 | 根          |
+| compose dev 栈      | `docker compose up -d`（db/redis/backend/celery/frontend；无 beat、无 GPU worker）      | 根          |
 | 轻量本地启动        | `.\Start-Redesign.ps1`（只起 API+前端+DB/Redis，无 Celery/GPU）                        | 根          |
 | 只起 DB + Redis     | `docker compose -f docker-compose.dev.yml up -d`                                       | 根          |
 | 后端 API            | `uvicorn app.main:app --reload --port 8000`                                            | `backend/`  |
 | Celery worker       | `celery -A app.tasks.celery_app worker --loglevel=info`                                | `backend/`  |
 | Celery beat         | `celery -A app.tasks.celery_app beat`                                                  | `backend/`  |
+| GPU worker（GPU 机） | `powershell -File scripts\run_gpu_worker.ps1`（加载 `.env.gpu-worker` 后用本目录 `.venv` 启动） | `gpu-worker/` |
 | 跑迁移              | `alembic upgrade head`                                                                 | `backend/`  |
 | 后端测试            | `pytest tests/ -v`                                                                     | `backend/`  |
 | 跑单条后端测试      | `pytest tests/test_auth.py::TestUserProfile::test_get_me_without_token_returns_401 -v` | `backend/`  |
 | 后端 lint / 格式    | `ruff check app/ tests/` · `ruff format app/ tests/`                                   | `backend/`  |
+| GPU worker 测试     | `.venv/Scripts/python.exe -m pytest tests -q`                                          | `gpu-worker/` |
+| GPU worker lint     | `.venv/Scripts/ruff.exe check gpu_worker/ tests/ scripts/`                             | `gpu-worker/` |
 | 前端 dev            | `npm run dev`                                                                          | `frontend/` |
 | 前端单测            | `npm run test:unit`                                                                    | `frontend/` |
 | 跑单个前端单测      | `npx vitest run src/lib/createApiClient.test.ts`                                       | `frontend/` |
@@ -39,7 +43,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `.\Start-Redesign.ps1` 是改版交付的轻量启动入口：复用已跑的端口，只拉起 backend :8000 + Next :3000 + Docker 的 DB/Redis，**不拉 Celery/GPU worker**；需要转写或定时任务时仍用 `/dev`。
 
-> 本机是中文 Windows：启动任何后端 Python 进程都要带 `PYTHONUTF8=1`（并用 `backend/.venv/Scripts/python.exe`），否则读取 UTF-8 的 `.env` 会直接 `UnicodeDecodeError: 'gbk' codec` 启动失败。原因与其余本机坑见 [`backend/CLAUDE.md`](backend/CLAUDE.md)。`/dev` skill 已内置。
+> 本机是中文 Windows：启动任何后端 Python 进程都要带 `PYTHONUTF8=1`（云端用 `backend/.venv/Scripts/python.exe`，GPU worker 用 `gpu-worker/.venv/Scripts/python.exe`），否则读取 UTF-8 的 `.env` 会直接 `UnicodeDecodeError: 'gbk' codec` 启动失败。原因与其余本机坑见 [`backend/CLAUDE.md`](backend/CLAUDE.md)，GPU worker 侧见 [`gpu-worker/README.md`](gpu-worker/README.md)。`/dev` skill 已内置。
 
 ### 优先用 skill，别照上表手敲
 
@@ -59,7 +63,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 后端装配与错误契约
 
-`backend/app/main.py::create_app()` 是唯一入口，模块底部 `app = create_app()`（`main.py:420`；行号会漂，认符号别认数字）。三个自定义 `@app.middleware("http")`：request-id 注入、请求日志、安全头（生产才加 HSTS 与 CSP）。Prometheus 走 `Instrumentator`，`/health` 会真探 DB 与 Redis 并在任一不健康时返回 503。
+`backend/app/main.py::create_app()` 是唯一入口，模块底部 `app = create_app()`（认符号别认行号，行号会漂）。三个自定义 `@app.middleware("http")`：request-id 注入、请求日志、安全头（生产才加 HSTS 与 CSP）。Prometheus 走 `Instrumentator`，`/health` 会真探 DB 与 Redis 并在任一不健康时返回 503。
 
 **所有错误响应都是统一 envelope** `{code, message, detail?}`：
 
@@ -82,7 +86,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道：
 
-- engine 与 session maker 都 `@lru_cache` **懒建**，不在 import 时建。这是为了让没有 `DATABASE_URL` 的 GPU worker 也能 import 这些模块。
+- engine 与 session maker 都 `@lru_cache` **懒建**，不在 import 时建。历史动因是让没有 `DATABASE_URL` 的 GPU worker 也能 import 这些模块；GPU 段已拆进独立组件 `gpu-worker/`（不再 import `app.*`），懒建继续服务脚本与测试。
 - FastAPI 路由用 `get_db()` 依赖；Celery 任务等非依赖场景用 `get_async_session_maker()`——后者同时是测试 monkeypatch 的缝。
 
 模型在 `backend/app/models/`，必须由 `app/models/__init__.py` 按依赖序 re-export（`create_app` 会先 import 它们，好让 SQLAlchemy 在任何 `create_all`／Alembic autogenerate 前把 `Base.metadata` 填全）。迁移 84 个 revision 在 `backend/migrations/versions/`。
@@ -93,7 +97,9 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 
 ### 鉴权
 
-手机号 + 短信验证码，**没有邮箱**。`app/core/security.py` 用 PyJWT HS256 签 token（access 30 分钟、refresh 7 天，带 `jti`/`type`）。`app/api/dependencies.py` 的 `get_current_user` 会解 token、校验类型、查 token 黑名单、拒绝早于 `password_changed_at` 的 token、拒绝被封禁用户。另有 `get_optional_user` / `get_admin_user`；内测免费期没有 Pro 访问门（`unlock_service` 里额度逻辑保留 dormant），原 `require_pro_user` 已删除。
+另有一行密码契约：新密码 8 位起、**最多 72 个 UTF-8 字节**（bcrypt 只消费前 72 字节，bcrypt ≥ 5 对更长输入直接抛错）。`security.validate_password_strength` 统一校验、schema 转 422；`hash_password` 拒绝超长而**不截断**；`verify_password` 对历史 hash 按前 72 字节比对，让旧密码仍可登录。
+
+手机号 + 短信验证码，**没有邮箱**。`app/core/security.py` 用 PyJWT HS256 签 token（access 30 分钟、refresh 7 天，带 `jti`/`type`）。`app/api/dependencies.py` 的 `get_current_user` 会解 token、校验类型、查 token 黑名单、拒绝早于 `password_changed_at` 的 token、拒绝被封禁用户。另有 `get_optional_user` / `get_admin_user`；内测免费期没有 Pro 访问门（`unlock_service` 里额度逻辑保留 dormant），原 `require_pro_user` 已删除。「有效会员」只有一个口径：`plan == pro` 且 `plan_expires_at` 晚于当前时间；**到期时间为空是无效数据，不是永久会员**（前端 `isProUser`、`/payments/status`、`unlock_service.is_active_pro`、后台 KPI 四处一致，2026-10-29 定）。
 
 **不走 Bearer 的入口共用同一条校验链**：媒体 `?token=`、原卷 PDF、通知 WebSocket 握手都调 `dependencies.resolve_token_user()`，而不是各自解 token——黑名单、改密失效、封禁一条不落。新增这类入口（`<video>`/`<audio>`/WS/下载）必须走它。
 
@@ -101,20 +107,20 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 
 ### 视频管线：head / GPU / tail 三段切分
 
-全在 `backend/app/tasks/video_processing.py`。这个切分是整个仓库最需要先理解的东西——中间一段跑在**另一台机器**上。
+head 与 tail 在 `backend/app/tasks/video_processing.py`，**中间的 GPU 段已拆到独立组件** `gpu-worker/gpu_worker/tasks.py`。这个切分是整个仓库最需要先理解的东西——中间一段跑在**另一台机器**上。
 
-1. **head** `process_video`：yt-dlp 取元信息，本地上传的素材先 stage 到 OSS，然后入队 `transcribe_video_gpu` 并释放锁
-2. **GPU 段** `transcribe_video_gpu`：路由到 `transcription_gpu` 队列，在 GPU 机器上跑 `TranscriptionService._sync_transcribe`（WhisperX = VAD → 批量 ASR → wav2vec2 强制对齐，失败回退 faster-whisper），完事后 POST 回云端
-3. **回调** `app/api/v1/internal.py::transcription_callback`：验共享密钥 + Redis 去重锁 → 质量门 → 写 `Subtitle` → 置 `ready_subtitles` → 入队 tail
+1. **head** `process_video`：yt-dlp 取元信息，本地上传的素材先 stage 到 OSS，然后 `celery_app.send_task(GPU_TRANSCRIBE_TASK, args=[video_id, source, platform], queue=settings.transcription_gpu_queue_name)` 入队并释放锁——云端用任务名常量入队，不 import GPU 代码
+2. **GPU 段** `transcribe_video_gpu`：任务名**故意保留旧名** `app.tasks.video_processing.transcribe_video_gpu`（兼容队列里已入队的消息），实现在 `gpu-worker/gpu_worker/tasks.py`：GPU 机器上的 Celery 只消费 `transcription_gpu` 队列，跑 `TranscriptionService._sync_transcribe`（WhisperX = VAD → 批量 ASR → wav2vec2 强制对齐，失败回退 faster-whisper），完事后 POST 回云端
+3. **回调** `app/api/v1/internal.py::transcription_callback`：验共享密钥 + Redis 去重锁 → 质量门 → 写 `Subtitle` → 置 `ready_subtitles`，并在**同一事务**写入待派发意图（`pipeline_dispatches` outbox），提交后立即入队 tail；派发失败不丢意图，由 beat `dispatch_pipeline_tasks` 补发（A05/BE-01）
 4. **tail** `finalize_video`：翻译（`TranslationService`）→ 质量门 → ECDICT 本地查词注释 → 预热词注 → 分类 → 下载 → 转码 → `ready`，随后注册标准、自动发布、评分、难度与语速指标
 
 `watchdog_stale_pipeline` 每 10 分钟把卡过各步骤超时的视频标失败，覆盖 `processing` 与 `ready_subtitles` 两个相位。
 
 ### Celery
 
-`backend/app/tasks/celery_app.py` 定义 `celery_app`，两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `transcribe_video_gpu` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理。**Pro/兑换码 beat 与周报空任务壳已在 2026-10-26 清理中删除**（兑换码任务文件一并删除，已入队的旧消息会以 unregistered task 结束，影响面可忽略）；`reminder_tasks.send_pro_expiring_reminders` 的任务体保留但无调度，供未来恢复付费到期提醒时复用。
+`backend/app/tasks/celery_app.py` 定义 `celery_app` 与常量 `GPU_TRANSCRIBE_TASK`（值是**保留的旧任务名** `app.tasks.video_processing.transcribe_video_gpu`，task_routes 用它），两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `GPU_TRANSCRIBE_TASK` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。GPU 侧的 Celery 应用与任务在 `gpu-worker/gpu_worker/celery_app.py` / `tasks.py`，只声明、只消费 `transcription_gpu`。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、**管线派发补发（每 60 秒，`app.services.pipeline_dispatch` 的 outbox）**、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理。**Pro/兑换码 beat 与周报空任务壳已在 2026-10-26 清理中删除**（兑换码任务文件一并删除，已入队的旧消息会以 unregistered task 结束，影响面可忽略）；`reminder_tasks.send_pro_expiring_reminders` 的任务体保留但无调度，供未来恢复付费到期提醒时复用。
 
-Windows 上这些以 NSSM 服务托管（`backend/scripts/run_celery_worker.ps1`、`run_gpu_worker.ps1`）。
+Windows 上这些以 NSSM 服务托管：云端与 beat 用 `backend/scripts/run_celery_worker.ps1`；GPU worker 用 `gpu-worker/scripts/run_gpu_worker.ps1`，隧道用 `gpu-worker/scripts/gpu_worker_tunnel.ps1`（服务名见 [`gpu-worker/README.md`](gpu-worker/README.md)）。
 
 ### 听力练习（`/api/v1/listening` + `/practice/listening`）
 
@@ -160,6 +166,8 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 
 `backend/app/core/config.py::Settings`（pydantic-settings，`get_settings()` 带 `@lru_cache`，读 `backend/.env`）。`model_post_init` **fail-closed**：`development` 给 localhost 与开发密钥默认值；其它环境强制要 `JWT_SECRET` + `DATABASE_URL`；`production` 还要 `REDIS_URL` + `TRANSCRIPTION_CALLBACK_SECRET`，且 `OPENAI_API_KEY` 与 `COMMANDCODE_API_KEY` 至少有一个（LLM 供应商二选一）。
 
+**GPU 转录配置已不在 backend**：`WHISPER_*` 与 `TRANSCRIPTION_TEMP_DIR` 已从 backend `Settings` 删除，改由 `gpu-worker/gpu_worker/config.py` 的独立 `Settings` 读 `.env.gpu-worker`（重叠字段的名字与默认值与云端保持一致）。backend 只保留云端侧的回调与队列旋钮：`TRANSCRIPTION_CALLBACK_URL` / `TRANSCRIPTION_CALLBACK_SECRET` / `TRANSCRIPTION_CALLBACK_TIMEOUT` / `TRANSCRIPTION_CALLBACK_MAX_RETRIES` / `TRANSCRIPTION_GPU_QUEUE_NAME`；`backend/.env.example` 也不再列 Whisper 变量。
+
 **LLM 接入**：provider + 模型目录 + 「哪些模型免费」+ 任务路由的唯一事实源是 `backend/app/services/llm_provider.py`（形状照 pi 的 `models.json`，裁成 env 驱动）。默认 provider 是 Command Code（OpenAI 兼容），默认模型是免费模型；`AIService`（词注释/分类/练习题/首页草稿）与翻译的 `commandcode` 引擎都从这里取模型，`LLM_MODEL_<TASK>` 可按任务换模型，`OPENAI_*` 仅作后备。巡检 `python scripts/check_llm_provider.py --list|--test`；接入手册与免费模型口径见 [`docs/llm-provider-commandcode-integration-2026-10.md`](docs/llm-provider-commandcode-integration-2026-10.md)（外部事实/调研见同目录 `llm-provider-commandcode-research-2026-10.md`）。
 
 运行时开关有两层：env 布尔（`sms_login_enabled`、`payments_enabled`、`oss_upload_enabled`、`jwt_blacklist_enabled` 等）与 DB 里的单行 `AdminSetting`（看门狗、注册开关、质量门阈值等，任务里按调用时刻读 `_effective_*`）。
@@ -168,7 +176,7 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 
 ## 改版（`redesign` 分支，2026-10）
 
-改版分支当前领先 `master` 约 90 个提交，**尚未合并**。内容以表现层、真实统计口径、听力扩展与后端审计修补为主；不恢复已下线功能。相关文件都是活文档：
+改版主体已于 2026-10-28 合并进 `master`（`55da59f0`）；之后 `redesign` 上又有 GPU worker 独立拆分与本机迁移记录等提交，尚未回灌 `master`。分支领先/落后数会变，现查 `git log --oneline master..HEAD`，别信写死的数字。内容以表现层、真实统计口径、听力扩展与后端审计修补为主；不恢复已下线功能。相关文件都是活文档：
 
 | 路径 | 作用 |
 | --- | --- |
@@ -187,6 +195,7 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 - 与用户交流用中文。
 - **代码是事实源。** 注释、文档、快照都可能过期；冲突时以代码为准。
 - 先验证再下结论。跑不了的检查明确写「未执行」，不写成通过。
+- **浏览器检查一律用 `ego-browser`，并且要真的把服务跑起来。** 任何要看页面、点交互、核对视觉／移动端／键盘行为的检查（走查、验收、复现、QA）都用 `ego-browser` skill，不用内置浏览器工具或其它浏览器；这类检查需要站点才能验证时，先按 `/dev`（或 `npm run dev` + 后端）把服务起起来，再实际打开、点击、读取页面。**不得以「Playwright 浏览器没装／沙箱限制」为由把这类检查记成「未执行」**——那是环境问题，不是跳过浏览器验证的理由。`npx playwright test` 仍是 CI 的自动化门禁，与 ego-browser 分工不同（自动跑回归 vs 真的看一眼），两者都不能被对方替代。
 - **永不为让检查变绿而放宽检查器、基线或豁免。** 具体指 `backend/.mypy-baseline`、`backend/.pip-audit-ignore`、`frontend/scripts/check-design-system.mjs`。先处理真实违规。
 - 一条事实只放一个家，不跨文件复制规则。
 - 用户授权只覆盖当前任务，不自动延伸到生产、删除、发布或额外系统。
@@ -200,11 +209,13 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 - `backend/pyproject.toml` 与 `app/**` 注释里的 `INV-005` 是**活规则**：AI 调用必须走 `app.services.ai_service` 或 `app.services.translation`，由 ruff 的 `TID251 banned-api` 强制。但那份带编号的清单文件已不存在。
 - `.github/workflows/ci.yml` 开头提到的「本仓审查原则第 N 条」清单已删。
 - `scripts/release.sh` 里指向 `knowledge/CHANGELOG.md` 的步骤现在是断的。
-- `.mcp.json` 仍指向 `C:/Users/Administrator/Tools/aoci/aoci.exe`，该 server 已在 `.claude/settings.local.json` 里禁用。
+- `.mcp.json` 用 PATH 上的 `aoci` 与仓库相对路径 `--repo .`；该 server 已在 `.claude/settings.local.json` 里禁用。
 
 改这些注释里的失效指针不属于当前任务；遇到时按上面说明处理即可。
 
 **两个例外——这两个路径现在确实存在，别当成已删的：**
 
 - **`docs/` 已回归**（2026-10-15 `0b85160` 入库）：里面是 2026-10 起的产品/架构计划、调研、代码与 UI 评审、实施契约和验证记录（如 `architecture-fix-plan-2026-10.md`、`product-review-2026-10.md`、`oss-reference-2026-10.md`、`code-review-2026-10-20.md`、`ui-review-2026-10-21.md`、`home-editorial-content-implementation-2026-10.md`），不是被删的那批知识层。可以读（改版新增的审计报告与截图见上一节）。
-- **根 `AGENTS.md` 已重建**（2026-10-17），是指向本文件的纯入口、不含任何规则。规则仍然只有三个家：本文件、`backend/CLAUDE.md`、`frontend/CLAUDE.md`。
+- **根 `AGENTS.md` 已重建**（2026-10-17），是指向本文件的纯入口、不含任何规则。规则的家：本文件、`backend/CLAUDE.md`、`frontend/CLAUDE.md`、`gpu-worker/README.md`。
+
+另外 `.agents/`（复数）也真实存在，但它**不是规则源**：那是 Codex 的本地镜像（`.gitignore` 忽略），里面的 `skills/` 只是 `.claude/skills/` 的旧副本（路径还写着旧机器），以 `.claude/skills/` 为准。

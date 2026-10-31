@@ -1,16 +1,14 @@
-"""Video submission and seeding — create Video rows and dispatch Celery tasks.
-
-Handles user submission, admin seed, and user-seed flows.
+"""Video seeding and processing control — create Video rows and dispatch Celery tasks.
 
 - Admin seed (seed_video): creates video in "processing" status and immediately
   dispatches process_video.delay() — admin-seeded videos auto-process.
-- User submission (submit_video, seed_user_video, upload): creates video in
-  "pending_processing" status — waits for admin to trigger processing via
-  the start_processing() function. Stays in draft after processing completes
-  so the creator can edit subtitles/practice before submitting for review.
 - start_processing(): admin triggers GPU processing for a pending video.
   Checks that the local GPU worker is online (via Redis heartbeat) before
   dispatching the Celery task.
+
+There is no user-submit path (INV-003): everything here is admin/catalog
+triggered, so the old UGC helpers (submit_video / seed_user_video /
+fork_video) are gone.
 """
 
 import hashlib
@@ -30,8 +28,7 @@ from app.core.errors import (
 from app.core.logging import get_logger
 from app.core.redis import get_redis
 from app.models.subtitle import Subtitle
-from app.models.user import User
-from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
+from app.models.video import Video, VideoSource, VideoStatus
 from app.schemas.video import VideoAdminResponse, VideoResponse
 from app.services.video_url_guard import validate_video_url
 
@@ -77,7 +74,7 @@ _SEED_DEDUP_STATUSES = (
 
 def _seed_lock_key(source_url: str) -> str:
     """URL-level lock key; sha1 keeps long URLs out of Redis key size limits."""
-    return f"seed:{hashlib.sha1(source_url.encode('utf-8')).hexdigest()}"
+    return f"seed:{hashlib.sha1(source_url.encode('utf-8'), usedforsecurity=False).hexdigest()}"
 
 
 async def _acquire_single_flight(key: str, ttl: int) -> bool:
@@ -224,45 +221,6 @@ async def _restore_translating_marker(video_id: str) -> None:
         logger.warning("Redis unavailable while restoring translating marker for %s", video_id, exc_info=True)
 
 
-async def submit_video(
-    db: AsyncSession,
-    source_url: str,
-    current_user: User,
-) -> VideoResponse:
-    """Submit a new video URL for processing.
-
-    If a ready video already exists for this URL, creates a new user
-    reference instead of re-processing.
-    """
-    await validate_video_url(source_url)
-    platform = _detect_platform(source_url)
-
-    # Phase 2: if a standard version exists for this URL, fork it (subtitles +
-    # practice + metadata) instead of re-running the GPU pipeline. The
-    # standard is the first ready video for the URL — registered by
-    # finalize_video. No standard → this is a new URL; create a pending row
-    # and let the admin trigger first processing (which registers the standard).
-    standard = await _find_standard_for_url(db, source_url)
-    if standard is not None:
-        user_video = await _fork_video_from(db, standard, current_user=current_user)
-        return VideoResponse.model_validate(user_video)
-
-    # New video — wait for admin to trigger processing.  Stays in draft
-    # after processing so the creator can edit before submitting for review.
-    video = Video(
-        user_id=current_user.id,
-        title="Processing...",
-        source_url=source_url,
-        video_source=platform,
-        status=VideoStatus.pending_processing,
-        auto_publish=False,
-    )
-    db.add(video)
-    await commit_refresh(db, video)
-
-    return VideoResponse.model_validate(video)
-
-
 async def seed_video(
     db: AsyncSession,
     source_url: str,
@@ -339,174 +297,6 @@ async def seed_video(
         return VideoResponse.model_validate(video)
     finally:
         await _delete_redis_key(lock_key)
-
-
-async def seed_user_video(
-    db: AsyncSession,
-    source_url: str,
-    current_user: User,
-    *,
-    auto_publish: bool = False,
-) -> VideoResponse:
-    """Seed a video from a URL on behalf of a regular (non-admin) user.
-
-    Similar to seed_video but creates a UGC video (is_official=False)
-    owned by the submitting user, starting in draft review status.
-    UGC videos always require admin review before appearing in the
-    community feed, regardless of the ``auto_publish`` flag.
-    """
-    await validate_video_url(source_url)
-    # Phase 2: same-URL dedup — fork the standard if one exists.
-    standard = await _find_standard_for_url(db, source_url)
-    if standard is not None:
-        user_video = await _fork_video_from(db, standard, current_user=current_user)
-        return VideoResponse.model_validate(user_video)
-
-    platform = _detect_platform(source_url)
-
-    video = Video(
-        title="Processing...",
-        source_url=source_url,
-        video_source=platform,
-        status=VideoStatus.pending_processing,
-        user_id=current_user.id,
-        is_official=False,
-        is_published=False,
-        review_status=VideoReviewStatus.draft.value,
-        auto_publish=auto_publish,
-    )
-    db.add(video)
-    await commit_refresh(db, video)
-
-    return VideoResponse.model_validate(video)
-
-
-# ---------------------------------------------------------------------------
-# Standard-version fork helpers (Phase 2)
-# ---------------------------------------------------------------------------
-
-
-async def _find_standard_for_url(db: AsyncSession, source_url: str) -> Video | None:
-    """Return the canonical Video for ``source_url``, or None if no standard yet.
-
-    A standard appears once a video for that URL first reaches ``ready``
-    (registered by ``finalize_video``). Forks copy from the standard instead
-    of re-running the GPU pipeline.
-    """
-    from app.models.video_standard import VideoStandard
-
-    result = await db.execute(
-        select(Video)
-        .join(VideoStandard, VideoStandard.canonical_video_id == Video.id)
-        .where(VideoStandard.source_url == source_url)
-    )
-    return result.scalar_one_or_none()
-
-
-async def _copy_subtitles(db: AsyncSession, *, source_video_id: str, target_video_id: str) -> int:
-    """Copy every subtitle row from source to target (full column set).
-
-    Preserves word_levels / grammar_note / text_zh so the fork starts with the
-    standard's translated, annotated state — not just raw English. Returns the
-    count of rows copied.
-    """
-    result = await db.execute(
-        select(Subtitle).where(Subtitle.video_id == source_video_id).order_by(Subtitle.sentence_index)
-    )
-    count = 0
-    for s in result.scalars().all():
-        db.add(
-            Subtitle(
-                video_id=target_video_id,
-                start_time=s.start_time,
-                end_time=s.end_time,
-                text_en=s.text_en,
-                text_zh=s.text_zh,
-                sentence_index=s.sentence_index,
-                speaker=s.speaker,
-                grammar_note=s.grammar_note,
-                difficulty_words=s.difficulty_words,
-                word_levels=s.word_levels,
-                words=s.words,
-            )
-        )
-        count += 1
-    return count
-
-
-async def _fork_video_from(
-    db: AsyncSession,
-    source: Video,
-    *,
-    current_user: User,
-) -> Video:
-    """Create a user-owned ``ready`` fork of ``source``.
-
-    Shared by ``submit_video`` / ``seed_user_video`` (same-URL dedup) and the
-    explicit ``POST /videos/{id}/fork`` endpoint (扩展 A4). The fork is born
-    ``ready`` with the source's media URLs (shared file — see 扩展 E1) and a
-    full subtitle snapshot; no GPU pipeline runs. ``forked_from``
-    records lineage (may point at the standard or another fork — fork-of-fork
-    is allowed; dedup still keys off the URL's standard).
-    """
-    user_video = Video(
-        user_id=current_user.id,
-        title=source.title,
-        source_url=source.source_url,
-        video_source=source.video_source,
-        thumbnail_url=source.thumbnail_url,
-        duration=source.duration,
-        difficulty_level=source.difficulty_level,
-        # 阶段 1/3 feature fields travel with the fork (same source video).
-        yt_video_id=source.yt_video_id,
-        channel_id=source.channel_id,
-        channel_name=source.channel_name,
-        upload_date=source.upload_date,
-        ext_view_count=source.ext_view_count,
-        ext_like_count=source.ext_like_count,
-        external_meta=source.external_meta,
-        wpm=source.wpm,
-        vocabulary_density=source.vocabulary_density,
-        video_url_480p=source.video_url_480p,
-        video_url_720p=source.video_url_720p,
-        video_url_1080p=source.video_url_1080p,
-        processing_mode=source.processing_mode,
-        status=VideoStatus.ready,
-        is_official=False,
-        is_published=False,
-        review_status=VideoReviewStatus.draft.value,
-        auto_publish=False,
-        forked_from=source.id,
-    )
-    db.add(user_video)
-    await db.flush()
-
-    await _copy_subtitles(db, source_video_id=source.id, target_video_id=user_video.id)
-    await commit_refresh(db, user_video)
-    return user_video
-
-
-async def fork_video(db: AsyncSession, video_id: str, current_user: User) -> VideoResponse:
-    """Fork a video into the current user's library (扩展 A4).
-
-    The source may be the standard version or any ready fork (fork-of-fork
-    allowed; dedup still keys off the URL's standard). The fork is born
-    ``ready`` with subtitles + metadata copied; no GPU pipeline
-    runs. ``forked_from`` records lineage to the source.
-
-    Raises:
-        NotFound: If the source video is not found.
-        Invalid: If the source video is not ready.
-    """
-    result = await db.execute(select(Video).where(Video.id == video_id))
-    source = result.scalar_one_or_none()
-    if source is None:
-        raise NotFoundError("Video not found")
-    if source.status != VideoStatus.ready:
-        raise BadRequestError(f"Video is not ready (current: {source.status.value}); only ready videos can be forked")
-
-    user_video = await _fork_video_from(db, source, current_user=current_user)
-    return VideoResponse.model_validate(user_video)
 
 
 # ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ from sqlalchemy import func, select
 
 from app.api.v1 import internal as internal_module
 from app.core.config import get_settings
+from app.models.pipeline_dispatch import PipelineDispatch
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoSource, VideoStatus
 from tests.conftest import TestSessionLocal
@@ -345,3 +346,144 @@ class TestCallbackConcurrency:
         assert len(_finalize_calls(_mock_celery)) == 1
         # 第一个回调结束时释放了锁，重试能继续抢到。
         assert f"video:callback:{video_id}" not in redis_lock.store
+
+
+# ---------------------------------------------------------------------------
+# 6. 派发失败不丢 tail（A05/BE-01）
+# ---------------------------------------------------------------------------
+#
+# 旧实现在 commit 之后才 ``finalize_video.delay()``：broker 抖动或进程在两步之间
+# 被杀，数据库已经是 ready_subtitles，tail 却永远不跑；回调重试又被状态守卫
+# ack 掉，看门狗只会把它标 error。现在意图与状态同事务落库，派发失败留在 pending，
+# 由 beat 的 dispatcher 补发（见 tests/test_pipeline_dispatch.py 与
+# ``pipeline_dispatch_tasks._run_dispatch_pipeline``）。
+
+
+async def _dispatch_rows(video_id: str) -> list[PipelineDispatch]:
+    async with TestSessionLocal() as db:
+        result = await db.execute(select(PipelineDispatch).where(PipelineDispatch.video_id == video_id))
+        return list(result.scalars().all())
+
+
+@pytest.fixture
+def broker_down(monkeypatch) -> list[tuple]:
+    """派发端口（``pipeline_dispatch._send_task``）在 broker 不可用时抛错。"""
+
+    def _broken(task_name: str, args: list, queue: str | None) -> None:
+        raise ConnectionError("broker down")
+
+    from app.services import pipeline_dispatch as dispatch_mod
+
+    monkeypatch.setattr(dispatch_mod, "_send_task", _broken)
+    return []
+
+
+class TestTailDispatchOutbox:
+    async def test_broker_failure_keeps_tail_intent_pending(
+        self, client, redis_lock, callback_secret, _mock_celery, broker_down
+    ):
+        video_id = await _seed_video()
+
+        response = await client.post(CALLBACK_URL, json=_payload(video_id), headers=_headers())
+
+        # 库里的工作已经完成：字幕写好了、状态推进了，不该因为 broker 抖动报错。
+        assert response.status_code == 200, response.text
+        assert response.json()["acknowledged"] is True
+        assert await _subtitle_count(video_id) == 3
+        status, step, _ = await _video_state(video_id)
+        assert status == VideoStatus.ready_subtitles.value
+        assert step == "translating"
+
+        # 但 tail 没发出去：意图还在，带一次失败记录与退避时间。
+        assert _finalize_calls(_mock_celery) == []
+        rows = await _dispatch_rows(video_id)
+        assert len(rows) == 1
+        assert rows[0].task_name == FINALIZE_TASK
+        assert rows[0].status == "pending"
+        assert rows[0].attempts == 1
+        assert "broker down" in (rows[0].last_error or "")
+        assert rows[0].next_attempt_at is not None
+
+    async def test_callback_retry_does_not_duplicate_the_intent(
+        self, client, redis_lock, callback_secret, _mock_celery, broker_down
+    ):
+        video_id = await _seed_video()
+        first = await client.post(CALLBACK_URL, json=_payload(video_id), headers=_headers())
+        assert first.status_code == 200, first.text
+
+        # GPU 侧的超时重试：视频已不在 processing，ack 掉即可，不新增意图。
+        second = await client.post(CALLBACK_URL, json=_payload(video_id), headers=_headers())
+        assert second.status_code == 200
+        assert second.json()["acknowledged"] is True
+
+        rows = await _dispatch_rows(video_id)
+        assert len(rows) == 1
+        assert rows[0].attempts == 1  # 没有为重复回调再发一次
+        assert await _subtitle_count(video_id) == 3
+
+    async def test_dispatcher_recovers_a_pending_tail_intent(
+        self, client, redis_lock, callback_secret, _mock_celery, broker_down, monkeypatch
+    ):
+        video_id = await _seed_video()
+        # 让失败重试立刻到期：dispatcher 在真实环境里是 1 分钟后扫到这条行。
+        from app.services import pipeline_dispatch as dispatch_mod
+
+        monkeypatch.setattr(dispatch_mod, "_backoff_seconds", lambda attempts: 0)
+        response = await client.post(CALLBACK_URL, json=_payload(video_id), headers=_headers())
+        assert response.status_code == 200, response.text
+        assert len(await _dispatch_rows(video_id)) == 1
+
+        # broker 恢复：dispatcher 应该把这条 pending 意图发出去。
+        sent: list[tuple[str, list, str | None]] = []
+        monkeypatch.setattr(
+            dispatch_mod, "_send_task", lambda name, args, queue: sent.append((name, list(args), queue))
+        )
+
+        import app.core.database as db_mod
+
+        monkeypatch.setattr(db_mod, "async_session", TestSessionLocal)
+        from app.tasks.pipeline_dispatch_tasks import _run_dispatch_pipeline
+
+        sweep = await _run_dispatch_pipeline()
+
+        assert sweep.sent == 1
+        assert sent == [(FINALIZE_TASK, [video_id], None)]
+        rows = await _dispatch_rows(video_id)
+        assert rows[0].status == "dispatched"
+        assert rows[0].dispatched_at is not None
+        assert rows[0].last_error is None
+
+    async def test_crash_between_commit_and_dispatch_is_recovered(
+        self, client, redis_lock, callback_secret, _mock_celery, monkeypatch
+    ):
+        """提交后、``dispatch_now`` 之前进程死掉：意图已落库，dispatcher 补发。"""
+        from app.services import pipeline_dispatch as dispatch_mod
+
+        async def _never_ran(db, dispatch_id):
+            return False
+
+        monkeypatch.setattr(dispatch_mod, "dispatch_now", _never_ran)
+        video_id = await _seed_video()
+
+        response = await client.post(CALLBACK_URL, json=_payload(video_id), headers=_headers())
+
+        assert response.status_code == 200, response.text
+        assert _finalize_calls(_mock_celery) == []
+        rows = await _dispatch_rows(video_id)
+        assert len(rows) == 1 and rows[0].status == "pending" and rows[0].attempts == 0
+
+        # 恢复：dispatch_now 不在，但 beat 的扫描不依赖它。
+        sent: list[tuple[str, list, str | None]] = []
+        monkeypatch.setattr(
+            dispatch_mod, "_send_task", lambda name, args, queue: sent.append((name, list(args), queue))
+        )
+        import app.core.database as db_mod
+
+        monkeypatch.setattr(db_mod, "async_session", TestSessionLocal)
+        from app.tasks.pipeline_dispatch_tasks import _run_dispatch_pipeline
+
+        sweep = await _run_dispatch_pipeline()
+
+        assert sweep.sent == 1
+        assert sent == [(FINALIZE_TASK, [video_id], None)]
+        assert (await _dispatch_rows(video_id))[0].status == "dispatched"

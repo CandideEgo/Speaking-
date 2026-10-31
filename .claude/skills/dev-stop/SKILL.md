@@ -12,11 +12,12 @@ those go down only with `--infra`.
 ## Steps
 
 1. **Free the app ports.** Read and run
-   `C:/Users/Administrator/Speaking/.claude/reference/kill-ports.md`. Done when its last line printed
+   `$(git rev-parse --show-toplevel)/.claude/reference/kill-ports.md`. Done when its last line printed
    `all app ports free`.
 
 2. **Only if the user passed `--infra`**, also stop the containers:
    ```bash
+   cd "$(git rev-parse --show-toplevel)"
    docker compose -f docker-compose.dev.yml down
    ```
    Do not add `-v`. `-v` removes the named volume holding the local database — that is an

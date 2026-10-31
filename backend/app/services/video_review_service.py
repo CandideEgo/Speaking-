@@ -1,19 +1,22 @@
-"""UGC video review lifecycle — state machine for draft/pending/published/rejected.
+"""UGC video review — admin approval/rejection of pending videos.
 
-Manages the snapshot freeze/restore mechanism that lets owners edit their
-video while the public keeps watching the last approved version.
+Approving freezes the live subtitles into ``published_snapshot`` and publishes;
+rejecting keeps whatever snapshot is already there so the public keeps watching
+the last approved version. The owner-side lifecycle (begin_edit /
+submit_for_review / withdraw_submission) is gone with the user-submit path
+(INV-003).
 """
 
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import commit_refresh
 from app.core.errors import BadRequestError
 from app.models.user import User
-from app.models.video import Video, VideoReviewStatus, VideoStatus
+from app.models.video import Video, VideoReviewStatus
 from app.services.video_cache import invalidate_video_detail_cache
 from app.services.video_publish import _publish_video
 
@@ -48,56 +51,6 @@ async def _build_snapshot(db: AsyncSession, video: Video) -> dict:
             for s in (subs or [])
         ],
     }
-
-
-async def begin_edit(db: AsyncSession, video: Video) -> Video:
-    """Owner starts editing a published video: freeze the approved version to
-    ``published_snapshot`` and flip to ``pending_review`` so the public keeps
-    watching the snapshot while the owner edits the live draft."""
-    if video.review_status != VideoReviewStatus.published.value:
-        raise BadRequestError("只有已发布的视频才能开始编辑")
-    video.published_snapshot = await _build_snapshot(db, video)
-    video.review_status = VideoReviewStatus.pending_review.value
-    video.submitted_at = None
-    await commit_refresh(db, video)
-    await invalidate_video_detail_cache(video.id)
-    return video
-
-
-async def submit_for_review(db: AsyncSession, video: Video) -> Video:
-    """Owner submits a draft/rejected video for admin review."""
-    if video.review_status not in (VideoReviewStatus.draft.value, VideoReviewStatus.rejected.value):
-        raise BadRequestError("当前状态无法提交审核")
-    if video.status != VideoStatus.ready:
-        raise BadRequestError("视频仍在处理中，暂无法提交审核")
-    # Must have at least one subtitle line to review.
-    from app.models.subtitle import Subtitle
-
-    has_subs = (
-        await db.execute(
-            select(func.count()).select_from(select(Subtitle).where(Subtitle.video_id == video.id).subquery())
-        )
-    ).scalar_one()
-    if not has_subs:
-        raise BadRequestError("尚无字幕，无法提交审核")
-
-    video.review_status = VideoReviewStatus.pending_review.value
-    video.submitted_at = datetime.now(UTC)
-    video.rejection_reason = None
-    await commit_refresh(db, video)
-    await invalidate_video_detail_cache(video.id)
-    return video
-
-
-async def withdraw_submission(db: AsyncSession, video: Video) -> Video:
-    """Owner withdraws a pending review back to draft."""
-    if video.review_status != VideoReviewStatus.pending_review.value:
-        raise BadRequestError("仅待审核状态可撤回")
-    video.review_status = VideoReviewStatus.draft.value
-    video.submitted_at = None
-    await commit_refresh(db, video)
-    await invalidate_video_detail_cache(video.id)
-    return video
 
 
 async def approve_review(db: AsyncSession, video: Video, admin: User) -> Video:

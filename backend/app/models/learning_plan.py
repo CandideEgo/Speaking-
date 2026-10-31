@@ -160,6 +160,14 @@ class LearningEvent(Base):
     # Additional context
     event_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # A12 学习 flow 关联：一次学习流程的服务端 id 与路径（listening / exam /
+    # practice / vocabulary / video）。客户端同 id 的 ``flow_result`` 意图事件
+    # 落在 behavior_events，两者对齐才能算丢失率与重复率。
+    flow_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # 按哪一版契约理解这行；历史行按 v1 回填（见迁移 b7c8d9e0f1a2）。
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+
     # User's local date for daily aggregation
     event_date: Mapped[date] = mapped_column(Date, nullable=False)
 

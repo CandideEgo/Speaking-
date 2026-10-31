@@ -16,7 +16,7 @@
 
 set -e
 
-PROJECT_DIR="/opt/speaking"
+PROJECT_DIR="${PROJECT_DIR:-/opt/speaking}"
 REPO_URL="https://github.com/CandideEgo/Speaking.git"
 # 服务器公网地址（NEXT_PUBLIC_API_URL 用）。内测期先用 http；上 HTTPS 后改这里。
 PUBLIC_URL="${PUBLIC_URL:-http://47.122.109.52}"

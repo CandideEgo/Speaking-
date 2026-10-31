@@ -16,6 +16,8 @@ __pycache__/
 # Environment files (whitelist: only *.env.example may be committed)
 *.env*
 !*.env.example
+# gpu-worker 的模板（真实 .env.gpu-worker 仍被 *.env* 忽略）
+!*.env.gpu-worker.example
 *.egg-info/
 dist/
 build/
@@ -168,3 +170,6 @@ docs/audit-2026-10-24/_session.json
 # 原始巡检 JSON 里有临时账号的 JWT / 手机号，只留在本机，报告与截图入库。
 docs/audit-2026-10-24/_*.json
 docs/audit-2026-10-24/_next-dev.log
+
+# 隔离演练渲染出的 Redis ACL（含一次性密码）：模板入库，产物不入库
+deploy/redis/users.acl.generated

@@ -21,6 +21,7 @@ from app.core.limiter import rate_limit
 from app.models.user import User
 from app.schemas.admin import (
     AdminAccountItem,
+    AdminLearningMetricsResponse,
     AdminPaymentRow,
     AdminPaymentSummaryResponse,
     AdminPaymentSyncResponse,
@@ -81,6 +82,24 @@ async def get_admin_stats(
 ):
     """Dashboard KPIs, trend data, distributions, and recent activity."""
     return await admin_service.get_admin_stats(db, days=days)
+
+
+@router.get("/metrics/learning", response_model=AdminLearningMetricsResponse)
+@rate_limit("20/minute")
+async def get_learning_metrics(
+    request: Request,
+    days: int = Query(30, ge=7, le=90, description="Cohort / event window in days"),
+    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """激活/留存、事件质量与性能基线（A12）。
+
+    口径（分母、时间边界、成熟判定）随响应一起返回在 ``definitions`` 里——
+    看数字的人必须先看到它，避免把累计人数读成漏斗、把未成熟 cohort 补进分母。
+    """
+    from app.services.measurement_service import learning_metrics
+
+    return await learning_metrics(db, days=days)
 
 
 # ---------------------------------------------------------------------------

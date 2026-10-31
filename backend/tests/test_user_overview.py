@@ -55,4 +55,33 @@ class TestUserOverview:
         assert data["videos"] == {"started": 1, "completed": 1}
         assert data["words"]["total"] == 1
         assert data["words"]["mastered_count"] == 1
-        assert data["learning"]["days_studied"] >= 1
+        # A02/MET-01：学过几天只认不可变的 LearningEvent.event_date。只有一条
+        # LearningRecord 的用户不再被算成「学过一天」——旧实现拿 last_accessed_at
+        # 与 created_at 顶替，前者会随每次观看移动，等于把历史伪分配到最近一天。
+        assert data["learning"]["days_studied"] == 0
+
+    async def test_days_studied_counts_learning_event_dates(self, client: AsyncClient, auth_headers: dict, db_session):
+        from datetime import timedelta
+
+        from app.models.learning_plan import LearningEvent
+        from app.services.local_time import user_local_date
+
+        me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+        today = user_local_date(None)
+        db_session.add_all(
+            [
+                LearningEvent(user_id=me["id"], event_type="learned_words", event_value=3, event_date=today),
+                LearningEvent(
+                    user_id=me["id"],
+                    event_type="watched_video",
+                    event_value=1,
+                    event_date=today - timedelta(days=2),
+                ),
+                # Same day, second event: 一天只算一天。
+                LearningEvent(user_id=me["id"], event_type="practiced_items", event_value=1, event_date=today),
+            ]
+        )
+        await db_session.commit()
+
+        data = (await client.get("/api/v1/users/me/overview", headers=auth_headers)).json()
+        assert data["learning"]["days_studied"] == 2

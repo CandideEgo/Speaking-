@@ -11,16 +11,16 @@ via POST /plan/profile/refresh.
 """
 
 import logging
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exam_levels import EXAM_LEVELS, level_order
+from app.core.exam_levels import level_order
 from app.models.learning import Vocabulary
-from app.models.learning_plan import LearningEvent, UserLearningProfile
+from app.models.learning_plan import UserLearningProfile
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,6 @@
 """Pydantic schemas for the learning plan API (ADR-0012)."""
 
-from typing import Literal
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
 # Learning profile

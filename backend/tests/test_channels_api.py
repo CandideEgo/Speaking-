@@ -1,10 +1,12 @@
 """Tests for the Channels API (ADR-0014, rev. 2026-08-30 full author pages)."""
 
+from datetime import UTC, datetime
+
 from app.models.channel import Channel
 from app.models.learning import LearningRecord
 from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 from app.services import channel_service
-from app.services.channel_service import auto_attach_channel, list_public_channels
+from app.services.channel_service import auto_attach_channel
 
 
 async def _make_video(
@@ -651,9 +653,13 @@ async def test_subscriptions_carry_continue_video_and_unlearned_count(client, au
     started.title = "Started lesson"
     started.duration = 300
     started.difficulty_level = "A2"
+    # Explicit timestamps: the "latest" query orders by created_at, and two
+    # rows created in the same clock tick would fall back to a random UUID tie.
+    started.created_at = datetime(2026, 1, 1, tzinfo=UTC)
     untouched = await _make_video(db_session, channel_ref=channel.id)
     untouched.title = "Untouched lesson"
     untouched.duration = 200
+    untouched.created_at = datetime(2026, 1, 2, tzinfo=UTC)
     db_session.add(
         LearningRecord(
             user_id=uid,

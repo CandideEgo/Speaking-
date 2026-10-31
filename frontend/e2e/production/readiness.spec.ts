@@ -100,7 +100,9 @@ test("用户页面三档视口与亮暗主题布局", async ({ page }, testInfo)
           page.getByText(/数据边界|本页分组各管什么|反馈接口|轮询模式|不补演示数据|内测免费/)
         ).toHaveCount(0);
         if (route === "/")
-          await expect(page.getByRole("link", { name: "发现视频", exact: true })).toBeVisible();
+          // 改版后首页是「发现」流：导航在 375 宽度收进折叠菜单，所以断言发现流
+          // 本身（视频列表区 + level-1 标题），而不是导航里那个「发现视频」旧入口。
+          await expect(page.getByRole("region", { name: "视频列表" })).toBeVisible();
         if (route === "/upgrade") {
           await expect(page.getByText("会员购买暂不可用，请稍后再来。")).toBeVisible();
           await expect(page.getByText("二维码生成中…")).toHaveCount(0);

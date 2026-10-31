@@ -7,7 +7,6 @@ match the target level.
 """
 
 import pytest
-from sqlalchemy import select
 
 from app.models.learning import Vocabulary
 from app.models.user import PlanType, RoleType, User

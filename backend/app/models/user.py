@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, text
+from sqlalchemy import Boolean, DateTime, Index, String, text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

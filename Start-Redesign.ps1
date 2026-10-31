@@ -13,7 +13,11 @@ function Test-LocalHealth([string]$Url) {
 
 docker info *> $null
 if ($LASTEXITCODE -ne 0) {
-  Start-Process -FilePath 'C:\Program Files\Docker\Docker\Docker Desktop.exe' -WindowStyle Hidden
+  $dockerDesktop = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'
+  if (-not (Test-Path $dockerDesktop)) {
+    throw "Docker Desktop not found at $dockerDesktop. Start Docker manually, then run this script again."
+  }
+  Start-Process -FilePath $dockerDesktop -WindowStyle Hidden
   $dockerReady = $false
   for ($attempt = 0; $attempt -lt 60; $attempt++) {
     Start-Sleep -Seconds 1

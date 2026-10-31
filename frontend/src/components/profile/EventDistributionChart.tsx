@@ -22,6 +22,9 @@ const LABELS: Record<string, string> = {
   completed_video: "看完",
   practiced_items: "练习",
   reviewed_words: "复习",
+  // A02 起：当天首次有效观看学习时长时记一条，让只看视频的用户也出现在
+  // 「学过几天」与后台活跃趋势里。
+  watched_video: "看视频",
 };
 
 interface EventDistributionChartProps {

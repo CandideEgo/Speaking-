@@ -8,7 +8,7 @@ domain logic (queries, state transitions, side effects).
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import and_, delete, func, or_, select, text, update
+from sqlalchemy import delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,21 +16,15 @@ from app.core.database import commit_refresh
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.models.learning import LearningRecord
 from app.models.user import User
-from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
-from app.schemas.common import UserProfileBrief
+from app.models.video import Video, VideoReviewStatus, VideoStatus
 from app.schemas.pagination import PaginatedResponse, paginated
-from app.schemas.pagination import has_more as _has_more
 from app.schemas.video import (
-    RecomputeWordLevelsRequest,
-    SubtitleBatchUpdate,
     SubtitleResponse,
-    SubtitleUpdate,
     VideoAdminResponse,
     VideoAdminUpdate,
     VideoDetailResponse,
     VideoResponse,
     VideoStatusResponse,
-    WordLevelsUpdate,
 )
 from app.services.video_access import (
     check_video_access,
@@ -84,58 +78,6 @@ async def list_public_videos(db: AsyncSession, page: int = 1, page_size: int = 2
     has_more = len(rows) > page_size
     items = [VideoResponse.model_validate(v) for v in rows[:page_size]]
     return paginated(items, page=page, page_size=page_size, has_more=has_more, total=total)
-
-
-async def list_user_videos(db: AsyncSession, user_id: str, page: int = 1, page_size: int = 20) -> dict:
-    """List videos belonging to a specific user. Paginated."""
-    page = max(1, page)
-    page_size = max(1, min(page_size, 50))
-    offset = (page - 1) * page_size
-
-    base = select(Video).where(Video.user_id == user_id)
-    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
-
-    result = await db.execute(base.order_by(Video.created_at.desc()).offset(offset).limit(page_size + 1))
-    rows = result.scalars().all()
-    has_more = len(rows) > page_size
-    items = [VideoResponse.model_validate(v) for v in rows[:page_size]]
-    return paginated(items, page=page, page_size=page_size, has_more=has_more, total=total)
-
-
-async def list_published_ugc_videos(db: AsyncSession, page: int = 1, page_size: int = 20) -> dict:
-    """List published user-uploaded videos for the community feed.
-
-    Per the UGC design, approved UGC surfaces only in the community feed (the
-    homepage/browse feed stays official-curated). Returns ``{items, has_more}``.
-    Each item includes a ``user`` brief (id, name, avatar_url) for attribution.
-    """
-    page = max(1, page)
-    page_size = max(1, min(page_size, 50))
-    offset = (page - 1) * page_size
-
-    base = (
-        select(Video)
-        .where(
-            Video.is_official == False,
-            Video.review_status == VideoReviewStatus.published.value,
-            Video.status.in_([VideoStatus.ready, VideoStatus.ready_subtitles]),
-        )
-        .options(selectinload(Video.user))
-    )
-    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
-
-    result = await db.execute(base.order_by(Video.created_at.desc()).offset(offset).limit(page_size + 1))
-    rows = result.scalars().all()
-    has_more = len(rows) > page_size
-    items = []
-    for v in rows[:page_size]:
-        item = VideoResponse.model_validate(v).model_dump()
-        item["user"] = UserProfileBrief.from_model(v.user) if v.user else None
-        # Community feed viewers are not the owner — zero out owner-only fields.
-        item["error_message"] = None
-        item["rejection_reason"] = None
-        items.append(item)
-    return {"items": items, "has_more": has_more, "total": total}
 
 
 async def _invalidate_video_detail_cache(video_id: str) -> None:

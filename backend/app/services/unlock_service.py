@@ -37,17 +37,21 @@ class UnlockQuotaExhaustedError(Exception):
 def is_active_pro(user: User | None) -> bool:
     """True iff the user is on an unexpired Pro plan (trial counts as Pro).
 
-    Mirrors the frontend ``isProUser`` helper: **there is no downgrade job** —
-    the promise of "an hourly beat flips plan back to free" was never
-    implemented, so ``plan`` stays ``pro`` after expiry. The expiry check is
-    therefore the only thing keeping Pro gates honest; admin KPIs must use the
-    same definition of "active Pro" (``plan == pro AND (plan_expires_at IS NULL
-    OR plan_expires_at > now)``) instead of counting the stored ``plan`` column.
+    **``plan_expires_at IS NULL`` means "not an active member"** (A13/FE-04,
+    decided 2026-10-29): the frontend ``isProUser`` helper and
+    ``GET /payments/status`` already said so, while this function and the admin
+    KPI said the opposite. One semantic now: null is missing/invalid data, not
+    an infinite membership. Nothing is gated during the beta, so this is a
+    contract fix rather than a downgrade of anyone's access.
+
+    There is still no downgrade job — ``plan`` stays ``pro`` after expiry — so
+    the expiry check is the only thing keeping Pro gates honest; admin KPIs must
+    use the same definition (``plan == pro AND plan_expires_at > now``).
     """
     if user is None or user.plan != PlanType.pro:
         return False
     if user.plan_expires_at is None:
-        return True
+        return False
     expires = user.plan_expires_at
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=UTC)
@@ -56,26 +60,6 @@ def is_active_pro(user: User | None) -> bool:
 
 def _month_start(now: datetime) -> datetime:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
-
-async def count_month_unlocks(db: AsyncSession, user_id: str, now: datetime | None = None) -> int:
-    """Number of unlocks consumed in the current calendar month."""
-    moment = now or datetime.now(UTC)
-    used = await db.scalar(
-        select(func.count())
-        .select_from(UserVideoUnlock)
-        .where(
-            UserVideoUnlock.user_id == user_id,
-            UserVideoUnlock.unlocked_at >= _month_start(moment),
-        )
-    )
-    return used or 0
-
-
-async def remaining_unlocks(db: AsyncSession, user: User, now: datetime | None = None) -> int:
-    quota = get_settings().free_monthly_unlock_quota
-    used = await count_month_unlocks(db, user.id, now)
-    return max(0, quota - used)
 
 
 async def is_unlocked(db: AsyncSession, user_id: str, video_id: str) -> bool:

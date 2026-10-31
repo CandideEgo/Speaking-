@@ -65,7 +65,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-cloud.txt
           pip install -r backend/requirements-dev.txt
 
       - name: Lint
@@ -79,11 +79,29 @@ jobs:
       - name: Type check (baseline gate - blocks new errors)
         working-directory: backend
         run: |
-          mypy app/ --ignore-missing-imports > /tmp/mypy.txt 2>&1 || true
-          # Extract "file:code" pairs (Linux mypy emits forward-slash paths, matching .mypy-baseline)
-          grep -E ": error:" /tmp/mypy.txt | sed -E 's/^([^:]+):[0-9]+:.*\[(.+)\][[:space:]]*$/\1:\2/' | sort -u > /tmp/mypy-new.txt
+          mypy app/ --ignore-missing-imports > /tmp/mypy.txt 2>&1 && mypy_status=0 || mypy_status=$?
           echo "--- mypy output (tail) ---"
           tail -20 /tmp/mypy.txt
+
+          # mypy's contract: 0 = clean, 1 = type errors found. Anything else
+          # (2 = usage/config/internal error, missing binary, crash) means the
+          # gate never ran. This step used to swallow every exit code with
+          # `|| true`, so a broken mypy read as "no new errors".
+          if [ "$mypy_status" -ne 0 ] && [ "$mypy_status" -ne 1 ]; then
+            echo "::error::mypy failed to run (exit $mypy_status) — the baseline gate did not execute."
+            exit 1
+          fi
+
+          # Extract "file:code" pairs (Linux mypy emits forward-slash paths, matching .mypy-baseline)
+          grep -E ": error:" /tmp/mypy.txt | sed -E 's/^([^:]+):[0-9]+:.*\[(.+)\][[:space:]]*$/\1:\2/' | sort -u > /tmp/mypy-new.txt
+
+          # Exit 1 with nothing extractable means the output shape changed or
+          # mypy aborted mid-run; never report that as a clean baseline.
+          if [ "$mypy_status" -eq 1 ] && [ ! -s /tmp/mypy-new.txt ]; then
+            echo "::error::mypy reported errors (exit 1) but none could be parsed — inspect the output above."
+            exit 1
+          fi
+
           echo "--- new errors not in backend/.mypy-baseline ---"
           comm -23 /tmp/mypy-new.txt .mypy-baseline > /tmp/mypy-issues.txt || true
           if [ -s /tmp/mypy-issues.txt ]; then
@@ -99,7 +117,10 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
           REDIS_URL: redis://localhost:6379/0
-          JWT_SECRET: test-secret-for-ci
+          # Must satisfy Settings' non-development rule (>=32 chars); a shorter
+          # value makes every Settings() import fail, which takes down both the
+          # test job and the e2e backend. Same value as tests/conftest.py.
+          JWT_SECRET: test_secret_for_pytest_at_least_32_chars
           ENV: testing
           PUNCTUATION_MODEL_DISABLED: "1"
           # Fixed-code phone flows are opt-in (BE-06); CI has no Aliyun credentials.
@@ -119,6 +140,64 @@ jobs:
         run: |
           pip install pip-audit
           python scripts/pip_audit_gate.py
+
+  gpu-worker:
+    # The GPU transcription worker is a standalone component (``gpu-worker/``)
+    # that ships separately from the cloud app. Its unit tests mock the
+    # whisperx/torch engines, so CI installs the light dependency subset
+    # (requirements-ci.txt) instead of the multi-GB GPU stack. Runtime
+    # requirements live in gpu-worker/requirements.txt.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r gpu-worker/requirements-ci.txt
+
+      - name: Lint
+        working-directory: gpu-worker
+        run: ruff check gpu_worker/ tests/ scripts/
+
+      - name: Format check
+        working-directory: gpu-worker
+        run: ruff format --check gpu_worker/ tests/ scripts/
+
+      - name: Run tests
+        working-directory: gpu-worker
+        env:
+          # Punctuation/transformers are optional; tests must not download models.
+          PUNCTUATION_MODEL_DISABLED: "1"
+        run: pytest tests -q
+
+      - name: Dependency audit (GPU runtime lock, no model download)
+        # A11/OPS-07：GPU 运行栈此前没有任何依赖审计门。这里审计的是
+        # ``requirements.lock.txt``（whisperx/torch 的完整传递闭包），用
+        # ``--no-deps`` 避免为了同样的版本再解析/下载多 GB 的 CUDA 轮子。
+        working-directory: backend
+        run: |
+          pip install pip-audit
+          python scripts/pip_audit_gate.py             -r ../gpu-worker/requirements.lock.txt             --ignore-file ../gpu-worker/.pip-audit-ignore             --no-deps
+
+      - name: SBOM (CycloneDX)
+        # 只读锁文件生成 SBOM，不安装 GPU 栈、不下载模型。
+        run: |
+          python -m pip install "cyclonedx-bom>=5,<7"
+          cyclonedx-py requirements gpu-worker/requirements.lock.txt -o gpu-sbom.json
+
+      - name: Upload GPU SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-sbom
+          path: gpu-sbom.json
+          if-no-files-found: error
 
   frontend:
     runs-on: ubuntu-latest
@@ -170,6 +249,12 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Verify standalone output
+        # A11：默认生产构建必须真的产出 standalone server（OPS-07 / FE-08）。
+        # tsc 通过、历史 BUILD_ID 都不能替代这一步。
+        working-directory: frontend
+        run: test -f .next/standalone/server.js
+
   e2e:
     # End-to-end tests via Playwright against the full stack (postgres + redis +
     # backend + frontend). The frontend runs in dev mode so next.config.ts
@@ -203,7 +288,10 @@ jobs:
     env:
       DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
       REDIS_URL: redis://localhost:6379/0
-      JWT_SECRET: test-secret-for-ci
+      # Must satisfy Settings' non-development rule (>=32 chars); a shorter
+      # value makes every Settings() import fail, which takes down both the
+      # test job and the e2e backend. Same value as tests/conftest.py.
+      JWT_SECRET: test_secret_for_pytest_at_least_32_chars
       ENV: testing
       PUNCTUATION_MODEL_DISABLED: "1"
       # Fixed-code phone flows are opt-in (BE-06); CI has no Aliyun credentials.
@@ -221,7 +309,7 @@ jobs:
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-cloud.txt
           pip install -r backend/requirements-dev.txt
       - name: Install frontend dependencies
         working-directory: frontend
@@ -259,3 +347,26 @@ jobs:
         run: |
           echo "=== backend.log (tail) ==="; tail -50 /tmp/backend.log 2>/dev/null || true
           echo "=== frontend.log (tail) ==="; tail -50 /tmp/frontend.log 2>/dev/null || true
+
+  production-config:
+    # A11/OPS-07：独立的生产配置预检。不连库、不起容器，只验证「会不会带着
+    # 错配置上线」——弱/缺密钥、生产假短信、站内支付误开、compose 白名单与
+    # nginx 安全头漂移，每一项都必须让本 job 失败（脚本在 backend/scripts/
+    # production_preflight.py，逐条打印实际命令与拒绝原因）。
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-cloud.txt
+
+      - name: Production config preflight
+        run: python backend/scripts/production_preflight.py

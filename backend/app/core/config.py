@@ -144,6 +144,14 @@ class Settings(BaseSettings):
     pipeline_step_timeout_transcoding: int = 1800  # 30 min (ffmpeg)
     pipeline_step_timeout_default: int = 3600  # fallback for unmapped steps
 
+    # A05/BE-01: durable pipeline dispatch (``pipeline_dispatches`` outbox).
+    # Settled rows (sent / abandoned) are pruned after this window; the beat
+    # dispatcher alerts when the undelivered backlog is bigger than the
+    # threshold or older than the age limit (throttled to one alert / 30 min).
+    pipeline_dispatch_retention_hours: int = 72
+    pipeline_dispatch_backlog_alert_threshold: int = 5
+    pipeline_dispatch_backlog_alert_age_seconds: int = 1800
+
     # Translation quality gate (阶段 2 of PIPELINE-QUALITY-IMPROVEMENTS-2026-07).
     # Coverage below ``translation_quality_block_coverage`` -> ``quality_blocked``
     # + ``status=error``, and the pipeline stops WITHOUT a Celery retry (same
@@ -237,36 +245,28 @@ class Settings(BaseSettings):
     alert_webhook_url: str = ""
     alert_webhook_secret: str = ""  # DingTalk sign secret (optional)
 
-    # Speech transcription (default: 'base' matches Dockerfile pre-cached model)
-    whisper_model_path: str = "base"
-    whisperx_batch_size: int = 8  # ASR batch; lower = less VRAM, fewer OOMs on 8GB GPUs
-    whisper_chunk_duration: float = 600.0  # seconds; longer videos use chunked transcription
-    whisper_max_concurrent_chunks: int = 2
-    whisper_device: str = "auto"  # "auto" | "cuda" | "cpu"
-    whisper_compute_type: str = "int8"  # float16 on GPU, int8 on CPU
-    whisperx_vad_method: str = "silero"  # "silero" or "pyannote"
-    whisperx_align_model: str = ""  # override default align model per language
-    # ASR language. Empty = auto-detect per audio (needed for non-English content);
-    # set e.g. "en" to force a language and skip detection (faster for English-only).
-    whisper_language: str = ""
+    # A09/OPS-05: web-process health monitor. It watches the worker/beat
+    # heartbeats, queue depth, disk and the pipeline failure rate, and sends
+    # the same off-site webhook alert. Thresholds are settings so ops can tune
+    # them without a rebuild; probes are per-kind throttled in Redis.
+    #
+    # Opt-in (compose passes HEALTH_MONITOR_ENABLED=true for production): in a
+    # dev checkout beat/worker may be intentionally off, and the monitor would
+    # then alert every throttle window and write in-app admin notifications.
+    health_monitor_enabled: bool = False
+    health_monitor_interval_seconds: int = 60
+    health_worker_stale_seconds: int = 300
+    health_beat_stale_seconds: int = 300
+    health_queue_backlog_threshold: int = 200
+    health_disk_percent_threshold: int = 85
+    health_pipeline_failure_threshold: int = 5
+    health_pipeline_failure_window_minutes: int = 60
+    health_alert_throttle_seconds: int = 1800
 
-    # Transcription engine (aligned with translate-tool). "whisperx" = VAD +
-    # forced alignment (best quality); "faster_whisper" = raw faster-whisper
-    # (lightweight fallback). WhisperX load failure auto-falls back to it.
-    whisper_engine: str = "whisperx"
-    # WhisperX model ref. Empty = reuse whisper_model_path (a CTranslate2 dir
-    # usable by both engines); else a size name (large-v3) or local path.
-    whisperx_model: str = ""
-    # Explicit WhisperX compute type override. Empty = derive from whisper_device
-    # (float16 on cuda, int8 on cpu) — mirrors _detect_device().
-    whisperx_compute_type: str = ""
-    # Restore punctuation between ASR and alignment. A no-op on turbo models
-    # (which emit punctuation natively) but required for small/base models whose
-    # raw output lacks punctuation. Set False on turbo to skip the model load
-    # + ~2s/chunk prediction (output is identical on/off for turbo).
-    whisper_punctuation_restore: bool = True
-
-    transcription_temp_dir: str = "./media/transcription_temp"
+    # Speech-transcription settings (WHISPER_* / TRANSCRIPTION_TEMP_DIR) have
+    # moved to the standalone ``gpu-worker/`` component: the cloud no longer
+    # runs Whisper. Only the queue name / callback knobs stay here — see the
+    # "Remote-GPU transcription pipeline" block above.
 
     # Translation engine (pluggable). Agnes is retired for translation (prone
     # to missed/low-quality output); qwen + hy_mt2 (both iFLYTEK) are the

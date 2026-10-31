@@ -1,0 +1,23 @@
+# Runtime dependencies for the standalone GPU transcription worker.
+#
+# Deliberately NOT the backend's requirement set: no FastAPI/Starlette/SQLAlchemy/
+# alembic/OSS/SMS stack — this deployable has no web surface and no database
+# (see README.md "安全边界"). Pinned where the version is part of the contract or
+# was verified on this machine's venv (celery/redis/httpx/pydantic-settings/
+# structlog), ranged where upstream releases are safe (whisper/yt-dlp).
+#
+# Install: pip install -r requirements.txt  (use a venv, see README.md)
+celery[redis]==5.4.0
+redis==5.0.0
+httpx==0.27.0
+pydantic-settings==2.15.0
+structlog==24.2.0
+faster-whisper>=1.0.0
+# whisperx pulls torch/torchaudio itself, but on a CUDA machine you normally
+# want the CUDA build matching your driver BEFORE installing whisperx, e.g.
+#   pip install torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128
+# (this machine's backend/.venv runs torch 2.8.0+cu128). A CPU-only pip wheel
+# would make WhisperX fall back to CPU (usable but ~20x slower).
+whisperx>=3.8.0
+yt-dlp>=2025.0.0
+deepmultilingualpunctuation==1.0.1

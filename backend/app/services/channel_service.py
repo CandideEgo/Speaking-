@@ -419,7 +419,7 @@ async def _unique_auto_slug(db: AsyncSession, name: str, upstream_id: str) -> st
     and slug-safe); a short hash suffix resolves collisions. The caller must
     flush/commit for the chosen slug to exist."""
     upstream = (upstream_id or "").strip().lower()
-    hashed = hashlib.sha1(upstream_id.encode("utf-8")).hexdigest()[:8]
+    hashed = hashlib.sha1(upstream_id.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
     candidates = [
         c for c in (slugify(name), upstream, f"{upstream}-{hashed}", f"ch-{hashed}") if c and SLUG_RE.match(c)
     ]
@@ -428,7 +428,7 @@ async def _unique_auto_slug(db: AsyncSession, name: str, upstream_id: str) -> st
         if clash is None:
             return cand
     # Unreachable in practice (random suffix), but keeps the return total.
-    tiebreak = hashlib.sha1(f"{upstream_id}:fallback".encode()).hexdigest()[:6]
+    tiebreak = hashlib.sha1(f"{upstream_id}:fallback".encode(), usedforsecurity=False).hexdigest()[:6]
     return f"ch-{hashed}-{tiebreak}"
 
 

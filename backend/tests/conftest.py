@@ -14,7 +14,7 @@ async files.
 import os
 import time
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
@@ -43,7 +43,7 @@ os.environ.setdefault("PUNCTUATION_MODEL_DISABLED", "1")
 # after the ``create_app`` import above. (create_app does the same import
 # but only when called; this conftest fixture runs before any test
 # invokes create_app.)
-from app import models
+from app import models  # noqa: F401  (import registers every model on Base.metadata)
 from app.core import redis as redis_module
 from app.core.database import Base, get_db
 from app.core.security import create_token, hash_password
@@ -147,7 +147,11 @@ class _FakeRedis:
         self._purge(key)
         return self._store.get(key)
 
-    async def set(self, key: str, value: str, ex: int | None = None) -> str | None:
+    async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> str | None:
+        if nx:
+            self._purge(key)
+            if key in self._store:
+                return None
         self._store[key] = value
         if ex is not None:
             self._expires[key] = time.monotonic() + ex
@@ -272,6 +276,15 @@ def _mock_celery(monkeypatch):
         delay_fn, apply_fn = _make_noop(task_name)
         monkeypatch.setattr(task, "delay", delay_fn)
         monkeypatch.setattr(task, "apply_async", apply_fn)
+
+    # ``send_task`` is the name-based dispatch path (and the seam the pipeline
+    # outbox uses — the GPU task is not registered in this app, only known by
+    # name). Recording it here keeps every dispatch testable without a broker.
+    def _send_task(name, args=None, kwargs=None, **options):
+        calls.append((name, tuple(args or ()), options))
+        return _FakeAsyncResult()
+
+    monkeypatch.setattr(celery_app, "send_task", _send_task)
 
     # Expose recorded calls for tests that want to assert dispatch happened.
     monkeypatch._celery_calls = calls  # type: ignore[attr-defined]

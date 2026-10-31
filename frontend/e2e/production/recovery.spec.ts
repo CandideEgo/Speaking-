@@ -8,21 +8,21 @@ test.beforeAll(async ({ request }) => {
 test.beforeEach(async ({ page }) => loginViaToken(page, token));
 
 test("学习记录断网可重试，不能当作新用户", async ({ page }) => {
+  // 改版后「继续观看」区域由首页 DiscoverRail 的 DiscoverContinue 承担：
+  // 接口从 /learning/records 换成 /learning/continue，文案是「观看记录暂时未能加载」，
+  // 「开始学习」入口已随旧首页一起下线——这里断言同一件行为：失败时给错误与重试，
+  // 而不是一条假的空状态；重试成功后空列表就是静默不渲染。
   let fail = true;
-  await page.route("**/api/v1/learning/records?**", (route) => {
-    if (fail && new URL(route.request().url()).searchParams.get("completed") === "false")
-      return route.abort();
-    return route.continue();
-  });
+  await page.route("**/api/v1/learning/continue**", (route) =>
+    fail ? route.abort() : route.continue()
+  );
   await page.goto("/");
-  const recovery = page.getByRole("region", { name: "继续观看", exact: true });
-  await expect(recovery.getByText("学习记录暂时未能加载")).toBeVisible();
-  // 失败不能被当成「新用户」：先不给任何去路。
-  await expect(recovery.getByRole("link", { name: "开始学习", exact: true })).toHaveCount(0);
+  const recovery = page.getByRole("status").filter({ hasText: "观看记录暂时未能加载" });
+  await expect(recovery).toBeVisible();
+  await expect(page.getByTestId("continue-learning-rail")).toHaveCount(0);
   fail = false;
   await recovery.getByRole("button", { name: "重试" }).click();
-  // 新账号没有学习记录，重试成功后如实给「开始学习」入口。
-  await expect(recovery.getByRole("link", { name: "开始学习", exact: true })).toBeVisible();
+  await expect(recovery).toHaveCount(0);
 });
 
 test("会员账户读取失败可恢复，内部错误不展示", async ({ page }) => {

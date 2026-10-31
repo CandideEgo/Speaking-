@@ -9,7 +9,6 @@ deleted without touching the watch-page like button. `VideoLike` lives in
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import commit_refresh
 from app.core.errors import NotFoundError
 from app.models.engagement import VideoLike
 from app.models.video import Video

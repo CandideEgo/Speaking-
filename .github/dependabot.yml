@@ -16,6 +16,20 @@ updates:
     ignore:
       - dependency-name: "yt-dlp"
 
+  # Python: GPU worker runtime set (A11/OPS-07 — it used to have no coverage).
+  # yt-dlp stays unpinned here too: exact pins rot within days.
+  - package-ecosystem: "pip"
+    directory: "/gpu-worker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "gpu"
+    ignore:
+      - dependency-name: "yt-dlp"
+
   # npm: frontend runtime + tooling.
   - package-ecosystem: "npm"
     directory: "/frontend"

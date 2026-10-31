@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,6 @@ from app.schemas.pagination import PaginatedResponse, PaginationParams, paginate
 from app.schemas.vocabulary import (
     DailySessionResponse,
     LearningWordsResponse,
-    PracticeItem,
     StudySessionAnswerRequest,
     StudySessionAnswerResponse,
     StudySessionEnvelope,
@@ -50,6 +49,9 @@ class VocabPracticeResultItem(BaseModel):
 
 class VocabPracticeSubmitRequest(BaseModel):
     results: list[VocabPracticeResultItem]
+    #: A12：本轮练习的客户端 flow id。服务端用它把这批结果写成一条带 flow_id
+    #: 的学习事件，客户端同 id 的 flow_result 意图事件因此可对账（丢失率/重复率）。
+    flow_id: str | None = Field(None, max_length=36)
 
 
 class VocabPracticeSubmitResponse(BaseModel):
@@ -360,6 +362,7 @@ async def submit_vocabulary_practice(
             current_user.id,
             [r.model_dump() for r in body.results],
             video_id=None,
+            flow_id=body.flow_id,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"提交失败：{e}") from e
@@ -537,7 +540,7 @@ async def review_word(
     try:
         from app.services.learning_event_service import EVENT_REVIEWED_WORDS, emit_event
 
-        await emit_event(db, current_user.id, EVENT_REVIEWED_WORDS, 1)
+        await emit_event(db, current_user.id, EVENT_REVIEWED_WORDS, 1, source="vocabulary")
         await db.commit()
     except Exception:
         pass  # Non-blocking
@@ -588,7 +591,7 @@ async def mark_word_mastered(
         try:
             from app.services.learning_event_service import EVENT_LEARNED_WORDS, emit_event
 
-            await emit_event(db, current_user.id, EVENT_LEARNED_WORDS, 1)
+            await emit_event(db, current_user.id, EVENT_LEARNED_WORDS, 1, source="vocabulary")
             await db.commit()
         except Exception:
             pass  # Non-blocking

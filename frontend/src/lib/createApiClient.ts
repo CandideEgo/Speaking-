@@ -8,6 +8,8 @@
  * so the core loop stays identical while auth specifics remain isolated.
  */
 
+import type { RefreshOutcome } from "@/lib/sessionRefresh";
+
 // ---------------------------------------------------------------------------
 // Shared retry helpers
 // ---------------------------------------------------------------------------
@@ -37,6 +39,45 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/**
+ * 单次请求的默认期限（A03 / FE-07）。没有这条，一个卡在半开连接上的请求会让
+ * 页面壳永远停在骨架屏 —— 例如 MainLayoutInner 等 `/users/me` 的 onboarding 门。
+ * 大文件上传等场景可以按请求传 `timeoutMs` 覆盖。
+ */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
+
+interface Deadline {
+  signal: AbortSignal;
+  timedOut: () => boolean;
+  cleanup: () => void;
+}
+
+/** 把调用方的 signal 与一个超时合并成同一个 AbortSignal。 */
+function withDeadline(signal: AbortSignal | undefined, timeoutMs: number): Deadline {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs)
+      : null;
+  const onAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    timedOut: () => timedOut,
+    cleanup: () => {
+      if (timer) clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Auth adapter — pluggable token / refresh / logout
 // ---------------------------------------------------------------------------
@@ -44,9 +85,15 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 export interface AuthAdapter {
   /** Return the current access token (null if not logged in) */
   getToken(): string | null;
-  /** Attempt to refresh the access token. Return true on success. */
-  refreshToken(): Promise<boolean>;
-  /** Called when the session is definitively invalid (e.g. refresh failed). */
+  /**
+   * Attempt to refresh the access token.
+   *
+   * The three outcomes are not interchangeable: only ``"expired"`` means the
+   * session is over. ``"unavailable"`` (network/timeout/5xx) must not clear
+   * the session — the refresh token is probably still valid.
+   */
+  refreshToken(): Promise<RefreshOutcome>;
+  /** Called when the session is definitively invalid (e.g. refresh said 401). */
   onSessionExpired(): void;
 }
 
@@ -101,6 +148,11 @@ export interface CreateApiClientOptions {
 
 export interface ApiClientRequestOptions extends Omit<RequestInit, "signal"> {
   signal?: AbortSignal;
+  /**
+   * Per-attempt deadline in milliseconds. Defaults to
+   * ``DEFAULT_REQUEST_TIMEOUT_MS``; pass 0 to disable (long uploads/downloads).
+   */
+  timeoutMs?: number;
   /**
    * GET-only: serve this request from a local TTL cache (milliseconds).
    * Responses are cloned on read/write so callers can't poison the cache.
@@ -236,7 +288,7 @@ export function createApiClient(options: CreateApiClientOptions) {
     url: string,
     reqOptions: Omit<ApiClientRequestOptions, "cacheTtlMs">
   ): Promise<T> {
-    const { signal, ...restOptions } = reqOptions;
+    const { signal, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...restOptions } = reqOptions;
     const method = (restOptions.method ?? "GET").toUpperCase();
     // Re-sending a non-idempotent request whose response was lost can duplicate
     // the server-side side effect, so retries are limited to GET/HEAD.
@@ -258,10 +310,13 @@ export function createApiClient(options: CreateApiClientOptions) {
     if (token) {
       const { isTokenExpired } = await import("./jwt");
       if (isTokenExpired(token)) {
-        const refreshed = await auth.refreshToken();
-        if (refreshed) {
+        const outcome = await auth.refreshToken();
+        if (outcome === "refreshed") {
           token = auth.getToken();
           alreadyRefreshed = true;
+        } else if (outcome === "unavailable") {
+          // 临时不可用：会话可能仍然有效，绝不清空。给调用方一个可重试的错误。
+          throw new ErrorClass("暂时无法验证登录状态，请检查网络后重试", 0);
         } else {
           throw new ErrorClass("登录已过期，请重新登录", 401);
         }
@@ -281,13 +336,16 @@ export function createApiClient(options: CreateApiClientOptions) {
       }
 
       let res: Response;
+      const deadline = withDeadline(signal, timeoutMs);
       try {
-        res = await fetch(url, { ...restOptions, headers, signal });
+        res = await fetch(url, { ...restOptions, headers, signal: deadline.signal });
       } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") throw err;
+        const timedOut = deadline.timedOut();
+        // 调用方主动取消（切页、组件卸载）原样抛 AbortError，不当作网络错误。
+        if (!timedOut && err instanceof DOMException && err.name === "AbortError") throw err;
 
         lastError = new ErrorClass(
-          "网络连接失败，请检查网络或稍后重试",
+          timedOut ? "请求超时，请稍后重试" : "网络连接失败，请检查网络或稍后重试",
           0,
           null,
           null
@@ -298,6 +356,8 @@ export function createApiClient(options: CreateApiClientOptions) {
           continue;
         }
         throw lastError;
+      } finally {
+        deadline.cleanup();
       }
 
       // 401 → refresh token and retry. Only when the request actually carried
@@ -307,12 +367,18 @@ export function createApiClient(options: CreateApiClientOptions) {
       // we haven't already refreshed in the pre-request check — with rotating
       // refresh tokens, a second refresh would fail and cause unexpected logout.
       if (res.status === 401 && attempt === 0 && !alreadyRefreshed && sentWithAuth) {
-        const refreshed = await auth.refreshToken();
-        if (refreshed) {
+        const outcome = await auth.refreshToken();
+        if (outcome === "refreshed") {
           const newToken = auth.getToken();
           if (newToken) headers.set("Authorization", `Bearer ${newToken}`);
           // Continue the retry loop with the new token
           continue;
+        }
+        if (outcome === "unavailable") {
+          // 服务端/网络临时故障不是账号失效：保留会话，让用户重试。
+          throw new ErrorClass("暂时无法刷新登录状态，请稍后重试", 0, null, res) as InstanceType<
+            typeof ErrorClass
+          >;
         }
         // Refresh failed — session is over
         auth.onSessionExpired();

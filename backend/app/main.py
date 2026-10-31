@@ -53,17 +53,11 @@ settings = get_settings()
 configure_logging()
 logger = get_logger(__name__)
 
-# Initialize Sentry in production
-if settings.sentry_dsn:
-    import sentry_sdk
+# Initialize Sentry (web process role; the Celery app does the same for
+# worker/beat). Missing DSN is a no-op, not an error.
+from app.core.observability import init_sentry
 
-    sentry_sdk.init(
-        dsn=settings.sentry_dsn,
-        environment=settings.env,
-        traces_sample_rate=0.1,
-        profiles_sample_rate=0.1,
-    )
-    logger.info("Sentry initialized", environment=settings.env)
+init_sentry("web")
 
 
 async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
@@ -236,8 +230,22 @@ async def lifespan(app: FastAPI):
         from app.api.v1.notifications import start_notification_subscriber
 
         start_notification_subscriber()
+    # A09/OPS-05: worker/beat/queue/disk/pipeline-failure watchdog that alerts
+    # off-site. Runs here rather than in beat because it must survive the
+    # processes it watches; the external uptime check covers this process.
+    from app.services.health_monitor import start_health_monitor
+
+    health_monitor_task = start_health_monitor()
     yield
     # --- Shutdown ---
+    if health_monitor_task is not None:
+        health_monitor_task.cancel()
+        try:
+            await health_monitor_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.warning("health monitor shutdown failed", exc_info=True)
     if settings.env != "testing":
         from app.api.v1.notifications import stop_notification_subscriber
 
@@ -260,7 +268,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     # Import all models so SQLAlchemy registers them on Base.metadata before
     # any create_all (e.g. conftest in tests) or Alembic autogenerate runs.
-    from app import models
+    from app import models  # noqa: F401  (import registers every model on Base.metadata)
 
     # Defence in depth: the public docs/schema (and the metrics endpoint) are
     # useful in dev but are not part of the public surface. Production nginx
@@ -411,6 +419,56 @@ def create_app() -> FastAPI:
 
         status_code = 200 if all_healthy else 503
         return JSONResponse(content=payload, status_code=status_code)
+
+    @app.get("/health/heartbeats")
+    async def health_heartbeats():
+        """Worker/beat liveness for an external uptime checker (A09/OPS-05).
+
+        ``/health`` stays as the compose probe (DB + Redis only) because making
+        it 503 on a stale worker would restart the *backend* and fix nothing.
+        This endpoint is meant for an off-site monitor: 503 when the cloud
+        worker or beat heartbeat is missing/stale, 200 otherwise. The GPU
+        worker is reported but does not fail the check — it may be offline on
+        purpose (embed playback is the fallback), and its backlog is alerted by
+        the in-process monitor instead.
+        """
+        from app.core.heartbeat import (
+            BEAT_HEARTBEAT_KEY,
+            GPU_HEARTBEAT_KEY,
+            WORKER_HEARTBEAT_KEY,
+            age_seconds,
+        )
+        from app.core.redis import get_redis
+
+        components: dict = {}
+        healthy = True
+        try:
+            redis_client = get_redis()
+            worker_age = age_seconds(await redis_client.get(WORKER_HEARTBEAT_KEY))
+            beat_age = age_seconds(await redis_client.get(BEAT_HEARTBEAT_KEY))
+            gpu_online = bool(await redis_client.exists(GPU_HEARTBEAT_KEY))
+        except Exception as exc:
+            healthy = False
+            components["redis"] = {"status": "error", "detail": type(exc).__name__}
+        else:
+            worker_ok = worker_age is not None and worker_age <= settings.health_worker_stale_seconds
+            beat_ok = beat_age is not None and beat_age <= settings.health_beat_stale_seconds
+            healthy = worker_ok and beat_ok
+            components["cloud_worker"] = {
+                "status": "ok" if worker_ok else "stale",
+                "age_seconds": worker_age,
+            }
+            components["beat"] = {"status": "ok" if beat_ok else "stale", "age_seconds": beat_age}
+            components["gpu_worker"] = {"status": "online" if gpu_online else "offline"}
+
+        return JSONResponse(
+            content={
+                "status": "ok" if healthy else "degraded",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "components": components,
+            },
+            status_code=200 if healthy else 503,
+        )
 
     return app
 

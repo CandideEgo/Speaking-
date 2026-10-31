@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import re
 import threading
 
 import openai

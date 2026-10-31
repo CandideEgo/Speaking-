@@ -12,14 +12,26 @@ scoring_service / recommendation_service (P1/P2).
 """
 
 import math
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.behavior import BehaviorEvent
 from app.models.learning import LearningRecord
 from app.models.video import Video
+
+# Dialect-specific INSERT constructors for the event_id dedup. Typed as
+# ``Callable[..., Any]`` on purpose: ``on_conflict_do_nothing`` lives on the
+# dialect copies, not on the generic ``Insert`` both of them subclass.
+_DIALECT_INSERTS: dict[str, Callable[..., Any]] = {
+    "postgresql": pg_insert,
+    "sqlite": sqlite_insert,
+}
 
 # Event types that carry LearningRecord/Video side-effects beyond the raw log.
 EVENT_WATCH_TIME = "watch_time"
@@ -33,6 +45,54 @@ EVENT_COMPLETE = "complete"
 # here, so a Redis outage fails open (analytics must never break playback).
 COMPLETE_DEDUP_TTL_SECONDS = 6 * 60 * 60
 
+# Upper bound on a single watch_time delta. The client reports roughly every 10
+# seconds and settles tails on pause/hide, so anything past two minutes means a
+# broken or spoofed client: the row is kept for diagnosis but the side effect is
+# dropped rather than letting one event move a user's total by an hour.
+MAX_WATCH_TIME_DELTA_S = 120
+
+# Redis key lives slightly longer than a day so the claim cannot lapse and let a
+# second `watched_video` event through inside the same day.
+WATCH_DAY_CLAIM_TTL_SECONDS = 26 * 60 * 60
+
+
+async def _insert_event(db: AsyncSession, event: dict, user_id: str | None) -> bool:
+    """Append the raw event; return False when its ``event_id`` was already stored.
+
+    The unique index on ``behavior_events.event_id`` is the idempotency
+    guarantee: ``ON CONFLICT DO NOTHING`` makes a re-delivered batch a no-op,
+    and the absence of a returned row is how the caller learns to skip the
+    side effects. Events without an id (older clients, server-side callers) are
+    inserted the plain way.
+    """
+    values = {
+        "user_id": user_id,
+        "video_id": event.get("video_id"),
+        "event_type": event.get("event_type"),
+        "event_payload": event.get("event_payload") or {},
+        "session_id": event.get("session_id"),
+        "flow_id": event.get("flow_id"),
+        "schema_version": event.get("schema_version") or 1,
+        "client_ts": event.get("client_ts"),
+        "event_id": event.get("event_id"),
+    }
+    if not values["event_id"]:
+        db.add(BehaviorEvent(**values))
+        return True
+
+    insert = _DIALECT_INSERTS.get(db.get_bind().dialect.name)
+    if insert is None:  # pragma: no cover - only Postgres/SQLite are supported
+        db.add(BehaviorEvent(**values))
+        return True
+
+    statement = (
+        insert(BehaviorEvent)
+        .values(**values)
+        .on_conflict_do_nothing(index_elements=["event_id"])
+        .returning(BehaviorEvent.id)
+    )
+    return (await db.execute(statement)).first() is not None
+
 
 async def ingest_event(db: AsyncSession, event: dict, user_id: str | None) -> bool:
     """Ingest one event: append to behavior_events + mirror side-effects.
@@ -45,19 +105,13 @@ async def ingest_event(db: AsyncSession, event: dict, user_id: str | None) -> bo
     event_type = event.get("event_type")
     payload = event.get("event_payload") or {}
 
-    db.add(
-        BehaviorEvent(
-            user_id=user_id,
-            video_id=video_id,
-            event_type=event_type,
-            event_payload=payload,
-            session_id=event.get("session_id"),
-            client_ts=event.get("client_ts"),
-        )
-    )
+    if not await _insert_event(db, event, user_id):
+        # Duplicate delivery: the row already exists, so every side effect it
+        # would have caused has already happened.
+        return False
 
     # Side-effects only for logged-in users on a video-scoped event.
-    if user_id and video_id:
+    if user_id and video_id and isinstance(event_type, str):
         return await _mirror_to_learning_record(db, user_id, video_id, event_type, payload, event.get("session_id"))
     return False
 
@@ -97,6 +151,39 @@ async def _complete_already_counted(user_id: str, video_id: str, session_id: str
     except Exception:  # pragma: no cover - Redis outage
         return False
     return False
+
+
+async def _claim_watch_day(db: AsyncSession, user_id: str, video_id: str, session_id: str | None = None) -> None:
+    """Emit at most one ``watched_video`` learning event per user per UTC day.
+
+    Why this exists: ``LearningEvent`` is the immutable daily fact that the
+    personal "days studied" figure and the admin activity trend read (MET-01).
+    Watching alone used to produce no learning event at all, so a user who only
+    re-watched videos was invisible on both. One row per day is enough to place
+    them on the timeline; per-event rows would be 6 writes a minute per viewer.
+
+    The claim is Redis-backed (``SET NX``) rather than a SQL existence check,
+    because this runs on every 10-second watch_time event. Keys are bucketed by
+    **UTC date** on purpose: a user in UTC+8 may get a second claim just after
+    08:00 local, but every consumer groups by distinct date, so a duplicate
+    cannot inflate a day count. When Redis is down the claim fails open and a
+    duplicate row may appear — harmless for the same reason.
+    """
+    key = f"behavior:watchday:{user_id}:{datetime.now(UTC).date().isoformat()}"
+    try:
+        from app.core.redis import get_redis
+
+        if await get_redis().set(key, "1", nx=True, ex=WATCH_DAY_CLAIM_TTL_SECONDS) is None:
+            return
+    except Exception:  # pragma: no cover - Redis outage
+        pass
+
+    try:
+        from app.services.learning_event_service import EVENT_WATCHED_VIDEO, emit_event
+
+        await emit_event(db, user_id, EVENT_WATCHED_VIDEO, 1, video_id=video_id, flow_id=session_id, source="video")
+    except Exception:  # pragma: no cover - event emission must not break playback
+        pass
 
 
 async def drop_unknown_video_ids(db: AsyncSession, events: list[dict]) -> list[dict]:
@@ -142,29 +229,40 @@ async def _mirror_to_learning_record(
             delta = float(payload.get("delta_s", 0) or 0)
         except (TypeError, ValueError, OverflowError):
             return False
-        if not math.isfinite(delta) or delta <= 0:
+        if not math.isfinite(delta) or delta <= 0 or delta > MAX_WATCH_TIME_DELTA_S:
             return False
+        # Round rather than truncate: the client settles tails as small as 0.5s,
+        # and int(0.6) would silently drop them.
+        seconds = math.floor(delta + 0.5)
+        if seconds <= 0:
+            return False
+        # Atomic SQL increment. The previous read-modify-write in Python lost
+        # one increment whenever two tabs (or a retry racing its original)
+        # updated the same record.
         result = await db.execute(
-            select(LearningRecord).where(
+            update(LearningRecord)
+            .where(
                 LearningRecord.user_id == user_id,
                 LearningRecord.video_id == video_id,
             )
+            .values(
+                time_spent_seconds=func.coalesce(LearningRecord.time_spent_seconds, 0) + seconds,
+                last_accessed_at=datetime.now(UTC),
+            )
         )
-        record = result.scalar_one_or_none()
-        if record:
-            record.time_spent_seconds = (record.time_spent_seconds or 0) + int(delta)
-            record.last_accessed_at = datetime.now(UTC)
-            return True
-        return False
+        if not result.rowcount:
+            return False
+        await _claim_watch_day(db, user_id, video_id, session_id)
+        return True
 
     elif event_type == EVENT_COMPLETE:
-        result = await db.execute(
+        record_result = await db.execute(
             select(LearningRecord).where(
                 LearningRecord.user_id == user_id,
                 LearningRecord.video_id == video_id,
             )
         )
-        record = result.scalar_one_or_none()
+        record = record_result.scalar_one_or_none()
         if not record:
             return False
         # Idempotency: a replayed `complete` (retry / duplicate flush / two
@@ -187,7 +285,9 @@ async def _mirror_to_learning_record(
         try:
             from app.services.learning_event_service import EVENT_COMPLETED_VIDEO, emit_event
 
-            await emit_event(db, user_id, EVENT_COMPLETED_VIDEO, 1, video_id=video_id)
+            await emit_event(
+                db, user_id, EVENT_COMPLETED_VIDEO, 1, video_id=video_id, flow_id=session_id, source="video"
+            )
         except Exception:
             pass  # Non-blocking — event emission must not disrupt behavior ingestion
         return True

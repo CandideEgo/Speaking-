@@ -469,7 +469,7 @@ export default function ProfilePage() {
                       month: "long",
                       day: "numeric",
                     })}`
-                  : "升级后解锁完整片库与精听功能"}
+                  : "内测期全部功能免费使用"}
               </p>
               <LinkButton href="/upgrade" variant="secondary" size="sm" className="mt-4">
                 查看会员

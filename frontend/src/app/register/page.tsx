@@ -17,7 +17,7 @@ import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthenticatedRedirect } from "@/components/auth/AuthenticatedRedirect";
 import { SmsOtpInput } from "@/components/auth/SmsOtpInput";
 import { PasswordField } from "@/components/auth/PasswordField";
-import { PASSWORD_RE, PASSWORD_RULE_MESSAGE } from "@/lib/password";
+import { PASSWORD_RULE_MESSAGE, isPasswordAcceptable } from "@/lib/password";
 import { cn } from "@/lib/utils";
 
 // 生产短信验证码为 4 位（开发/CI 假码 1234 同为 4 位）；后端仍兼容 4–6 位。
@@ -116,7 +116,7 @@ function RegisterForm() {
       return;
     }
 
-    if (password && !PASSWORD_RE.test(password)) {
+    if (password && !isPasswordAcceptable(password)) {
       setPasswordError(PASSWORD_RULE_MESSAGE);
       setFormError("");
       return;

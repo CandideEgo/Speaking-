@@ -1,11 +1,8 @@
 """Tests for the learning records API (/api/v1/learning)."""
 
-from datetime import UTC, datetime
-
 from httpx import AsyncClient
 
 from app.models.learning import LearningRecord
-from app.models.user import User
 from app.models.video import Video, VideoSource, VideoStatus
 from tests.conftest import TestSessionLocal
 

@@ -47,14 +47,17 @@ as production already produced a false "production data is empty" conclusion onc
 3. **Build the four images, then package them.** `--platform linux/amd64` is mandatory: the host is
    x86_64 and a native Windows build produces the wrong platform.
    ```bash
+   cd "$(git rev-parse --show-toplevel)"
+   IMG="$(cygpath -m "$TEMP")/images.tgz"
+
    docker build --platform linux/amd64 -f backend/Dockerfile.cloud -t speaking-backend:latest backend/
    docker tag speaking-backend:latest speaking-celery:latest
    docker tag speaking-backend:latest speaking-celery-beat:latest
    docker build --platform linux/amd64 -f frontend/Dockerfile.prod -t speaking-frontend:latest frontend/
 
    docker save speaking-backend:latest speaking-celery:latest speaking-celery-beat:latest speaking-frontend:latest \
-     | gzip -1 > C:/Users/Administrator/AppData/Local/Temp/images.tgz
-   sha256sum C:/Users/Administrator/AppData/Local/Temp/images.tgz
+     | gzip -1 > "$IMG"
+   sha256sum "$IMG"
    ```
    Done when the archive is ~403 MB and you have written its sha256 down. Record the four new image
    IDs too — step 8 compares them against the running containers.
@@ -62,14 +65,15 @@ as production already produced a false "production data is empty" conclusion onc
 4. **Transfer, then verify the archive.** Run it in the background: ~9–17 min at ~400 KB/s, and the
    connection does drop mid-flight (the script reconnects and resumes from the remote offset).
    `MSYS_NO_PATHCONV=1` is required or Git Bash rewrites `/root/images.tgz` into
-   `C:/Program Files/Git/root/images.tgz`; the local argument must be the Windows-form path for the
-   same reason.
+   `C:/Program Files/Git/root/images.tgz`; the local argument must be a Windows-form path
+   (`cygpath -m`) for the same reason.
    ```bash
-   cd C:/Users/Administrator/Speaking/.claude/skills/deploy/scripts
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python upload.py \
-     'C:/Users/Administrator/AppData/Local/Temp/images.tgz' /root/images.tgz
+     "$(cygpath -m "$TEMP")/images.tgz" /root/images.tgz
    ```
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "sha256sum /root/images.tgz"
    ```
    Done when the last upload line reads `DONE <n> / <n> bytes` **and** the remote sha256 is
@@ -79,23 +83,30 @@ as production already produced a false "production data is empty" conclusion onc
 5. **Freeze the rollback point, then load.** The tags must capture the *currently running* images, so
    this ordering is the whole point of the step.
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "
    set -e
    cd /opt/speaking
    TS=\$(date +%Y%m%d%H%M%S)
    cp .env /root/backups/env.\$TS
    cp docker-compose.prod.yml /root/backups/compose.\$TS.yml
-   docker compose -f docker-compose.prod.yml exec -T db sh -c 'pg_dump -U seeword -d seeword' | gzip > /root/backups/pg_predeploy_\$TS.sql.gz
+   docker compose -f docker-compose.prod.yml exec -T db pg_dump -U seeword -d seeword -Fc > /root/backups/pg_predeploy_\$TS.dump
+   docker compose -f docker-compose.prod.yml exec -T db pg_restore --list < /root/backups/pg_predeploy_\$TS.dump > /dev/null
    for s in backend celery celery-beat frontend; do docker tag speaking-\$s:latest speaking-\$s:pre-deploy; done
    gunzip -c /root/images.tgz | docker load
    docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep speaking- | sort
    "
    ```
    Done when `speaking-*:latest` shows the **new** IDs, `speaking-*:pre-deploy` still shows the old
-   ones, and the `.env` / compose / `pg_predeploy_*.sql.gz` backups exist.
+   ones, and the `.env` / compose / `pg_predeploy_*.dump` backups exist.
+   The dump is custom format and `pg_restore --list` must read it — the old
+   `pg_dump | gzip` had no `pipefail`, so a failed dump could still leave a
+   valid-looking empty `.gz`. This is the pre-deploy rollback point; scheduled
+   off-host backups are `scripts/backup/backup.sh` (A09).
 
 6. **Migrate — and stop if the migration fails.**
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "
    cd /opt/speaking
    docker compose -f docker-compose.prod.yml run --rm --no-deps --entrypoint /app/entrypoint.sh backend migrate-only
@@ -109,6 +120,7 @@ as production already produced a false "production data is empty" conclusion onc
 
 7. **Switch: recreate the four app containers and re-resolve nginx's upstreams.**
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "
    cd /opt/speaking
    docker compose -f docker-compose.prod.yml up -d --remove-orphans
@@ -124,6 +136,7 @@ as production already produced a false "production data is empty" conclusion onc
 8. **Verify every line.** Each row is a separate check; report any that fails rather than reporting
    the deploy as done.
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "
    cd /opt/speaking
    docker compose -f docker-compose.prod.yml ps --format '{{.Name}}|{{.Status}}'
@@ -146,8 +159,9 @@ as production already produced a false "production data is empty" conclusion onc
 
 9. **Clean up.** Delete the 403 MB archive on both ends once step 8 passes.
    ```bash
+   cd "$(git rev-parse --show-toplevel)/.claude/skills/deploy/scripts"
    MSYS_NO_PATHCONV=1 SW_HOST=<resolved-ip> SW_PW='<password>' python sshx.py "rm -f /root/images.tgz"
-   rm -f C:/Users/Administrator/AppData/Local/Temp/images.tgz
+   rm -f "$(cygpath -m "$TEMP")/images.tgz"
    ```
 
 ## Notes
@@ -158,7 +172,8 @@ as production already produced a false "production data is empty" conclusion onc
   docker compose -f docker-compose.prod.yml up -d --remove-orphans && docker exec speaking-nginx-1 nginx -s reload
   ```
   New tables and columns are purely additive, so rolling back the images normally needs no schema
-  change. To back the schema out too, restore the `pg_predeploy_*.sql.gz` from step 5 first.
+  change. To back the schema out too, restore the `pg_predeploy_*.dump` from step 5 first
+  (`docker compose -f docker-compose.prod.yml exec -T db pg_restore -U seeword -d seeword --clean --if-exists < /root/backups/pg_predeploy_<TS>.dump`).
 - **Sync config only when it changed.** Compare the local and remote checksums:
   ```bash
   sha256sum docker-compose.prod.yml nginx.ssl.conf promtail.yml

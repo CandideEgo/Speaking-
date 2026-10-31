@@ -3,7 +3,6 @@
 from typing import ClassVar
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 

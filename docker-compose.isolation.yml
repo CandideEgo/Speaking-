@@ -1,0 +1,55 @@
+# 隔离验证栈 —— 只给 A07（Redis 恢复）与 A10（GPU ACL）用。
+#
+# 与开发栈、生产不共用任何项目名、端口或卷：
+#   docker compose -p seeword-isolation -f docker-compose.isolation.yml up -d redis
+#   docker compose -p seeword-isolation -f docker-compose.isolation.yml --profile pg up -d
+#   docker compose -p seeword-isolation -f docker-compose.isolation.yml down -v
+#
+# Redis 用的就是将来进生产的 deploy/redis/redis.conf：这里只换项目名、端口与
+# 一次性密码，验证过的启动参数可以原样复用。清理只允许 `down -v`，不要
+# `docker system prune`（会波及开发栈与生产）。
+#
+# 本文件不启动 backend/frontend/celery；需要真实进程的用例由
+# scripts/isolation/test_a07_redis_recovery.py 自己驱动。
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: seeword-isolation-redis
+    # A10：ACL 身份（default/cloud/gpu）来自渲染后的文件；密码不在 git 里。
+    # 启动前必须先渲染，否则 bind mount 会变成空目录、Redis 拒绝启动：
+    #   ISOLATION_REDIS_PASSWORD=... ISOLATION_REDIS_GPU_PASSWORD=... \
+    #     python scripts/isolation/render_redis_acl.py
+    command: redis-server /usr/local/etc/redis/redis.conf --aclfile /usr/local/etc/redis/users.acl
+    ports:
+      - "127.0.0.1:16379:6379"
+    volumes:
+      - redisdata:/data
+      - ./deploy/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ${ISOLATION_ACL_FILE:-./deploy/redis/users.acl.generated}:/usr/local/etc/redis/users.acl:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${ISOLATION_REDIS_PASSWORD:-isolation-only}", "ping"]
+      interval: 5s
+      retries: 10
+
+  # A07-T6（按 DB 状态补偿）用。库与账号都是一次性的，不用生产凭据。
+  pg:
+    image: postgres:16-alpine
+    container_name: seeword-isolation-pg
+    profiles: ["pg"]
+    environment:
+      POSTGRES_USER: seeword
+      POSTGRES_PASSWORD: ${ISOLATION_PG_PASSWORD:-isolation-only}
+      POSTGRES_DB: seeword_isolation
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seeword -d seeword_isolation"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  redisdata:
+  pgdata:

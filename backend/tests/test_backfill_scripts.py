@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select, text
@@ -64,6 +65,7 @@ async def _make_video(
     difficulty: str | None = None,
     topic_tags: str | None = None,
     word_levels: dict | None = None,
+    created_at: datetime | None = None,
 ) -> str:
     v = Video(
         title=title,
@@ -73,6 +75,7 @@ async def _make_video(
         status=status,
         difficulty_level=difficulty,
         topic_tags=topic_tags,
+        created_at=created_at,
     )
     db_session.add(v)
     await db_session.flush()
@@ -237,9 +240,14 @@ class TestVideoTitleBackfill:
         _point_at_test_db(monkeypatch, backfill_video_titles_zh)
         calls = _count_invalidations(monkeypatch)
         translate_calls = self._fake_translation(monkeypatch)
-        first = await _make_video(db_session, title="First Talk")
-        second = await _make_video(db_session, title="Second Talk", title_zh="已有")
-        third = await _make_video(db_session, title="Third Talk")
+        # Explicit timestamps: the backfill orders by created_at, and two rows
+        # created in the same clock tick would fall back to a random UUID tie,
+        # making the expected translation order flaky.
+        first = await _make_video(db_session, title="First Talk", created_at=datetime(2026, 1, 1, tzinfo=UTC))
+        second = await _make_video(
+            db_session, title="Second Talk", title_zh="已有", created_at=datetime(2026, 1, 2, tzinfo=UTC)
+        )
+        third = await _make_video(db_session, title="Third Talk", created_at=datetime(2026, 1, 3, tzinfo=UTC))
 
         monkeypatch.setattr(sys, "argv", ["backfill_video_titles_zh.py"])
 

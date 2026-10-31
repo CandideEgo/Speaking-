@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """把 guojiya.cn 抓下来的真题 JSON 转成试卷库的导入格式（``import_exam_papers.py`` 消费）。
 
-源数据（``C:/Users/Administrator/guojiya/papers/{cet4,cet6,neem}/*.json``）是**整卷**：
+源数据（``~/guojiya/papers/{cet4,cet6,neem}/*.json``）是**整卷**：
 写作 / 听力 / 阅读 / 翻译四部分都在里面，且 passage 与 question 是分开的块。本站的
 试卷库只收客观题，所以这个脚本做三件事：挑出要的题、把块重新配成站内的行、把源里
 的三种形态坑修平。
@@ -59,7 +59,7 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_SRC = Path("C:/Users/Administrator/guojiya/papers")
+DEFAULT_SRC = Path.home() / "guojiya" / "papers"
 
 # 源 paper_id 前缀 → 站内 level。neem 的 ``_1``/``_2`` 是英语一/英语二。
 CET_LEVELS = {"cet4": "cet4", "cet6": "cet6"}

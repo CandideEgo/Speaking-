@@ -40,7 +40,8 @@ interface AdapterSpy {
 function makeAdapter(opts: {
   token: string | null;
   refreshSucceeds?: boolean;
-  refreshThrows?: boolean;
+  /** 模拟断网 / 5xx：adapter 回 "unavailable"，客户端不得清会话。 */
+  refreshUnavailable?: boolean;
   refreshedToken?: string;
 }): AdapterSpy {
   let token = opts.token;
@@ -51,10 +52,10 @@ function makeAdapter(opts: {
       getToken: () => token,
       refreshToken: async () => {
         spy.refreshCalls += 1;
-        if (opts.refreshThrows) throw new Error("refresh blew up");
-        if (!opts.refreshSucceeds) return false;
+        if (opts.refreshUnavailable) return "unavailable";
+        if (!opts.refreshSucceeds) return "expired";
         token = opts.refreshedToken ?? token;
-        return true;
+        return "refreshed";
       },
       onSessionExpired: () => {
         spy.sessionExpiredCalls += 1;
@@ -116,6 +117,19 @@ describe("createApiClient 401 handling", () => {
 
     expect(spy.refreshCalls).toBe(1);
     expect(spy.sessionExpiredCalls).toBe(1);
+  });
+
+  it("refresh 暂时不可用时不清会话（A03/FE-07）", async () => {
+    // 断网 / 超时 / 5xx 都不是「凭据失效」。旧实现在这里直接 onSessionExpired()，
+    // 用户只是网络抖一下就被踢回登录页。
+    const spy = makeAdapter({ token: liveToken(), refreshUnavailable: true });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse(401, { code: "HTTP_401", message: "令牌过期" }))
+    );
+
+    await expect(loginRequest(spy.adapter)).rejects.toMatchObject({ status: 0 });
+    expect(spy.sessionExpiredCalls).toBe(0);
   });
 
   it("authenticated 401 retries with the refreshed token and returns the body", async () => {
@@ -208,7 +222,7 @@ describe("createApiClient GET cache isolation", () => {
       baseUrl: "",
       auth: {
         getToken: () => token,
-        refreshToken: async () => false,
+        refreshToken: async () => "expired",
         onSessionExpired: () => {},
       },
       ErrorClass: ApiClientError,

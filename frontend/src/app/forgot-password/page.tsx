@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { toastApiError } from "@/lib/errors";
-import { PASSWORD_RE, PASSWORD_RULE_MESSAGE } from "@/lib/password";
+import { PASSWORD_RULE_MESSAGE, isPasswordAcceptable } from "@/lib/password";
 import { PHONE_RE } from "@/lib/smsCode";
 import { useSmsCode } from "@/hooks/useSmsCode";
 import { Button } from "@/components/ui/Button";
@@ -94,7 +94,7 @@ export default function ForgotPasswordPage() {
     setError("");
     setFieldErrors({});
 
-    if (!PASSWORD_RE.test(password)) {
+    if (!isPasswordAcceptable(password)) {
       setFieldErrors({ password: PASSWORD_RULE_MESSAGE });
       return;
     }

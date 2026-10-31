@@ -2,11 +2,10 @@
 
 from datetime import UTC, datetime
 
-import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
-from app.models.exam_test import ExamPaper, ExamQuestion, ExamSession
+from app.models.exam_test import ExamAnswer, ExamPaper, ExamQuestion, ExamSession
 from app.models.user import User
 
 
@@ -126,9 +125,55 @@ async def test_create_and_submit_attempt_full_flow(client, auth_headers, seeded_
     assert results[46]["correct_answer"] == "C"
     assert results[46]["correct"] is False
 
-    # double submit is rejected
+    # A repeat submit is idempotent: it replays the settled result (A06/BE-03)
+    # instead of re-grading. Submitting an empty answer set here would score 0
+    # if the second request were graded, so the payload proves nothing was
+    # overwritten.
     resp = await client.post(f"/api/v1/exams/attempts/{sid}/submit", json={"answers": []}, headers=auth_headers)
-    assert resp.status_code == 409
+    assert resp.status_code == 200
+    replay = resp.json()
+    assert replay["score"] == data["score"]
+    assert replay["correct_count"] == data["correct_count"]
+    assert replay["total"] == data["total"]
+    assert replay["part_scores"] == data["part_scores"]
+    assert replay["results"] == data["results"]
+
+    # ...and the stored answers are still the first submission's.
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as fresh:
+        rows_after = (await fresh.execute(select(ExamAnswer).where(ExamAnswer.session_id == sid))).scalars().all()
+    assert len(rows_after) == 3
+    assert sum(1 for a in rows_after if a.correct) == 2
+
+
+async def test_repeat_submit_with_different_answers_keeps_first_result(client, auth_headers, seeded_paper, db_session):
+    """The later payload must not overwrite the submission of record."""
+    created = await client.post(f"/api/v1/exams/{seeded_paper.id}/attempts", headers=auth_headers)
+    sid = created.json()["session_id"]
+    questions = (
+        (await db_session.execute(select(ExamQuestion).where(ExamQuestion.paper_id == seeded_paper.id))).scalars().all()
+    )
+    first_answers = [{"question_id": q.id, "answer": q.answer} for q in questions]
+
+    first = await client.post(
+        f"/api/v1/exams/attempts/{sid}/submit", json={"answers": first_answers}, headers=auth_headers
+    )
+    assert first.status_code == 200
+    assert first.json()["correct_count"] == 3
+
+    wrong = [{"question_id": q.id, "answer": "Z"} for q in questions]
+    second = await client.post(f"/api/v1/exams/attempts/{sid}/submit", json={"answers": wrong}, headers=auth_headers)
+    assert second.status_code == 200
+    assert second.json()["correct_count"] == 3
+    assert second.json()["score"] == 1.0
+
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as fresh:
+        stored = (await fresh.execute(select(ExamAnswer).where(ExamAnswer.session_id == sid))).scalars().all()
+    assert len(stored) == 3
+    assert {a.user_answer for a in stored} == {q.answer for q in questions}
 
 
 async def test_submit_emits_practiced_items_learning_event(client, auth_headers, seeded_paper, db_session):

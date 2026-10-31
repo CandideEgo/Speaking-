@@ -24,12 +24,18 @@ class BehaviorEvent(Base):
         # Weekly play ranking: event_type IN ('play','complete') AND
         # server_ts >= Monday, grouped by video_id.
         Index("ix_behavior_events_server_ts_type", "server_ts", "event_type"),
+        # Client-generated event id (A02): the unique index is what makes ingest
+        # idempotent — a retried or double-delivered batch cannot accumulate the
+        # same watch_time twice. Historical rows are NULL, which is allowed to
+        # repeat under a unique index in both PostgreSQL and SQLite.
+        Index("uq_behavior_events_event_id", "event_id", unique=True),
     )
 
     # SQLite (tests) only auto-increments an exact INTEGER PRIMARY KEY, so the
     # BigInteger PK falls back to Integer there — production (Postgres) keeps
     # BIGINT autoincrement.
     id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    event_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     user_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -39,5 +45,9 @@ class BehaviorEvent(Base):
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
     event_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # A12 学习 flow 关联：与 LearningEvent.flow_id 同一个值，用于对齐客户端
+    # 意图（flow_result）与服务端事实。schema_version 是上报契约版本，旧行为 1。
+    flow_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     client_ts: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     server_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { MessageSquare, Bell } from "lucide-react";
 import { toastApiError } from "@/lib/errors";
+import { PASSWORD_RULE_MESSAGE, isPasswordAcceptable } from "@/lib/password";
 import { api } from "@/lib/api";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
 import { AccountLifecycleSettings } from "@/components/profile/AccountLifecycleSettings";
@@ -360,8 +361,8 @@ function PasswordChangeForm() {
       toast.error("两次输入的新密码不一致");
       return;
     }
-    if (newPassword.length < 8) {
-      toast.error("新密码至少 8 个字符");
+    if (!isPasswordAcceptable(newPassword)) {
+      toast.error(PASSWORD_RULE_MESSAGE);
       return;
     }
     setSaving(true);
@@ -401,7 +402,7 @@ function PasswordChangeForm() {
             className="w-full"
           />
         </FormField>
-        <FormField label="新密码">
+        <FormField label="新密码" hint="至少 8 位、最多 72 个字节（约 24 个汉字）">
           <Input
             type="password"
             value={newPassword}

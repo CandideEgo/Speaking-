@@ -1,7 +1,5 @@
 """Tests for the 真题 (past-paper) corpus service and gloss integration."""
 
-from unittest.mock import AsyncMock
-
 import pytest
 
 

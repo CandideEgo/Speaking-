@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -31,16 +33,15 @@ sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import paramiko
-from sqlalchemy import text
 
 from app.core.config import Settings
 from app.services.thumbnail_service import extract_frame_thumbnail, local_thumbnail_stems
 from app.tasks.video_processing import _download_video
 
-# === prod connection ===
-PROD_HOST = "47.122.109.52"
-PROD_USER = "root"
-PROD_PASS = "Ming0118"
+# === prod connection (override with SW_HOST / SW_USER / SW_PW) ===
+PROD_HOST = os.environ.get("SW_HOST", "47.122.109.52")
+PROD_USER = os.environ.get("SW_USER", "root")
+PROD_PASS = os.environ.get("SW_PW", "")
 PROD_MEDIA_DIR = "/app/media"
 
 # A re-cut source longer/shorter than this is refused: subtitles would desync.
@@ -50,7 +51,7 @@ MIN_FREE_DISK_BYTES = 5 * 1024 * 1024 * 1024
 # SFTP over this link times out often; retry a few times per file.
 UPLOAD_ATTEMPTS = 4
 
-LOG_PATH = Path("C:/tmp/rebackfill_log.txt")
+LOG_PATH = Path(tempfile.gettempdir()) / "rebackfill_video_quality.log"
 PROD_DB_CONTAINER = "speaking-db-1"
 
 
@@ -71,6 +72,8 @@ def log(msg: str) -> None:
 
 
 def ssh_client() -> paramiko.SSHClient:
+    if not PROD_PASS:
+        raise SystemExit("SW_PW is not set; export the production SSH password before running.")
     c = paramiko.SSHClient()
     c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     c.connect(PROD_HOST, 22, PROD_USER, PROD_PASS, timeout=20, look_for_keys=False, allow_agent=False)

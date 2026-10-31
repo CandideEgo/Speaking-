@@ -21,7 +21,7 @@ class TestTranscriptionQuality:
     """Tests for hallucination detection in transcription callback."""
 
     def test_repetitive_text_detected(self):
-        from app.services.transcription.quality import check_transcription_quality
+        from app.services.transcription_quality import check_transcription_quality
 
         segments = [
             {"text": "Hello world", "start": 0, "end": 2},
@@ -36,7 +36,7 @@ class TestTranscriptionQuality:
         assert any(c.name == "repetitive" and not c.passed for c in report.checks)
 
     def test_nonsense_characters_detected(self):
-        from app.services.transcription.quality import check_transcription_quality
+        from app.services.transcription_quality import check_transcription_quality
 
         segments = [
             {"text": "Hello @#$% world", "start": 0, "end": 2},
@@ -48,7 +48,7 @@ class TestTranscriptionQuality:
         assert report.passed
 
     def test_duration_mismatch_detected(self):
-        from app.services.transcription.quality import check_transcription_quality
+        from app.services.transcription_quality import check_transcription_quality
 
         segments = [
             {"text": "Hello", "start": 0, "end": 2},
@@ -67,7 +67,7 @@ class TestTranscriptionQuality:
         assert not report_long.passed
 
     def test_empty_segments_detected(self):
-        from app.services.transcription.quality import check_transcription_quality
+        from app.services.transcription_quality import check_transcription_quality
 
         # Need more segments to trigger the empty_ratio threshold
         # _MAX_EMPTY_RATIO = 0.5, need >5 segments and >50% empty
@@ -84,7 +84,7 @@ class TestTranscriptionQuality:
         assert any(c.name == "empty_ratio" and not c.passed for c in report.checks)
 
     def test_good_transcription_passes(self):
-        from app.services.transcription.quality import check_transcription_quality
+        from app.services.transcription_quality import check_transcription_quality
 
         segments = [
             {"text": "Hello world this is a test", "start": 0, "end": 3},
@@ -268,7 +268,7 @@ class TestQualityReportPersistence:
     @pytest.mark.asyncio
     async def test_persist_transcription_report(self, db_session):
         """A failed transcription report persists per-check details as issues."""
-        from app.services.transcription.quality import check_transcription_quality, persist_quality_report
+        from app.services.transcription_quality import check_transcription_quality, persist_quality_report
 
         v = Video(id="vq-transcription-1", title="t", source_url="x", status=VideoStatus.ready)
         db_session.add(v)

@@ -20,7 +20,7 @@ from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
 from app.schemas.common import AcknowledgedResponse
 from app.schemas.video import TranscriptionCallbackRequest
-from app.services.transcription.quality import check_transcription_quality, log_quality_report
+from app.services.transcription_quality import check_transcription_quality, log_quality_report
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -129,6 +129,9 @@ async def transcription_callback(
             video.error_message = payload.error or "Transcription failed"
             video.processing_step = None
             await db.commit()
+            from app.services.pipeline_alerting import record_pipeline_failure
+
+            await record_pipeline_failure(payload.video_id, reason=video.error_message)
             return {"acknowledged": True}
 
         # status == "ok": insert subtitles and hand off to the tail.
@@ -146,7 +149,7 @@ async def transcription_callback(
         # Persist the report (best-effort) so the admin panel can show the
         # failure reason - both on failure (why it was blocked) and on success
         # (per-check pass/detail for auditing).
-        from app.services.transcription.quality import persist_quality_report
+        from app.services.transcription_quality import persist_quality_report
 
         await persist_quality_report(db, payload.video_id, quality_report)
 
@@ -157,6 +160,12 @@ async def transcription_callback(
             )
             video.processing_step = None
             await db.commit()
+            from app.services.pipeline_alerting import record_pipeline_failure
+
+            await record_pipeline_failure(
+                payload.video_id,
+                reason=f"transcription quality: {', '.join(c.detail for c in quality_report.failed_checks)}",
+            )
             # 阶段 4: alert admins (best-effort)
             from app.services.notification_service import notify_admins
 
@@ -190,13 +199,22 @@ async def transcription_callback(
         video.status = VideoStatus.ready_subtitles
         video.processing_step = "translating"
         video.processing_progress = 70
+        # A05/BE-01: the intent to run the tail is committed **in this same
+        # transaction** as the status change. `delay()` after the commit lost
+        # the tail whenever the broker was down or the process died in the gap
+        # (and the callback's own retries were then acknowledged as duplicates).
+        # The outbox row survives that gap; the beat dispatcher re-sends it, and
+        # `dispatch_now` below is only the fast path.
+        from app.services.pipeline_dispatch import FINALIZE_VIDEO_TASK, dispatch_now, enqueue
+
+        dispatch_id = await enqueue(
+            db,
+            video_id=payload.video_id,
+            task_name=FINALIZE_VIDEO_TASK,
+            args=[payload.video_id],
+        )
         await db.commit()
-
-        # Enqueue the tail (translate → download → transcode). Imported here to
-        # avoid a circular import at module load.
-        from app.tasks.video_processing import finalize_video
-
-        finalize_video.delay(payload.video_id)
+        await dispatch_now(db, dispatch_id)
     finally:
         # Release lock so a future retry (if needed) can proceed.
         await _release_callback_lock(payload.video_id)

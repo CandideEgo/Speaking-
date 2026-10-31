@@ -170,6 +170,8 @@ async def _emit_closure_event(db: AsyncSession, user_id: str, vocab_set: VocabSe
             event_value=total,
             video_id=vocab_set.video_id,
             metadata={"source": "vocab_set", "set_id": vocab_set.id},
+            flow_id=vocab_set.id,
+            source="vocabulary",
         )
     except Exception:
         logger.exception("Failed to emit learned_words event for set %s", vocab_set.id)

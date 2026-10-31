@@ -27,7 +27,7 @@ is the fallback. Task bodies accept an optional aware-UTC ``now`` as a
 test seam; beat always invokes them with no arguments.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import structlog
 

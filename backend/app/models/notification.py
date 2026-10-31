@@ -1,26 +1,10 @@
-import enum
 import uuid
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
-from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-
-
-class NotificationType(str, enum.Enum):
-    system = "system"
-    video_ready = "video_ready"
-    pro_expiring = "pro_expiring"
-    vocabulary_reminder = "vocabulary_reminder"
-    streak_warning = "streak_warning"
-    achievement_unlocked = "achievement_unlocked"
-    comment_reply = "comment_reply"
-    social_follow = "social_follow"
-    post_liked = "post_liked"
-    quality_alert = "quality_alert"
-    announcement = "announcement"
 
 
 class Notification(Base):

@@ -1,14 +1,13 @@
 import asyncio
-import time
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.media_probe import get_video_duration
 from app.services import ecdict
-from app.services.transcription.audio_extractor import get_video_duration
-from app.tasks.celery_app import celery_app
+from app.tasks.celery_app import GPU_TRANSCRIBE_TASK, celery_app
 from app.tasks.pipeline_helpers import (
     STEP_PROGRESS,
     STEPS,
@@ -262,9 +261,19 @@ def process_video(self, video_id: str):
                     video.processing_step = "translating"
                     touch_step_started_at(video)
                     video.processing_progress = 70
+                    # Same durable hand-off as the callback: the row is written in
+                    # this transaction, then sent (A05/BE-01).
+                    from app.services.pipeline_dispatch import FINALIZE_VIDEO_TASK, dispatch_now, enqueue
+
+                    dispatch_id = await enqueue(
+                        db,
+                        video_id=video.id,
+                        task_name=FINALIZE_VIDEO_TASK,
+                        args=[video_id],
+                    )
                     await db.commit()
                     release_lock(video_id)
-                    finalize_video.delay(video_id)
+                    await dispatch_now(db, dispatch_id)
                     return
 
                 # --- Pre-check: refresh YouTube cookies if needed ---
@@ -342,14 +351,29 @@ def process_video(self, video_id: str):
                 video.processing_step = "transcribing"
                 touch_step_started_at(video)
                 video.processing_progress = 30
-                await db.commit()
-                await update_progress(video_id, "transcribing")
 
-                transcribe_video_gpu.apply_async(
+                # The transcription implementation lives in the standalone
+                # ``gpu-worker/`` component (GPU machine). The cloud only knows
+                # the Celery task name — it has no import path to the worker.
+                #
+                # A05/BE-01: record the hand-off in the same transaction as the
+                # status change, then send. A broker outage no longer fails the
+                # head (which used to mark the video error and retry the whole
+                # extraction): the intent stays pending and the beat dispatcher
+                # re-sends it.
+                from app.services.pipeline_dispatch import dispatch_now, enqueue
+
+                dispatch_id = await enqueue(
+                    db,
+                    video_id=video.id,
+                    task_name=GPU_TRANSCRIBE_TASK,
                     args=[video.id, gpu_source, gpu_platform],
                     queue=settings.transcription_gpu_queue_name,
                 )
-                logger.info("Video %s: enqueued GPU transcription", video_id)
+                await db.commit()
+                await update_progress(video_id, "transcribing")
+                await dispatch_now(db, dispatch_id)
+                logger.info("Video %s: GPU transcription handed off", video_id)
 
                 # Release the lock but keep the step-set; the gap to the tail is
                 # bridged by DB status, not a held lock.
@@ -366,151 +390,6 @@ def process_video(self, video_id: str):
                 raise self.retry(exc=e) from e
 
     run_pipeline_task(_process())
-
-
-# ---------------------------------------------------------------------------
-# GPU worker task: transcribe and POST subtitles back via HTTP callback
-# ---------------------------------------------------------------------------
-
-
-def _post_transcription_callback(
-    video_id: str, status: str, segments: list[dict] | None = None, error: str | None = None
-) -> bool:
-    """POST transcription results to the cloud callback endpoint.
-
-    Retries 5xx / 408 / 425 / 429 and transport errors with exponential
-    backoff. Other 4xx responses are permanent client-side problems (bad
-    secret, deleted video, invalid payload) and are not retried. Returns True
-    on acknowledged delivery. Used by the GPU worker, which has no database
-    access.
-
-    The callback endpoint itself rate-limits at 30/min, so 429 is transient and
-    must be retried — treating every 4xx as permanent used to drop a finished
-    GPU transcription on the floor.
-    """
-    import httpx
-
-    settings = get_settings()
-    url = settings.transcription_callback_url
-    if not url:
-        logger.error("TRANSCRIPTION_CALLBACK_URL not set; cannot deliver transcription for %s", video_id)
-        return False
-
-    payload = {
-        "video_id": video_id,
-        "status": status,
-        "segments": (
-            [
-                {
-                    "start": s["start"],
-                    "end": s["end"],
-                    "text": s["text"],
-                    # Forward word-level timestamps so the cloud can persist
-                    # them for precise split/merge + re-segmentation.
-                    "words": s.get("words"),
-                }
-                for s in segments
-            ]
-            if status == "ok" and segments
-            else None
-        ),
-        "error": error,
-        # Phase 2: forward audio duration for hallucination detection
-        "audio_duration": segments[-1].get("end") if segments and status == "ok" else None,
-    }
-    headers = {"X-Callback-Secret": settings.transcription_callback_secret}
-    max_retries = settings.transcription_callback_max_retries
-    timeout = settings.transcription_callback_timeout
-    transient_4xx = {408, 425, 429}
-
-    for attempt in range(max_retries + 1):
-        try:
-            with httpx.Client(timeout=timeout) as client:
-                resp = client.post(url, json=payload, headers=headers)
-            if 200 <= resp.status_code < 300:
-                logger.info("Transcription callback delivered", video_id=video_id, status=status, attempt=attempt)
-                return True
-            if 400 <= resp.status_code < 500 and resp.status_code not in transient_4xx:
-                logger.error(
-                    "Transcription callback rejected (permanent 4xx, not retrying)",
-                    video_id=video_id,
-                    code=resp.status_code,
-                    body=resp.text[:200],
-                )
-                return False
-            # 5xx and transient 4xx (rate limit / timeout / too early) → retry
-            logger.warning(
-                "Transcription callback transient failure",
-                video_id=video_id,
-                code=resp.status_code,
-                attempt=attempt,
-            )
-        except httpx.HTTPError as e:
-            logger.warning("Transcription callback error", video_id=video_id, attempt=attempt, error=str(e))
-        if attempt < max_retries:
-            time.sleep(min(2**attempt, 30))
-    logger.error("Transcription callback exhausted retries", video_id=video_id, status=status)
-    return False
-
-
-def _send_alert_sync(title: str, message: str, *, severity: str = "critical") -> None:
-    """Fire an alert from a synchronous Celery task (best effort).
-
-    ``send_alert`` is async because the webhook uses httpx; the GPU task is
-    synchronous and runs in a prefork worker with no event loop, so a fresh
-    loop is safe here. Never let alerting break the task itself.
-    """
-    try:
-        from app.services.alert_service import send_alert
-
-        asyncio.run(send_alert(title, message, severity=severity))
-    except Exception:
-        logger.warning("GPU task alert delivery failed", exc_info=True)
-
-
-@celery_app.task(bind=True, max_retries=3, name="app.tasks.video_processing.transcribe_video_gpu")
-def transcribe_video_gpu(self, video_id: str, source: str, platform: str, language: str | None = None):
-    """Transcribe a video on the GPU worker and POST subtitles back to the cloud.
-
-    Runs on a remote machine (``transcription_gpu`` queue). Does NOT touch the
-    database — results are delivered via HTTP callback so the worker needs no
-    ``DATABASE_URL``. ``language`` is reserved for future use (v1 relies on the
-    worker's ``WHISPER_LANGUAGE`` setting).
-    """
-    from app.models.video import VideoSource
-    from app.services.transcription import TranscriptionService
-
-    try:
-        svc = TranscriptionService()
-        segments = svc._sync_transcribe(source, VideoSource(platform))
-    except Exception as e:
-        logger.exception("GPU transcription failed for video %s", video_id)
-        if self.request.retries >= self.max_retries:
-            # Let the cloud know transcription is unrecoverable so it can mark
-            # the video failed instead of waiting for the watchdog.
-            _post_transcription_callback(video_id, status="error", error=str(e))
-            _send_alert_sync(
-                "GPU 转录最终失败",
-                f"video {video_id}: {e}",
-            )
-            raise
-        raise self.retry(exc=e, countdown=60) from e
-
-    if not _post_transcription_callback(video_id, status="ok", segments=segments):
-        # The transcription itself succeeded; only delivery failed (e.g.
-        # rate limit / network). Retrying re-runs the transcription, but that
-        # is cheaper than leaving the video stuck in ``processing`` with a
-        # silently "successful" Celery task.
-        logger.error("GPU transcription callback delivery failed; retrying task for %s", video_id)
-        if self.request.retries >= self.max_retries:
-            _send_alert_sync(
-                "GPU 转录回调投递最终失败",
-                f"video {video_id}: callback still undeliverable after {self.max_retries} retries",
-            )
-        raise self.retry(
-            exc=RuntimeError(f"transcription callback delivery failed for {video_id}"),
-            countdown=60,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -615,6 +494,9 @@ async def _run_translating(ctx: PipelineCtx) -> None:
             video.processing_step = None
             video.step_started_at = None
             await db.commit()
+            from app.services.pipeline_alerting import record_pipeline_failure
+
+            await record_pipeline_failure(video_id, step="translating", reason=video.error_message)
             # 阶段 4: alert admins (best-effort; never fails pipeline)
             from app.services.notification_service import notify_admins
 
@@ -1116,8 +998,25 @@ async def _run_watchdog_pipeline() -> None:
                 stuck.append(v)
                 stuck_ids.add(v.id)
 
+        # A05/BE-01: a video whose pipeline hand-off never reached the broker is
+        # waiting on the dispatcher, not stuck on a dead worker. Failing it here
+        # would throw away a run that is about to start; the dispatch backlog
+        # alert owns the "broker is down for good" case.
+        if stuck:
+            from app.services.pipeline_dispatch import pending_video_ids
+
+            undelivered = await pending_video_ids(db, [v.id for v in stuck])
+            if undelivered:
+                logger.info(
+                    "Watchdog: leaving videos with undelivered pipeline dispatches alone",
+                    video_ids=sorted(undelivered),
+                )
+                stuck = [v for v in stuck if v.id not in undelivered]
+
+        steps_by_video: dict[str, str | None] = {}
         for v in stuck:
             step = v.processing_step
+            steps_by_video[v.id] = step
             v.status = VideoStatus.error
             v.error_message = f"Pipeline step '{step}' timed out (worker stuck or offline?)"
             v.processing_step = None
@@ -1142,6 +1041,10 @@ async def _run_watchdog_pipeline() -> None:
                 related_url=None,
             )
             await db.commit()
+            from app.services.pipeline_alerting import record_pipeline_failure
+
+            for v in stuck:
+                await record_pipeline_failure(v.id, step=steps_by_video.get(v.id), reason="watchdog step timeout")
             try:
                 from app.services.alert_service import send_alert
 
@@ -1226,7 +1129,6 @@ async def _extract_video_info(url: str) -> dict | None:
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                from urllib.parse import urlparse
 
                 from app.services.external_meta import parse_external_meta, pick_best_thumbnail
 

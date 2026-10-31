@@ -1,9 +1,10 @@
 # Cloud worker dependencies — no GPU/transcription packages.
 # Used by Dockerfile.cloud (backend server, celery default queue, celery-beat).
-# GPU worker uses the full requirements.txt instead.
+# GPU worker uses gpu-worker/requirements.txt instead.
 
-# Web stack — keep in lockstep with requirements.txt (see the note there:
-# fastapi <0.135 pins starlette <0.38, which re-opens the advisories).
+# Web stack — fastapi / starlette / pydantic move as one set: fastapi <0.135
+# pins starlette <0.38 and starlette <1.3.1 carries the advisories, so the pair
+# below is what actually clears them. Keep starlette explicit.
 fastapi==0.141.1
 starlette==1.6.0
 uvicorn[standard]==0.29.0
@@ -29,7 +30,7 @@ yt-dlp>=2025.0.0
 
 # Observability
 structlog==24.2.0
-# See requirements.txt: 2.8.0 is the first release without PYSEC-2026-1917.
+# See the web-stack note above: 2.8.0 is the first release without PYSEC-2026-1917.
 sentry-sdk[fastapi]==2.8.0
 # 8.0.2 is the first release that accepts starlette>=1.0.
 prometheus-fastapi-instrumentator>=8.0.2

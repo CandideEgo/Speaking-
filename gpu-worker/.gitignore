@@ -1,0 +1,18 @@
+# Local venv (this component is run from the repo checkout on the GPU machine)
+.venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Secrets — the real .env.gpu-worker holds the cloud Redis password and the
+# callback shared secret. Only .env.gpu-worker.example is committed.
+.env.gpu-worker
+# yt-dlp 登录 cookies（从 backend/ 复制过来，跟本组件走；含账号会话，绝不入库）
+youtube_cookies*.txt
+
+# Runtime output
+logs/
+media/

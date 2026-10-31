@@ -7,6 +7,7 @@ Uses the oss2 Python SDK for uploads. Large files (>10 MB) use resumable
 (multipart) upload for reliability.
 """
 
+import tempfile
 from pathlib import Path
 
 import structlog
@@ -104,7 +105,7 @@ async def upload_file(local_path: str, remote_key: str) -> str:
                 bucket,
                 key,
                 local_path,
-                store=oss2.ResumableStore(root="/tmp"),
+                store=oss2.ResumableStore(root=tempfile.gettempdir()),
                 multipart_threshold=_RESUMABLE_THRESHOLD,
                 part_size=4 * 1024 * 1024,  # 4 MB per part
                 num_threads=4,
@@ -163,8 +164,6 @@ def get_signed_url(remote_key: str, expires: int = 3600) -> str:
     """
     if not _is_configured():
         return ""
-
-    import oss2
 
     key = _object_key(remote_key)
     bucket = _get_bucket()

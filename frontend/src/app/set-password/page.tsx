@@ -7,7 +7,7 @@ import { AlertCircle, Lock, Loader2 } from "lucide-react";
 import { ApiError, api } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { safeNext } from "@/lib/authHelpers";
-import { PASSWORD_RE, PASSWORD_RULE_MESSAGE } from "@/lib/password";
+import { PASSWORD_RULE_MESSAGE, isPasswordAcceptable } from "@/lib/password";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
@@ -126,7 +126,7 @@ function SetPasswordForm() {
     setFieldError("");
     setErrorField("");
 
-    if (!PASSWORD_RE.test(password)) {
+    if (!isPasswordAcceptable(password)) {
       setFieldError(PASSWORD_RULE_MESSAGE);
       setErrorField("password");
       return;
@@ -182,7 +182,7 @@ function SetPasswordForm() {
           error={errorField === "password" ? fieldError : undefined}
           showMeter
           showRules
-          hint="强度条第三档 = 可直接提交，两处口径完全一致，不会出现「显示强却被拒」。"
+          hint="至少 8 位、含大小写字母与数字，最多 72 个字节（约 24 个汉字）。强度条第三档 = 可直接提交，两处口径完全一致，不会出现「显示强却被拒」。"
         />
 
         <PasswordField

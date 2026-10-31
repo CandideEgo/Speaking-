@@ -20,6 +20,7 @@ from app.core.time_utils import to_aware_utc
 from app.models.admin_setting import SETTINGS_ROW_ID, AdminSetting
 from app.models.jinshuju_payment import JinshujuPayment, JinshujuPaymentStatus
 from app.models.learning import LearningRecord, Vocabulary
+from app.models.learning_plan import LearningEvent
 from app.models.order import Order
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoStatus
@@ -132,7 +133,12 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     # plan overstates the paying base (audit measured 611 stored vs 284 active).
     # ``pro_expired_count`` keeps the lapsed rows visible, and ``users_by_plan``
     # below intentionally stays an as-stored distribution (see its comment).
-    active_pro_condition = or_(User.plan_expires_at.is_(None), User.plan_expires_at > now)
+    #
+    # A13/FE-04: ``plan_expires_at IS NULL`` is *invalid*, not infinite — the
+    # same rule as ``unlock_service.is_active_pro`` and the frontend. Row without
+    # an expiry counts as lapsed (visible) instead of active (flattering).
+    active_pro_condition = User.plan_expires_at > now
+    expired_pro_condition = or_(User.plan_expires_at.is_(None), User.plan_expires_at < now)
     (
         total_users,
         new_users_7d,
@@ -150,11 +156,7 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
                 func.count(User.id).filter(func.date(User.last_active_at) == today),
                 func.count(User.id).filter(User.last_active_at >= ago_7d),
                 func.count(User.id).filter(func.date(User.created_at) == today),
-                func.count(User.id).filter(
-                    User.plan == PlanType.pro,
-                    User.plan_expires_at.is_not(None),
-                    User.plan_expires_at < now,
-                ),
+                func.count(User.id).filter(User.plan == PlanType.pro, expired_pro_condition),
             )
         )
     ).one()
@@ -192,18 +194,21 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
     ).all()
     vocab_map = {r.d: r.c or 0 for r in vocab_rows}
 
-    # Active users trend: distinct users whose LearningRecord was last accessed
-    # per day (real watch activity — DailyActivity snapshots are gone with the
-    # activity service per ADR-0002/0003).
+    # 活跃用户趋势只认不可变的学习事件（MET-01）。旧实现按
+    # ``LearningRecord.last_accessed_at`` 分日——那是一行「用户/视频」的最后访问
+    # 时间，今天重看去年的视频会把去年的人数搬走，历史日活因此是可变的，
+    # 也完全看不到纯词汇/听写/真题的学习者。``LearningEvent.event_date`` 在写入
+    # 时就定死，覆盖所有语义学习行为；只看视频的用户由 behavior_service 每天
+    # 补一条 watched_video。
     active_rows = (
         await db.execute(
             select(
-                func.date(LearningRecord.last_accessed_at).label("d"),
-                func.count(func.distinct(LearningRecord.user_id)).label("c"),
+                LearningEvent.event_date.label("d"),
+                func.count(func.distinct(LearningEvent.user_id)).label("c"),
             )
-            .where(LearningRecord.last_accessed_at >= ago_nd)
-            .group_by(func.date(LearningRecord.last_accessed_at))
-            .order_by(func.date(LearningRecord.last_accessed_at))
+            .where(LearningEvent.event_date >= ago_nd.date())
+            .group_by(LearningEvent.event_date)
+            .order_by(LearningEvent.event_date)
         )
     ).all()
     active_map = {r.d: r.c for r in active_rows}
@@ -250,7 +255,10 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
         {"topic": t, "count": c} for t, c in sorted(topic_counts.items(), key=lambda kv: kv[1], reverse=True)[:8]
     ]
 
-    # --- Pro conversion funnel (prototype 31: 注册 -> 观看 -> 收藏词汇 -> Pro) ---
+    # --- Cumulative behavior / entitlement distribution (MET-02) ---
+    # 这四个数字**互相独立**（不同 cohort、无时间窗、无步骤顺序），不是漏斗；
+    # 管理端已改名为「累计行为分布」。真实 cohort 漏斗与付费口径见
+    # ``measurement_service.learning_metrics``（付费只认已匹配账号的金数据流水）。
     watched_users = (await db.execute(select(func.count(func.distinct(LearningRecord.user_id))))).scalar_one()
     vocab_users = (await db.execute(select(func.count(func.distinct(Vocabulary.user_id))))).scalar_one()
     funnel = {

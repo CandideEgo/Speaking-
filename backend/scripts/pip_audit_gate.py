@@ -34,7 +34,12 @@ from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 IGNORE_FILE = BACKEND_ROOT / ".pip-audit-ignore"
-DEFAULT_REQUIREMENTS = ("requirements.txt", "requirements-cloud.txt")
+# Only the cloud runtime set is audited here. The GPU worker is a separate
+# component (``gpu-worker/requirements.txt``) with its own heavy GPU stack; it
+# is not installed in the backend CI job, so auditing it from this gate would
+# resolve torch/whisperx for nothing. See gpu-worker/README.md for its audit
+# policy.
+DEFAULT_REQUIREMENTS = ("requirements-cloud.txt",)
 ADVISORY_ID_RE = re.compile(r"^(?:PYSEC|CVE|GHSA|OSV)-\d{4}-[0-9A-Za-z]+$")
 MIN_REASON_CHARS = 20
 
@@ -105,7 +110,9 @@ def lapsed_suppressions(entries: list[Suppression], today: dt.date) -> list[Supp
     return [e for e in entries if e.review_by < today]
 
 
-def run_pip_audit(requirements: list[str], report_path: Path) -> subprocess.CompletedProcess[str]:
+def run_pip_audit(
+    requirements: list[str], report_path: Path, no_deps: bool = False
+) -> subprocess.CompletedProcess[str]:
     cmd = [
         sys.executable,
         "-m",
@@ -116,6 +123,10 @@ def run_pip_audit(requirements: list[str], report_path: Path) -> subprocess.Comp
         "-o",
         str(report_path),
     ]
+    if no_deps:
+        # The GPU lock is already fully pinned; resolving torch/whisperx
+        # (multi-GB) just to audit the same versions is wasted CI time.
+        cmd.append("--no-deps")
     for requirement in requirements:
         cmd += ["-r", requirement]
 
@@ -190,14 +201,26 @@ def main(argv: list[str] | None = None) -> int:
         "-r", "--requirement", action="append", dest="requirements", help="requirement file (repeatable)"
     )
     parser.add_argument("--today", help="覆盖今天的日期（YYYY-MM-DD），用于验证复核日期路径")
+    parser.add_argument(
+        "--ignore-file",
+        type=Path,
+        default=IGNORE_FILE,
+        help="豁免文件路径（默认 backend/.pip-audit-ignore；GPU 组件用 gpu-worker/.pip-audit-ignore）",
+    )
+    parser.add_argument(
+        "--no-deps",
+        action="store_true",
+        help="只审计传入的锁定文件本身（GPU 锁已钉死全部传递依赖，避免解析 torch）",
+    )
     args = parser.parse_args(argv)
 
     today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
     requirements = args.requirements or list(DEFAULT_REQUIREMENTS)
 
-    entries, problems = parse_suppressions(IGNORE_FILE)
+    ignore_file: Path = args.ignore_file
+    entries, problems = parse_suppressions(ignore_file)
     if problems:
-        print(f"::error::{IGNORE_FILE.name} 有 {len(problems)} 处问题：")
+        print(f"::error::{ignore_file.name} 有 {len(problems)} 处问题：")
         for problem in problems:
             print(f"  {problem}")
         return EXIT_IGNORE_FILE
@@ -213,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         report_path = Path(tmpdir) / "pip-audit.json"
-        result = run_pip_audit(requirements, report_path)
+        result = run_pip_audit(requirements, report_path, no_deps=args.no_deps)
         if result.returncode not in (0, 1) or not report_path.is_file():
             print(f"::error::pip-audit 无法完成（exit {result.returncode}）")
             print(result.stdout[-4000:])

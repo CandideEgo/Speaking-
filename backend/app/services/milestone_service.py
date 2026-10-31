@@ -5,48 +5,12 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.milestone import MasterySnapshot, UserMilestone
+from app.models.milestone import MasterySnapshot
 
 
 async def check_and_award(db: AsyncSession, user_id: str) -> list[dict]:
     """Compatibility service: learning activity no longer awards achievements."""
     return []
-
-
-async def get_user_milestones(db: AsyncSession, user_id: str) -> list[dict]:
-    """Get all milestones for a user, ordered by achieved_at desc."""
-    result = await db.execute(
-        select(UserMilestone).where(UserMilestone.user_id == user_id).order_by(UserMilestone.achieved_at.desc())
-    )
-    milestones = result.scalars().all()
-    return [
-        {
-            "id": m.id,
-            "milestone_type": m.milestone_type,
-            "achieved_at": m.achieved_at.isoformat() if m.achieved_at else None,
-            "metadata_json": m.metadata_json,
-        }
-        for m in milestones
-    ]
-
-
-async def get_latest_milestone(db: AsyncSession, user_id: str) -> dict | None:
-    """Get the most recently achieved milestone for a user."""
-    result = await db.execute(
-        select(UserMilestone)
-        .where(UserMilestone.user_id == user_id)
-        .order_by(UserMilestone.achieved_at.desc())
-        .limit(1)
-    )
-    m = result.scalar_one_or_none()
-    if not m:
-        return None
-    return {
-        "id": m.id,
-        "milestone_type": m.milestone_type,
-        "achieved_at": m.achieved_at.isoformat() if m.achieved_at else None,
-        "metadata_json": m.metadata_json,
-    }
 
 
 async def get_mastery_trend(db: AsyncSession, user_id: str, weeks: int = 8) -> list[dict]:
