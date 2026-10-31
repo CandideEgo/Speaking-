@@ -3,7 +3,7 @@
 # Pinned to the same versions backend/requirements-dev.txt uses (and to the
 # astral-sh/ruff-pre-commit rev) so a test run here means the same thing as a
 # test run in the main repo. Install on top of requirements.txt.
-pytest==8.2.0
+pytest==9.2.0
 pytest-timeout==2.4.0
 pytest-asyncio==0.23.7
 ruff==0.15.18
