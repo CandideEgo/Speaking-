@@ -1,7 +1,7 @@
 # GPU worker 运行依赖完整锁（含传递依赖）。
 #
 # 生成：python gpu-worker/scripts/lock_requirements.py
-# 平台：Windows x86_64 / CPython 3.12（本机 GPU worker 部署平台）
+# 平台：Windows x86_64 / CPython 3.12（本机 GPU worker 部署平台；脚本写的是 sys.platform）
 # 说明：
 #   - torch/torchaudio 的版本号与 CUDA 轮子一致；GPU 机器上先按 README 用
 #     `--index-url https://download.pytorch.org/whl/cu128` 装好 CUDA 版，
@@ -22,7 +22,7 @@ asteroid-filterbanks==0.4.0
 attrs==26.1.0
 av==19.0.2
 billiard==4.3.1
-celery==5.4.0
+celery==5.5.3
 certifi==2026.10.23
 charset-normalizer==3.5.2
 click==8.5.0
@@ -39,7 +39,7 @@ deepmultilingualpunctuation==1.0.1
 defusedxml==0.7.1
 einops==0.8.2
 faster-whisper==1.2.1
-filelock==4.2.5
+filelock==4.2.6
 flatbuffers==25.12.19
 fonttools==4.68.0
 frozenlist==1.8.0
@@ -55,7 +55,7 @@ Jinja2==3.1.6
 joblib==1.6.0
 julius==0.2.8
 kiwisolver==1.5.1
-kombu==5.6.2
+kombu==5.5.4
 lightning==2.6.6
 lightning-utilities==0.15.3
 Mako==1.4.3
