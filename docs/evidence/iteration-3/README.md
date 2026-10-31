@@ -376,13 +376,41 @@ channel 订阅的 `latest_video` 都按 `created_at` 排序，而测试里两条
 要彻底去掉共用密码，下一步应当是**轮换云端密码并让 `cloud` 独立**，而不是只把
 `default off`——那是两步里更容易产生假安全的那一步。
 
+### A10-T9：隧道与 sshd 受限（2026-10-31 晚，已完成）
+
+GPU 机连云端用的是 `admin@47.122.109.52` + `C:\Tools\seeword-gpu\id_ed25519`。这把钥匙此前
+可以转发任意端口、执行任意命令。收紧方式：
+
+- **逐钥匙**：`/home/admin/.ssh/authorized_keys` 里该钥匙加前缀
+  `restrict,port-forwarding,permitopen="127.0.0.1:6379"`（改前备份到
+  `/root/backups/admin_authorized_keys_before_t9_*`）。
+- **全局**：`/etc/ssh/sshd_config.d/10-seeword-forwarding.conf` 写
+  `AllowTcpForwarding local`、`X11Forwarding no`（`PermitTunnel no` 本就是默认）。
+  `sshd -t` 通过后 reload，未断现有会话。
+
+实测（从 GPU 机发起）：
+
+| 用例 | 结果 |
+| --- | --- |
+| `-L 16379:127.0.0.1:6379`（隧道本体） | ✅ 建立，worker 继续 `ready`、心跳刷新 |
+| `-L 15522:127.0.0.1:22` 后连接 | ✅ `channel 2: open failed: administratively prohibited` |
+| `-R 9999:127.0.0.1:80` | ✅ `Error: remote port forwarding failed for listen port 9999` |
+| `-D 11080` 后经 socks 连接 | ✅ `administratively prohibited` |
+
+**与 D6 原文的两处偏离，理由**：
+
+1. **没设 `PermitTTY no`**：那是全局的，会连人肉交互登录一起关掉。钥匙级的 `restrict`
+   已经禁掉了 pty/agent/X11/user-rc，覆盖同一目的且不伤人类使用。
+2. **没设全局 `PermitOpen 127.0.0.1:6379`**：全局会把所有账号的 `-L` 都锁到 Redis 上。
+   目标限制用钥匙级 `permitopen` 达成，效果相同、半径更小。
+
+顺带修掉一个部署漂移：`gpu_worker_tunnel.ps1` 在 master 上默认读
+`%ProgramData%\seeword\id_ed25519`，而这台机把钥匙放在 `C:\Tools\seeword-gpu\`。
+用 NSSM 环境变量补上：`nssm set SeeWordGpuTunnel AppEnvironmentExtra SEEWORD_SSH_KEY=C:\Tools\seeword-gpu\id_ed25519`。
+
 ### A10 仍未做
 
 1. `default` 收紧（如上，需与云端密码轮换一起做才有意义）。
-2. T9 宿主 sshd：`authorized_keys` 加 `restrict,port-forwarding,permitopen="127.0.0.1:6379"`
-   + `sshd_config` 的 `PermitOpen` / `AllowTcpForwarding local` / `PermitTTY no` 等。
-   （GPU 机连云端用的是 `admin` 账号 + `C:\Tools\seeword-gpu\id_ed25519`，这把钥匙目前可转发任意端口。）
-3. `TRANSCRIPTION_CALLBACK_SECRET` 两侧同时轮换。
-4. GPU 机的 `requirements.lock.txt` 需按新 celery 重新生成（本轮只改了 venv 与 requirements.txt）。
-5. GPU 机上还跑着两个旧的云端 Celery worker（`SeeWordCelery` 服务 + 一个系统 Python 进程），
+2. `TRANSCRIPTION_CALLBACK_SECRET` 两侧同时轮换。
+3. GPU 机上还跑着两个旧的云端 Celery worker（`SeeWordCelery` 服务 + 一个系统 Python 进程），
    都在消费云端的 `celery` 队列——GPU 拆分后应已无用，建议清理。
