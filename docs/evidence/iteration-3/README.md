@@ -324,3 +324,38 @@ channel 订阅的 `latest_video` 都按 `created_at` 排序，而测试里两条
 - **非官方上传视频**随账号删除，按 `videos` 外键的 CASCADE 语义会连带删除其他用户对该视频
   的学习记录/收藏/句子收藏（当前生产没有用户上传入口，INV-003；官方视频保留，所以实际
   影响面为 0）。将来开放 UGC 前需要先决定「休眠行保留历史」还是「连内容一起删」。
+
+## 生产放量：A07 完成、A10 部分（2026-10-31）
+
+按 D6 §5.1 / §5.2 执行。**A07 全部完成，A10 只做到「加身份」，收紧留给 GPU 机配合的那一次。**
+
+### A07 已放量
+
+- compose：redis 挂命名卷 `redis-data` + `deploy/redis/redis.conf`（AOF `everysec`、RDB 关闭、noeviction）。
+- 数据迁移按 §5.1：先 `BGSAVE` 取新快照 → 旧匿名卷内容拷进命名卷 → `--appendonly no` 起临时容器加载
+  RDB（`DBSIZE` 600 → 596，差值是被丢弃的 4 个过期 TTL 键）→ `CONFIG SET appendonly yes` 生成
+  `appendonlydir`（manifest + base.rdb + incr.aof，`aof_last_bgrewrite_status:ok`）→ 切配置重启。
+- 核验：`aof_enabled:1`、`aof_last_write_status:ok`、`loading:0`、`docker restart` 后键仍在
+  （596 → 603，增量是重启期间的实时写入），backend/frontend healthy、celery `1 node online`、
+  `/health` 200。
+- 回滚物：`/root/backups/redis-volume-20261031.tgz`（旧匿名卷快照）、`env.20261031170015`、
+  `compose.20261031170015.yml`。旧匿名卷未删除，观察期后再清。
+
+### A10 已加身份（default 仍在）
+
+- ACL 由 `scripts/isolation/render_redis_acl.py` 在宿主渲染到 `deploy/redis/users.acl`（600，
+  属主 `999:1000`；**属主不对时 Redis 直接拒绝启动**，本轮实测踩到）。
+- 切换前先在一次性容器里验证：`default`/`gpu` 均 `PONG`、`gpu` 可 `LLEN transcription_gpu`、
+  `gpu KEYS *` → `NOPERM`。验证通过后才改 compose（`--aclfile`，去掉 `--requirepass`）并重建。
+- 线上 `ACL LIST` 显示 default/cloud/gpu 三个身份；`default` 保留原密码与全权，**作为回滚路径**，
+  云端与 GPU 当前都不受影响。GPU worker 放量时未连接（`transcription_gpu` 队列长度 0、
+  `CLIENT LIST` 无外部客户端），因此没有在途任务丢失。
+
+### A10 仍未做（需要 GPU 机配合）
+
+1. GPU 机 `.env.gpu-worker` 的 `REDIS_URL` 切 `redis://gpu:<REDIS_GPU_PASSWORD>@127.0.0.1:6379/0`
+   （密码已生成并写入生产 `.env` 的 `REDIS_GPU_PASSWORD`），并跑一次消费/心跳/杀进程恢复检查。
+2. 确认 GPU 稳定后再收紧 `default`（改 `off`）。回滚只需把 `default` 改回 `on`。
+3. T9 宿主 sshd：`authorized_keys` 加 `restrict,port-forwarding,permitopen="127.0.0.1:6379"`
+   + `sshd_config` 的 `PermitOpen` / `AllowTcpForwarding local` / `PermitTTY no` 等。
+4. `TRANSCRIPTION_CALLBACK_SECRET` 两侧同时轮换。
