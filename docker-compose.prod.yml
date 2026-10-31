@@ -27,11 +27,16 @@ services:
     image: redis:7-alpine
     # A07：持久化契约的唯一正文是 deploy/redis/redis.conf（AOF everysec、RDB 关闭、
     # noeviction）。没有它时 compose 一重建容器，队列与撤销状态就一起没了。
-    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+    # A10：ACL 身份（default/cloud/gpu）来自宿主上渲染好的文件；密码不进 git。
+    # 渲染：REDIS_PASSWORD=... REDIS_GPU_PASSWORD=... \
+    #         python3 scripts/isolation/render_redis_acl.py --out deploy/redis/users.acl
+    # 文件须 600 且属主为容器内 redis 用户（999:1000），否则 Redis 拒绝启动。
+    command: redis-server /usr/local/etc/redis/redis.conf --aclfile /usr/local/etc/redis/users.acl
     restart: unless-stopped
     volumes:
       - redis-data:/data
       - ./deploy/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./deploy/redis/users.acl:/usr/local/etc/redis/users.acl:ro
     # Publish to the host loopback only so a remote GPU worker can reach the
     # broker over an SSH tunnel / WireGuard without exposing Redis to the
     # public internet. GPU worker REDIS_URL: redis://:<pw>@127.0.0.1:6379/0
