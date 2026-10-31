@@ -351,11 +351,38 @@ channel 订阅的 `latest_video` 都按 `created_at` 排序，而测试里两条
   云端与 GPU 当前都不受影响。GPU worker 放量时未连接（`transcription_gpu` 队列长度 0、
   `CLIENT LIST` 无外部客户端），因此没有在途任务丢失。
 
-### A10 仍未做（需要 GPU 机配合）
+### A10 第二段：GPU 与云端各自身份（2026-10-31 晚）
 
-1. GPU 机 `.env.gpu-worker` 的 `REDIS_URL` 切 `redis://gpu:<REDIS_GPU_PASSWORD>@127.0.0.1:6379/0`
-   （密码已生成并写入生产 `.env` 的 `REDIS_GPU_PASSWORD`），并跑一次消费/心跳/杀进程恢复检查。
-2. 确认 GPU 稳定后再收紧 `default`（改 `off`）。回滚只需把 `default` 改回 `on`。
-3. T9 宿主 sshd：`authorized_keys` 加 `restrict,port-forwarding,permitopen="127.0.0.1:6379"`
+隔离验收没抓到的两个真实缺陷，放在真 GPU 机上跑才暴露——**症状极隐蔽**：NSSM 每 2 秒
+拉起一次 worker，心跳键一直被写，管理端显示「Worker 在线」，实际一条任务都没消费。
+
+1. **Celery 版本**：`worker_enable_remote_control` 是 **Celery 5.5** 才有的配置项，仓库钉的是
+   5.4.0 → 写了不生效，pidbox 消费者照开，GPU 身份访问 `<uuid>.reply.celery.pidbox` 被拒，
+   `NoPermissionError` → 崩溃 → 重启。已升到 **celery 5.5.3 / kombu 5.5.4**（`requirements.txt`
+   同步，锁需在 GPU 机重生成）。
+2. **mingle**：worker 启动时的邻居广播同样会声明 `<uuid>.reply.celery.pidbox` 收回复。
+   GPU 只有一个 worker，mingle 无意义，`start_gpu_worker.py` 加
+   `--without-mingle --without-gossip`。
+
+两项修完：`celery@… ready.`，云端 `CLIENT LIST` 里 **5 条 `user=gpu`** 连接、心跳 TTL 持续刷新、
+`transcription_gpu` 正常 BRPOP。
+
+同一晚把云端也切到自己的身份：backend/celery/celery-beat 的 `REDIS_URL` 改
+`redis://cloud:<pw>@redis:6379/0`，健康检查带 `--user cloud`。切换后 `CLIENT LIST`：
+**16 条 `user=cloud` + 5 条 `user=gpu`**，没有业务连接再用 `default`。
+
+**`default` 当前仍为 `on`，这是刻意的**：`cloud` 与 `default` 是同一密码、同一全权，
+关掉 `default` 不增加任何实际边界；真正有意义的边界（`gpu` 只能碰自己的键）已经生效。
+要彻底去掉共用密码，下一步应当是**轮换云端密码并让 `cloud` 独立**，而不是只把
+`default off`——那是两步里更容易产生假安全的那一步。
+
+### A10 仍未做
+
+1. `default` 收紧（如上，需与云端密码轮换一起做才有意义）。
+2. T9 宿主 sshd：`authorized_keys` 加 `restrict,port-forwarding,permitopen="127.0.0.1:6379"`
    + `sshd_config` 的 `PermitOpen` / `AllowTcpForwarding local` / `PermitTTY no` 等。
-4. `TRANSCRIPTION_CALLBACK_SECRET` 两侧同时轮换。
+   （GPU 机连云端用的是 `admin` 账号 + `C:\Tools\seeword-gpu\id_ed25519`，这把钥匙目前可转发任意端口。）
+3. `TRANSCRIPTION_CALLBACK_SECRET` 两侧同时轮换。
+4. GPU 机的 `requirements.lock.txt` 需按新 celery 重新生成（本轮只改了 venv 与 requirements.txt）。
+5. GPU 机上还跑着两个旧的云端 Celery worker（`SeeWordCelery` 服务 + 一个系统 Python 进程），
+   都在消费云端的 `celery` 队列——GPU 拆分后应已无用，建议清理。
