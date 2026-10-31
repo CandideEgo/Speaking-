@@ -722,3 +722,88 @@ export interface MasterySnapshot {
 export interface MasteryTrendResponse {
   snapshots: MasterySnapshot[];
 }
+
+// ---------------------------------------------------------------------------
+// A12 学习测量（管理端 /admin/metrics/learning）
+// ---------------------------------------------------------------------------
+
+export interface AdminActivationMetrics {
+  window_registered: number;
+  activated_within_24h: number;
+  rate: number | null;
+}
+
+export interface AdminCohortRow {
+  cohort_date: string;
+  size: number;
+  d1_eligible: boolean;
+  d1_retained: number | null;
+  d1_rate: number | null;
+  d7_eligible: boolean;
+  d7_retained: number | null;
+  d7_rate: number | null;
+}
+
+export interface AdminWeeklyVolume {
+  active_7d: number;
+  multi_day_7d: number;
+  volume_rate: number | null;
+}
+
+export interface AdminEntitlementDistribution {
+  registered: number;
+  watched: number;
+  vocab_saved: number;
+  active_pro: number;
+  paid_pro: number;
+  trial_or_granted_pro: number;
+  paid_share_of_active_pro: number | null;
+}
+
+export interface AdminEventTypeQuality {
+  event_type: string;
+  events: number;
+  with_event_id: number;
+  versions: Record<string, number>;
+  missing_event_id_rate: number | null;
+}
+
+export interface AdminFlowReconciliation {
+  path: string;
+  client_results: number;
+  client_distinct_flows: number;
+  server_facts: number;
+  matched: number;
+  client_only: number;
+  server_only: number;
+  duplicate_intents: number;
+  loss_rate: number | null;
+}
+
+export interface AdminEventQuality {
+  by_type: AdminEventTypeQuality[];
+  flows: AdminFlowReconciliation[];
+}
+
+export interface AdminVitalMetric {
+  p75: number | null;
+  samples: number;
+}
+
+export interface AdminPerformanceMetrics {
+  web_vitals: Record<string, AdminVitalMetric>;
+  first_play: { p75_ms: number | null; samples: number };
+  pipeline_backlog: { pending_dispatches: number; oldest_pending_age_s: number | null };
+  schema_version: number;
+}
+
+export interface AdminLearningMetrics {
+  days: number;
+  definitions: Record<string, string>;
+  activation: AdminActivationMetrics;
+  cohorts: AdminCohortRow[];
+  weekly: AdminWeeklyVolume;
+  entitlement: AdminEntitlementDistribution;
+  event_quality: AdminEventQuality;
+  performance: AdminPerformanceMetrics;
+}

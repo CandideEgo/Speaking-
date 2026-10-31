@@ -224,5 +224,13 @@ async def submit(db: AsyncSession, session: ListeningSession):
     session.submitted_at = session.updated_at = datetime.now(UTC)
     from app.services.learning_event_service import EVENT_PRACTICED_ITEMS, emit_event
 
-    await emit_event(db, session.user_id, EVENT_PRACTICED_ITEMS, len(results), video_id=session.video_id)
+    await emit_event(
+        db,
+        session.user_id,
+        EVENT_PRACTICED_ITEMS,
+        len(results),
+        video_id=session.video_id,
+        flow_id=session.id,
+        source="listening",
+    )
     await db.flush()

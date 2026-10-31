@@ -241,3 +241,99 @@ class AdminUserPlanResponse(BaseModel):
     plan: str
     plan_expires_at: str | None = None
     plan_source: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# A12 学习测量（激活/留存、事件质量、性能基线）
+# ---------------------------------------------------------------------------
+
+
+class AdminActivationMetrics(BaseModel):
+    window_registered: int
+    activated_within_24h: int
+    rate: float | None = None
+
+
+class AdminCohortRow(BaseModel):
+    cohort_date: str
+    size: int
+    d1_eligible: bool
+    d1_retained: int | None = None
+    d1_rate: float | None = None
+    d7_eligible: bool
+    d7_retained: int | None = None
+    d7_rate: float | None = None
+
+
+class AdminWeeklyVolume(BaseModel):
+    active_7d: int
+    multi_day_7d: int
+    volume_rate: float | None = None
+
+
+class AdminEntitlementDistribution(BaseModel):
+    registered: int
+    watched: int
+    vocab_saved: int
+    active_pro: int
+    paid_pro: int
+    trial_or_granted_pro: int
+    paid_share_of_active_pro: float | None = None
+
+
+class AdminEventTypeQuality(BaseModel):
+    event_type: str
+    events: int
+    with_event_id: int
+    versions: dict[str, int]
+    missing_event_id_rate: float | None = None
+
+
+class AdminFlowReconciliation(BaseModel):
+    path: str
+    client_results: int
+    client_distinct_flows: int
+    server_facts: int
+    matched: int
+    client_only: int
+    server_only: int
+    duplicate_intents: int
+    loss_rate: float | None = None
+
+
+class AdminEventQuality(BaseModel):
+    by_type: list[AdminEventTypeQuality]
+    flows: list[AdminFlowReconciliation]
+
+
+class AdminVitalMetric(BaseModel):
+    p75: float | None = None
+    samples: int
+
+
+class AdminFirstPlayMetric(BaseModel):
+    p75_ms: float | None = None
+    samples: int
+
+
+class AdminPipelineBacklog(BaseModel):
+    pending_dispatches: int
+    oldest_pending_age_s: int | None = None
+
+
+class AdminPerformanceMetrics(BaseModel):
+    web_vitals: dict[str, AdminVitalMetric]
+    first_play: AdminFirstPlayMetric
+    pipeline_backlog: AdminPipelineBacklog
+    schema_version: int
+
+
+class AdminLearningMetricsResponse(BaseModel):
+    days: int
+    definitions: dict[str, str]
+    activation: AdminActivationMetrics
+    cohorts: list[AdminCohortRow]
+    weekly: AdminWeeklyVolume
+    entitlement: AdminEntitlementDistribution
+    event_quality: AdminEventQuality
+    performance: AdminPerformanceMetrics

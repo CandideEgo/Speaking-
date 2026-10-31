@@ -27,6 +27,8 @@ gpu-worker/
 │   ├── test_whisperx_oom_retry.py
 │   └── test_whisperx_segmentation.py
 ├── requirements.txt             # 运行依赖（无 web 栈，含 whisperx/GPU 栈）
+├── requirements.lock.txt        # 完整传递闭包锁（审计与 SBOM 的唯一输入，A11）
+├── .pip-audit-ignore            # GPU 依赖豁免（带复核日期，过期即失败）
 ├── requirements-dev.txt         # 本地开发：pytest / pytest-asyncio / ruff
 ├── requirements-ci.txt          # CI 最小依赖子集（无 torch/whisperx）
 ├── pyproject.toml               # ruff 口径（line-length=120 / py312）
@@ -220,12 +222,22 @@ CI 在 `ubuntu-latest` + Python 3.12 上跑，工作目录固定 `gpu-worker/`�
 | `requirements-dev.txt` | 本机开发/调试（在 `requirements.txt` 之上加 pytest-asyncio 等） |
 | `requirements-ci.txt` | **CI 与无 GPU 环境**：只够跑 `pytest` + `ruff` |
 
-### GPU 依赖的安全审计（现状）
+### GPU 依赖的安全审计与 SBOM（A11 / OPS-07 起有门）
 
-- `backend/scripts/pip_audit_gate.py` 的硬门**只审计 `backend/requirements-cloud.txt`**（云端运行时集合）。它的注释也写明了原因：GPU 栈不在 backend CI job 里安装，从那个 gate 去解析 torch/whisperx 没有意义。
-- **本组件当前没有自动化的 pip-audit 门。** 没有 CI 步骤、也没有 `.pip-audit-ignore` 之类的豁免清单——不要以为改了 `requirements.txt` 就会被自动扫描。
-- 现状下的手工口径：升级 `requirements.txt` 里的钉版（尤其 `celery`/`httpx`/`pydantic-settings`）前，在 GPU 机器上跑一次 `pip-audit -r requirements.txt`；whisperx/torch 这类重依赖的 advisory 需要单独评估（上游通常要求整栈升级）。这是**人工流程**，不是门禁。
-- 如果将来要把它做成门，合理的做法是单独一个 job（`pip-audit -r gpu-worker/requirements-ci.txt` 或 `requirements.txt`），并像 backend 那样给豁免加「复核日期」，而不是塞进现有的 backend gate。
+- **锁定**：`requirements.lock.txt` 是 `requirements.txt` 的完整传递闭包（128 个包），由
+  `python gpu-worker/scripts/lock_requirements.py` 用 `pip --dry-run --report` 生成。
+  文件头写明生成平台（当前是 Windows x86_64 / CPython 3.12 = 本机 GPU worker 的部署平台）。
+  **换平台必须重新生成**，跨平台复用锁等于没锁。
+- **审计**：CI 的 `gpu-worker` job 跑
+  `python backend/scripts/pip_audit_gate.py -r ../gpu-worker/requirements.lock.txt --ignore-file ../gpu-worker/.pip-audit-ignore --no-deps`。
+  用 `--no-deps` 是因为锁已钉死全部版本，再让 pip-audit 解析 torch/whisperx 只会多花几分钟和几 GB。
+  豁免与云端一样带**复核日期**，过期即失败；上游修好后该行会被打印成 stale，必须删。
+- **SBOM**：同一个 job 用 `cyclonedx-py requirements gpu-worker/requirements.lock.txt -o gpu-sbom.json`
+  生成 CycloneDX SBOM 并作为 artifact 上传；只读锁文件，不安装 GPU 栈、不下载模型。
+- **Dependabot** 已覆盖 `/gpu-worker`（`yt-dlp` 保持不钉，抽取器经常失效）。
+- 当前接受的 14 条公告全部在 torch 2.8.0 / transformers 4.57.6：whisperx 3.8.6 的元数据是
+  `torch~=2.8.0`，升级 torch 等于换掉整个转录栈，必须先做 GPU 侧回归；逐条不可达理由与
+  2026-11-30 复核期限写在 `.pip-audit-ignore` 里。**不要**为让门变绿而往豁免里加没有论证的行。
 
 ## 6. 迁移说明
 

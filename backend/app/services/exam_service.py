@@ -639,7 +639,7 @@ async def submit_answers(
     try:
         from app.services.learning_event_service import EVENT_PRACTICED_ITEMS, emit_event
 
-        await emit_event(db, user_id, EVENT_PRACTICED_ITEMS, total, video_id=None)
+        await emit_event(db, user_id, EVENT_PRACTICED_ITEMS, total, video_id=None, flow_id=session.id, source="exam")
     except Exception:
         logger.exception("Failed to emit learning event for exam session %s", session.id)
     await db.commit()

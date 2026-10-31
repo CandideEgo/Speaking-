@@ -381,7 +381,7 @@ async def submit_answer(
     # (INV-014) — a failed event must not fail the answer that produced it.
     if was_pending:
         try:
-            await emit_event(db, user_id, EVENT_LEARNED_WORDS, 1)
+            await emit_event(db, user_id, EVENT_LEARNED_WORDS, 1, flow_id=session_id, source="vocabulary")
             await db.commit()
         except Exception:
             logger.exception("Failed to emit learned_words for session %s", session_id)

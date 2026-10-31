@@ -10,6 +10,7 @@ import { useDailySession } from "@/hooks/useDailySession";
 import { useStudySession } from "@/hooks/useStudySession";
 import { useVocabularyPractice } from "@/hooks/usePractice";
 import { api } from "@/lib/api";
+import { newFlowId, trackFlowResult } from "@/lib/analytics";
 import { vocabularySource, partOfSpeechLabel } from "@/lib/vocabularyPresentation";
 import { DictionaryMeaning } from "@/components/vocabulary/DictionaryMeaning";
 import { useVocabularyStore } from "@/stores/vocabularyStore";
@@ -206,11 +207,15 @@ function DailyTraining({ directStart }: { directStart: boolean }) {
     try {
       while (pendingReview.current.length > 0) {
         const batch = pendingReview.current.splice(0);
+        // A12：每批一个 flow id，服务端写进学习事件；提交成功后回一条客户端
+        // 意图，管理端据此算丢失率与重复率（见事件质量）。
+        const flowId = newFlowId();
         try {
           await api("/api/v1/vocabulary/practice/submit", {
             method: "POST",
-            body: JSON.stringify({ results: batch }),
+            body: JSON.stringify({ results: batch, flow_id: flowId }),
           });
+          trackFlowResult("practice", flowId, { count: batch.length });
         } catch {
           toast.error(`学习记录同步失败（${batch.length} 词），本轮这些词不会计入复习进度`);
           break;

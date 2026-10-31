@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { trackFlowResult } from "@/lib/analytics";
 import type { StudySession, StudySessionItem, TodayTrainingSummary } from "@/types";
 
 interface SessionEnvelope {
@@ -95,6 +96,8 @@ export function useStudySession(enabled: boolean, autoStart: "daily" | null = "d
   const finish = useCallback(async () => {
     if (!round) return;
     await api(`/api/v1/vocabulary/sessions/${round.id}/finish`, { method: "POST" });
+    // A12：客户端意图与服务端 learning_events（同 flow_id=轮次 id）对账。
+    trackFlowResult("vocabulary", round.id, { done: round.done_count });
   }, [round]);
 
   return { round, today, loading, error, reload: load, start, answer, finish };

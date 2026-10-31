@@ -59,8 +59,15 @@ async def emit_event(
     event_value: int = 1,
     video_id: str | None = None,
     metadata: dict | None = None,
+    flow_id: str | None = None,
+    source: str | None = None,
 ) -> None:
     """Emit a structured learning event and update daily goal tracking.
+
+    ``flow_id`` / ``source`` 是 A12 的 flow 关联：调用方有服务端会话 id 时传进来，
+    客户端同一 id 的 ``flow_result`` 意图事件才能与服务端事实对账（丢失率/重复
+    率）。``source`` 只接受 ``event_contract.FLOW_SOURCES`` 里的路径，未知值折成
+    None（避免拼写漂移污染统计）。
 
     Non-blocking: wraps all work in try/except so callers are never disrupted.
     Does NOT commit — the caller commits.
@@ -73,6 +80,8 @@ async def emit_event(
     if event_type not in VALID_EVENT_TYPES:
         logger.warning("Invalid learning event type: %s", event_type)
         return
+
+    from app.services.event_contract import LEARNING_EVENT_SCHEMA_VERSION, normalize_source
 
     try:
         # Savepoint: a mid-way failure must roll back this event's writes (row,
@@ -91,6 +100,9 @@ async def emit_event(
                 video_id=video_id,
                 event_metadata=metadata,
                 event_date=today,
+                flow_id=flow_id,
+                source=normalize_source(source),
+                schema_version=LEARNING_EVENT_SCHEMA_VERSION,
             )
             db.add(event)
 

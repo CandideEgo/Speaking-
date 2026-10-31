@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { trackFlowResult } from "@/lib/analytics";
 import {
   SECTION_LABELS,
   buildGroups,
@@ -185,6 +186,7 @@ export default function ExamRunner({
           })),
         }),
       });
+      trackFlowResult("exam", result.session_id, { total });
       onSubmitted(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "提交失败，请重试");

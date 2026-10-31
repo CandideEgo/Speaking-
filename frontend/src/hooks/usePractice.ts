@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { newFlowId, trackFlowResult } from "@/lib/analytics";
 import type { GradedResult, PracticeItem, VocabularyPracticeSet } from "@/types";
 import { useSession } from "./useSession";
 
@@ -132,11 +133,13 @@ export function useVocabularyPractice({
     }));
     if (!results.length) return;
 
+    const flowId = newFlowId();
     try {
       await api("/api/v1/vocabulary/practice/submit", {
         method: "POST",
-        body: JSON.stringify({ results }),
+        body: JSON.stringify({ results, flow_id: flowId }),
       });
+      trackFlowResult("practice", flowId, { count: results.length });
       toast.success("学习记录已更新");
     } catch {
       toast.error("学习记录同步失败，不影响本次练习");

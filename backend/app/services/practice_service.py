@@ -534,6 +534,7 @@ async def submit_practice_results(
     user_id: str,
     results: list[dict],
     video_id: str | None = None,
+    flow_id: str | None = None,
 ) -> dict:
     """Batch-submit practice results and update each word's review state.
 
@@ -637,9 +638,13 @@ async def submit_practice_results(
         from app.services.learning_event_service import EVENT_LEARNED_WORDS, EVENT_PRACTICED_ITEMS, emit_event
 
         correct_count = sum(1 for r in results if r.get("correct"))
-        await emit_event(db, user_id, EVENT_PRACTICED_ITEMS, len(results), video_id=video_id)
+        await emit_event(
+            db, user_id, EVENT_PRACTICED_ITEMS, len(results), video_id=video_id, flow_id=flow_id, source="practice"
+        )
         if correct_count > 0:
-            await emit_event(db, user_id, EVENT_LEARNED_WORDS, correct_count, video_id=video_id)
+            await emit_event(
+                db, user_id, EVENT_LEARNED_WORDS, correct_count, video_id=video_id, flow_id=flow_id, source="practice"
+            )
         # Update Vocabulary.correct_count for each correct answer (review-line
         # words were already counted inside apply_review)
         for r in results:

@@ -71,6 +71,8 @@ async def _insert_event(db: AsyncSession, event: dict, user_id: str | None) -> b
         "event_type": event.get("event_type"),
         "event_payload": event.get("event_payload") or {},
         "session_id": event.get("session_id"),
+        "flow_id": event.get("flow_id"),
+        "schema_version": event.get("schema_version") or 1,
         "client_ts": event.get("client_ts"),
         "event_id": event.get("event_id"),
     }
@@ -151,7 +153,7 @@ async def _complete_already_counted(user_id: str, video_id: str, session_id: str
     return False
 
 
-async def _claim_watch_day(db: AsyncSession, user_id: str, video_id: str) -> None:
+async def _claim_watch_day(db: AsyncSession, user_id: str, video_id: str, session_id: str | None = None) -> None:
     """Emit at most one ``watched_video`` learning event per user per UTC day.
 
     Why this exists: ``LearningEvent`` is the immutable daily fact that the
@@ -179,7 +181,7 @@ async def _claim_watch_day(db: AsyncSession, user_id: str, video_id: str) -> Non
     try:
         from app.services.learning_event_service import EVENT_WATCHED_VIDEO, emit_event
 
-        await emit_event(db, user_id, EVENT_WATCHED_VIDEO, 1, video_id=video_id)
+        await emit_event(db, user_id, EVENT_WATCHED_VIDEO, 1, video_id=video_id, flow_id=session_id, source="video")
     except Exception:  # pragma: no cover - event emission must not break playback
         pass
 
@@ -250,7 +252,7 @@ async def _mirror_to_learning_record(
         )
         if not result.rowcount:
             return False
-        await _claim_watch_day(db, user_id, video_id)
+        await _claim_watch_day(db, user_id, video_id, session_id)
         return True
 
     elif event_type == EVENT_COMPLETE:
@@ -283,7 +285,9 @@ async def _mirror_to_learning_record(
         try:
             from app.services.learning_event_service import EVENT_COMPLETED_VIDEO, emit_event
 
-            await emit_event(db, user_id, EVENT_COMPLETED_VIDEO, 1, video_id=video_id)
+            await emit_event(
+                db, user_id, EVENT_COMPLETED_VIDEO, 1, video_id=video_id, flow_id=session_id, source="video"
+            )
         except Exception:
             pass  # Non-blocking — event emission must not disrupt behavior ingestion
         return True

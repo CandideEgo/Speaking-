@@ -26,7 +26,7 @@ import { useWordLookup } from "@/hooks/useWordLookup";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
 import { api, mediaUrl } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
-import { endWatchTime, track, trackWatchTime } from "@/lib/analytics";
+import { endWatchTime, track, trackFirstPlay, trackWatchTime } from "@/lib/analytics";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { resolveWatchReturn, watchFocusIssue, watchHref } from "@/lib/watchEntry";
 import type { Subtitle, VideoDetail, VocabSet, VocabSetCreateResponse } from "@/types";
@@ -267,6 +267,8 @@ export default function WatchPage() {
   const [endedClip, setEndedClip] = useState<string | null>(null);
   const [clipPosition, setClipPosition] = useState(0);
   const appliedClip = useRef<string | null>(null);
+  // A12 性能基线：只记第一次真正出画的耗时（同一个视频重播不算）。
+  const firstPlayReported = useRef(false);
   const back = useWatchReturn(id);
   useEffect(() => {
     if (searchParams.get("note") === "1") setNoteOpen(true);
@@ -358,6 +360,11 @@ export default function WatchPage() {
   // 立刻结算并补报尾段，所以暂停/切后台不会把最后几秒丢掉。
   useEffect(() => {
     trackWatchTime(id, isPlaying);
+    if (isPlaying && !firstPlayReported.current) {
+      firstPlayReported.current = true;
+      // performance.now() 就是相对 navigation start 的毫秒数，正是「首播耗时」。
+      if (typeof performance !== "undefined") trackFirstPlay(performance.now(), id);
+    }
     if (!isPlaying) return;
     const timer = setInterval(() => trackWatchTime(id, true), 1000);
     return () => clearInterval(timer);

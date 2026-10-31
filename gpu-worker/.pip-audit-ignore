@@ -1,0 +1,40 @@
+# GPU 运行依赖的安全公告豁免（A11 / OPS-07）。
+#
+# 由 backend/scripts/pip_audit_gate.py 执行：
+#   python scripts/pip_audit_gate.py -r ../gpu-worker/requirements.lock.txt \
+#       --ignore-file ../gpu-worker/.pip-audit-ignore --no-deps
+#
+# 每行格式：<公告 ID> <复核日期 YYYY-MM-DD> <负责人> <为什么不可达/可接受>
+# 复核日期是期限，过期即失败；被上游修好后该行会打印为 stale，必须删除。
+#
+# 本次接受的理由（2026-10-30 评估）：
+#   1) whisperx 3.8.6 的元数据是 ``torch~=2.8.0`` —— torch 2.9/2.10 的修复版本
+#      不在 whisperx 支持的范围内。升级 torch 等于换掉整个转录栈，必须先做 GPU
+#      侧回归；在没有独立 GPU 测试环境的当前条件下不接受「盲升」。
+#   2) torch 的这批公告全部要求**本地已能执行代码**，或针对 ``torch.load`` 加载
+#      攻击者构造的检查点。本组件只加载我们固定 HuggingFace 仓库里的权重，没有
+#      用户上传模型/检查点的入口（backend tests/test_architecture_invariants.py
+#      的 INV-003 同样禁止用户投稿）。
+#   3) transformers 的公告集中在 ``Trainer`` 随机状态加载、恶意 config.json、
+#      ``save_pretrained`` 路径穿越和 X-CLIP 转换——本组件只用
+#      deepmultilingualpunctuation 的推理路径，从不调用 Trainer/save_pretrained，
+#      也不做检查点格式转换。修复版本（5.x）与 whisperx/标点模型尚未做过兼容
+#      验证，盲升同一问题的反向风险更高。
+#
+# 复核期限 2026-11-30：届时要么 whisperx 放宽 torch 约束并完成 GPU 回归，要么
+# 重新论证并续期。
+
+PYSEC-2025-193 2026-11-30 backend-owner torch~=2.8.0 受 whisperx 约束不可升级；攻击需本地执行代码，本组件无任意 torch 代码入口
+PYSEC-2025-194 2026-11-30 backend-owner torch.jit.script 内存破坏需要本地构造恶意脚本；worker 不编译外部输入的 TorchScript
+PYSEC-2025-195 2026-11-30 backend-owner torch.lstm_cell 内存破坏需要本地调用；转录路径不经过该算子
+PYSEC-2025-203 2026-11-30 backend-owner torch.linalg.lu 的 DoS 需要本地代码；worker 不暴露 REPL 也不接受用户张量
+PYSEC-2025-204 2026-11-30 backend-owner torch.rot90 与 randn_like 组合异常需本地调用；转录路径未使用这两个算子
+PYSEC-2025-206 2026-11-30 backend-owner torch.nan_to_num().long() 整数溢出需本地构造张量；推理路径不处理攻击者张量
+PYSEC-2026-139 2026-11-30 backend-owner pt2 加载器反序列化仅限本地；worker 只加载固定 HF 仓库权重，不读用户 .pt2 文件
+PYSEC-2026-2286 2026-11-30 backend-owner weights_only 反序列化需攻击者构造检查点；本组件没有用户上传模型的入口
+PYSEC-2025-217 2026-11-30 backend-owner X-CLIP 检查点转换 RCE；worker 只做 BERT 标点推理，不做 X-CLIP 转换
+PYSEC-2026-2288 2026-11-30 backend-owner Trainer RNG 状态加载路径不经过；worker 从不实例化 Trainer 或恢复训练状态
+PYSEC-2026-2289 2026-11-30 backend-owner 恶意 config.json 需要攻击者控制模型仓库；worker 只读我们钉住的 HF 仓库
+PYSEC-2026-2290 2026-11-30 backend-owner LightGlue 加载路径未使用；标点模型不涉及视觉模型初始化
+PYSEC-2026-3929 2026-11-30 backend-owner save_pretrained 路径穿越需要主动保存模型；worker 只加载不保存
+PYSEC-2026-4174 2026-11-30 backend-owner load_custom_generate 未被调用；worker 仅用 tokenizer/分类头推理，不加载自定义生成代码

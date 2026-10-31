@@ -1,0 +1,90 @@
+name: Cross-browser nightly
+
+# A11 / OPS-07：Firefox 与 WebKit 只做定期回归，不进每个 PR（PR 保留快速
+# Chromium）。触发：每天夜间 + 手动 + 依赖升级相关的 push 可手动 dispatch。
+on:
+  schedule:
+    # 夜间跑一次（北京 02:17 左右），避开整点高峰。
+    - cron: "17 18 * * *"
+  workflow_dispatch:
+
+jobs:
+  cross-browser:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: seeword
+          POSTGRES_PASSWORD: seeword_test
+          POSTGRES_DB: seeword_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: test_secret_for_pytest_at_least_32_chars
+      ENV: testing
+      PUNCTUATION_MODEL_DISABLED: "1"
+      SMS_DEV_FAKE_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-cloud.txt
+          pip install -r backend/requirements-dev.txt
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps firefox webkit chromium
+      - name: Run database migrations
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Seed e2e data
+        working-directory: backend
+        run: python scripts/seed_e2e.py
+      - name: Start services and run cross-browser specs
+        working-directory: frontend
+        run: |
+          (cd ../backend && nohup uvicorn app.main:app --port 8000 --timeout-keep-alive 120 > /tmp/backend.log 2>&1 &)
+          curl --retry 30 --retry-delay 2 --retry-connrefused http://localhost:8000/health
+          nohup npm run dev > /tmp/frontend.log 2>&1 &
+          curl --retry 30 --retry-delay 2 --retry-connrefused http://localhost:3000
+          npx playwright test --config playwright.crossbrowser.config.ts
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "=== backend.log (tail) ==="; tail -50 /tmp/backend.log 2>/dev/null || true
+          echo "=== frontend.log (tail) ==="; tail -50 /tmp/frontend.log 2>/dev/null || true
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-browser-report
+          path: frontend/playwright-report/cross-browser
+          if-no-files-found: ignore

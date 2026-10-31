@@ -12,6 +12,7 @@ import type {
   AdminChannel,
   AdminPayment,
   AdminPaymentSummary,
+  AdminLearningMetrics,
   AdminSettings,
   AdminStats,
   AdminUser,
@@ -30,6 +31,15 @@ import type {
 export function getAdminStats(days?: number): Promise<AdminStats> {
   const params = days ? `?days=${days}` : "";
   return adminApi<AdminStats>(`/api/v1/admin/stats${params}`);
+}
+
+/**
+ * A12 学习测量：激活/留存、事件质量与性能基线。
+ * 口径随响应返回（`definitions`），页面只展示，不自行解释分母。
+ */
+export function getLearningMetrics(days?: number): Promise<AdminLearningMetrics> {
+  const params = days ? `?days=${days}` : "";
+  return adminApi<AdminLearningMetrics>(`/api/v1/admin/metrics/learning${params}`);
 }
 
 // ---------------------------------------------------------------------------

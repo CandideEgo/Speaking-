@@ -33,8 +33,8 @@ import { cn } from "@/lib/utils";
 import { apiErrorMessage } from "@/lib/errors";
 import { AdminEmptyState, AdminPageHeader, AdminSkeleton } from "@/components/admin/ui";
 import { Button } from "@/components/ui/Button";
-import type { AdminStats, RecentActivityType } from "@/types";
-import { getAdminStats } from "@/lib/adminData";
+import type { AdminLearningMetrics, AdminStats, RecentActivityType } from "@/types";
+import { getAdminStats, getLearningMetrics } from "@/lib/adminData";
 import { useChartTheme } from "@/lib/chart-theme";
 import { Card } from "@/components/ui/Card";
 
@@ -140,11 +140,215 @@ function ChartCard({
 }
 
 // ---------------------------------------------------------------------------
+// A12 学习测量（激活/留存、事件质量、性能基线）
+// ---------------------------------------------------------------------------
+
+function pct(rate: number | null): string {
+  return rate === null ? "—" : `${(rate * 100).toFixed(1)}%`;
+}
+
+function msText(value: number | null): string {
+  return value === null ? "—" : `${Math.round(value)} ms`;
+}
+
+function MetricRow({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b border-hairline py-2 last:border-0">
+      <span className="text-copy text-body">{label}</span>
+      <span className="text-right">
+        <span className="font-mono text-copy font-semibold text-ink">{value}</span>
+        {hint && <span className="ml-2 text-meta text-muted">{hint}</span>}
+      </span>
+    </div>
+  );
+}
+
+function LearningMetricsSection({ metrics }: { metrics: AdminLearningMetrics }) {
+  const mature1 = metrics.cohorts.filter((c) => c.d1_eligible);
+  const mature7 = metrics.cohorts.filter((c) => c.d7_eligible);
+  const d1Size = mature1.reduce((sum, c) => sum + c.size, 0);
+  const d1Retained = mature1.reduce((sum, c) => sum + (c.d1_retained ?? 0), 0);
+  const d7Size = mature7.reduce((sum, c) => sum + c.size, 0);
+  const d7Retained = mature7.reduce((sum, c) => sum + (c.d7_retained ?? 0), 0);
+
+  const events = metrics.event_quality.by_type.reduce((sum, e) => sum + e.events, 0);
+  const withId = metrics.event_quality.by_type.reduce((sum, e) => sum + e.with_event_id, 0);
+  const latestCohorts = metrics.cohorts.slice(-6).reverse();
+  const vitals = metrics.performance.web_vitals;
+
+  return (
+    <>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard
+          title="激活与留存"
+          description={`激活日 cohort · 近 ${metrics.days} 天 · 分母固定为入组人数`}
+        >
+          <div className="flex flex-col">
+            <MetricRow
+              label="24 小时激活率"
+              value={pct(metrics.activation.rate)}
+              hint={`${metrics.activation.activated_within_24h}/${metrics.activation.window_registered}`}
+            />
+            <MetricRow
+              label="D1 回访"
+              value={pct(d1Size ? d1Retained / d1Size : null)}
+              hint={`${d1Retained}/${d1Size}`}
+            />
+            <MetricRow
+              label="D7 回访"
+              value={pct(d7Size ? d7Retained / d7Size : null)}
+              hint={`${d7Retained}/${d7Size}`}
+            />
+            <MetricRow
+              label="近 7 日活跃 / 至少 2 个学习日"
+              value={`${metrics.weekly.active_7d} / ${metrics.weekly.multi_day_7d}`}
+              hint={pct(metrics.weekly.volume_rate)}
+            />
+          </div>
+          {latestCohorts.length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-left text-meta">
+                <thead className="text-muted">
+                  <tr>
+                    <th className="py-1 pr-3 font-medium">cohort</th>
+                    <th className="py-1 pr-3 font-medium">人数</th>
+                    <th className="py-1 pr-3 font-medium">D1</th>
+                    <th className="py-1 font-medium">D7</th>
+                  </tr>
+                </thead>
+                <tbody className="text-body">
+                  {latestCohorts.map((c) => (
+                    <tr key={c.cohort_date} className="border-t border-hairline">
+                      <td className="py-1 pr-3 font-mono">{c.cohort_date}</td>
+                      <td className="py-1 pr-3 font-mono">{c.size}</td>
+                      <td className="py-1 pr-3 font-mono">
+                        {c.d1_eligible ? pct(c.d1_rate) : "未成熟"}
+                      </td>
+                      <td className="py-1 font-mono">
+                        {c.d7_eligible ? pct(c.d7_rate) : "未成熟"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-meta text-muted">
+                未成熟 cohort 不出数：D1/D7 要等窗口日过去，不用后来的用户补分母。
+              </p>
+            </div>
+          )}
+        </ChartCard>
+
+        <ChartCard title="用户行为与权益分布" description="累计口径 · 不是时序漏斗">
+          <div className="flex flex-col">
+            <MetricRow label="注册用户" value={metrics.entitlement.registered.toLocaleString()} />
+            <MetricRow label="观看过视频" value={metrics.entitlement.watched.toLocaleString()} />
+            <MetricRow label="收过词" value={metrics.entitlement.vocab_saved.toLocaleString()} />
+            <MetricRow label="有效 Pro" value={metrics.entitlement.active_pro.toLocaleString()} />
+            <MetricRow
+              label="其中已付款"
+              value={metrics.entitlement.paid_pro.toLocaleString()}
+              hint={pct(metrics.entitlement.paid_share_of_active_pro)}
+            />
+            <MetricRow
+              label="试用 / 人工赠送"
+              value={metrics.entitlement.trial_or_granted_pro.toLocaleString()}
+            />
+          </div>
+          <p className="mt-3 text-meta text-muted">
+            各段是相互独立的累计人数，不能读成逐级转化；付费只认已匹配账号的金数据付款。
+          </p>
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard title="事件质量" description="版本、去重与客户端意图对账">
+          <div className="flex flex-col">
+            <MetricRow
+              label="上报事件"
+              value={events.toLocaleString()}
+              hint={`缺 event_id ${pct(events ? (events - withId) / events : null)}`}
+            />
+            {metrics.event_quality.flows.length === 0 ? (
+              <p className="py-3 text-meta text-muted">
+                近 {metrics.days} 天没有带 flow_id 的提交流程。
+              </p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-left text-meta">
+                  <thead className="text-muted">
+                    <tr>
+                      <th className="py-1 pr-3 font-medium">路径</th>
+                      <th className="py-1 pr-3 font-medium">客户端</th>
+                      <th className="py-1 pr-3 font-medium">服务端</th>
+                      <th className="py-1 pr-3 font-medium">丢失率</th>
+                      <th className="py-1 font-medium">重复</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-body">
+                    {metrics.event_quality.flows.map((f) => (
+                      <tr key={f.path} className="border-t border-hairline">
+                        <td className="py-1 pr-3">{f.path}</td>
+                        <td className="py-1 pr-3 font-mono">{f.client_distinct_flows}</td>
+                        <td className="py-1 pr-3 font-mono">{f.server_facts}</td>
+                        <td className="py-1 pr-3 font-mono">{pct(f.loss_rate)}</td>
+                        <td className="py-1 font-mono">{f.duplicate_intents}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </ChartCard>
+
+        <ChartCard title="性能基线" description="RUM p75 · 样本量决定可信度">
+          <div className="flex flex-col">
+            {(["lcp", "inp", "cls"] as const).map((metric) => {
+              const sample = vitals[metric];
+              const value = sample?.p75 ?? null;
+              return (
+                <MetricRow
+                  key={metric}
+                  label={metric.toUpperCase()}
+                  value={
+                    metric === "cls" ? (value === null ? "—" : value.toFixed(3)) : msText(value)
+                  }
+                  hint={`n=${sample?.samples ?? 0}`}
+                />
+              );
+            })}
+            <MetricRow
+              label="首播耗时"
+              value={msText(metrics.performance.first_play.p75_ms)}
+              hint={`n=${metrics.performance.first_play.samples}`}
+            />
+            <MetricRow
+              label="管线待派发"
+              value={`${metrics.performance.pipeline_backlog.pending_dispatches}`}
+              hint={
+                metrics.performance.pipeline_backlog.oldest_pending_age_s === null
+                  ? "无积压"
+                  : `最久 ${metrics.performance.pipeline_backlog.oldest_pending_age_s}s`
+              }
+            />
+          </div>
+          <p className="mt-3 text-meta text-muted">
+            样本 &lt; 20 只作参考；CLS 为无单位值，LCP/INP/首播为毫秒。
+          </p>
+        </ChartCard>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function AdminStatsPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [metrics, setMetrics] = useState<AdminLearningMetrics | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [range, setRange] = useState<7 | 30 | 90>(30);
@@ -165,14 +369,24 @@ export default function AdminStatsPage() {
   const load = useCallback(async (days: number) => {
     setLoading(true);
     setLoadError(null);
-    try {
-      const data = await getAdminStats(days);
-      setStats(data);
-    } catch (err) {
-      setLoadError(apiErrorMessage(err, "加载统计数据失败，请稍后重试"));
-    } finally {
-      setLoading(false);
+    setMetricsError(null);
+    // 学习测量失败不拖垮整页：统计卡片是既有能力，新口径单独降级。
+    const [statsResult, metricsResult] = await Promise.allSettled([
+      getAdminStats(days),
+      getLearningMetrics(days),
+    ]);
+    if (statsResult.status === "fulfilled") {
+      setStats(statsResult.value);
+    } else {
+      setLoadError(apiErrorMessage(statsResult.reason, "加载统计数据失败，请稍后重试"));
     }
+    if (metricsResult.status === "fulfilled") {
+      setMetrics(metricsResult.value);
+    } else {
+      setMetrics(null);
+      setMetricsError(apiErrorMessage(metricsResult.reason, "学习测量暂时不可用"));
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -426,7 +640,7 @@ export default function AdminStatsPage() {
         </ResponsiveContainer>
       </ChartCard>
 
-      {/* Topic distribution + Pro funnel (prototype 31) */}
+      {/* Topic distribution + cumulative behavior distribution (MET-02: 不再叫漏斗) */}
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard title="视频分类分布" description="按主题">
           {stats.videos_by_topic.length === 0 ? (
@@ -462,7 +676,7 @@ export default function AdminStatsPage() {
           )}
         </ChartCard>
 
-        <ChartCard title="Pro 转化漏斗" description="注册 -> Pro">
+        <ChartCard title="累计行为分布" description="各段独立累计 · 非时序漏斗">
           <div className="flex flex-col gap-2">
             {(
               [
@@ -499,6 +713,15 @@ export default function AdminStatsPage() {
           </div>
         </ChartCard>
       </div>
+
+      {/* A12 学习测量（激活/留存、事件质量、性能基线） */}
+      {metrics ? (
+        <LearningMetricsSection metrics={metrics} />
+      ) : metricsError ? (
+        <Card padding={5}>
+          <p className="text-meta text-muted">{metricsError}（已有统计不受影响）</p>
+        </Card>
+      ) : null}
 
       {/* Daily vocabulary bar chart (prototype 31 每日词汇学习量) */}
       <ChartCard title="每日词汇学习量" description="近 7 天">

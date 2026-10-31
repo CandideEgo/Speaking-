@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
+import { trackFlowResult } from "@/lib/analytics";
 import { toastApiError } from "@/lib/errors";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -151,6 +152,8 @@ export default function ListeningAttempt() {
       });
       dataRef.current = result;
       setSession(result);
+      // A12：客户端意图。服务端同一 flow_id（听写会话 id）已落 practiced_items。
+      trackFlowResult("listening", id, { total: result.total });
       try {
         localStorage.removeItem(key);
       } catch {

@@ -255,7 +255,10 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
         {"topic": t, "count": c} for t, c in sorted(topic_counts.items(), key=lambda kv: kv[1], reverse=True)[:8]
     ]
 
-    # --- Pro conversion funnel (prototype 31: 注册 -> 观看 -> 收藏词汇 -> Pro) ---
+    # --- Cumulative behavior / entitlement distribution (MET-02) ---
+    # 这四个数字**互相独立**（不同 cohort、无时间窗、无步骤顺序），不是漏斗；
+    # 管理端已改名为「累计行为分布」。真实 cohort 漏斗与付费口径见
+    # ``measurement_service.learning_metrics``（付费只认已匹配账号的金数据流水）。
     watched_users = (await db.execute(select(func.count(func.distinct(LearningRecord.user_id))))).scalar_one()
     vocab_users = (await db.execute(select(func.count(func.distinct(Vocabulary.user_id))))).scalar_one()
     funnel = {
