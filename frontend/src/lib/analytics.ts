@@ -151,23 +151,6 @@ function flushBeacon(): void {
   }
 }
 
-if (typeof window !== "undefined") {
-  window.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") {
-      // 先结算学习时长再冲刷：切到后台的那一刻正是尾段最容易被丢掉的时刻。
-      endWatchTime();
-      reportWebVitals();
-      flushBeacon();
-    }
-  });
-  window.addEventListener("pagehide", () => {
-    endWatchTime();
-    reportWebVitals();
-    flushBeacon();
-  });
-  startVitalsObservers();
-}
-
 // ---------------------------------------------------------------------------
 // 有效学习时长（A02 / FE-02）
 // ---------------------------------------------------------------------------
@@ -314,4 +297,30 @@ export function reportWebVitals(): void {
       path,
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// 模块加载即生效的副作用
+// ---------------------------------------------------------------------------
+//
+// 必须留在文件末尾：它读 `watchState` 与 `vitalsState` 等模块级 `let`，放在
+// 声明之前会命中 TDZ。开发构建把它当普通 import 求值，压榨后的生产包则会
+// 直接抛 `ReferenceError: Cannot access 'x' before initialization`，整页进错误
+// 边界——A11 的生产 smoke 才暴露出来，单测与 typecheck 都看不见。
+
+if (typeof window !== "undefined") {
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      // 先结算学习时长再冲刷：切到后台的那一刻正是尾段最容易被丢掉的时刻。
+      endWatchTime();
+      reportWebVitals();
+      flushBeacon();
+    }
+  });
+  window.addEventListener("pagehide", () => {
+    endWatchTime();
+    reportWebVitals();
+    flushBeacon();
+  });
+  startVitalsObservers();
 }
