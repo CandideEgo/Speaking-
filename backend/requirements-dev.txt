@@ -34,7 +34,7 @@ ruff==0.15.18
 mypy>=1.10,<2.4  # 钉上界（T4 决策 2026-09-27）：venv 升 2.3.1 后错误实例 53→77，基线按唯一 file:code 对恰好全覆盖；再升主/次版本须重估基线
 
 # Security scanning
-pip-audit>=0.8
+pip-audit>=2.10.1
 bandit>=1.7
 
 # Pre-commit hooks
