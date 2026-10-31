@@ -52,12 +52,14 @@
 | 定期 Firefox/WebKit + 关键手机闭环 | `.github/workflows/cross-browser.yml`（每日 18:17 UTC + 手动）+ `playwright.crossbrowser.config.ts`（Firefox/WebKit 跑观看/认证/公共页/设计走查；mobile-chrome/mobile-iphone 跑 `*mobile*.spec.ts` 的移动闭环） | 未首跑（需在 GitHub 触发；本机未装 Firefox/WebKit 浏览器） |
 | GPU 独立锁定/审计/SBOM | `gpu-worker/requirements.lock.txt`（128 包，平台写死在头部）、`gpu-worker/.pip-audit-ignore`、CI 审计 `pip_audit_gate.py --no-deps`、CycloneDX artifact、Dependabot `/gpu-worker` | 本机审计 **通过**：14 条公告全部逐条接受（torch/transformers，复核期 2026-11-30，理由见 ignore 文件）；SBOM 实测 128 components（CycloneDX 6.1.3，`requirements` 位置参数） |
 | 无 GPU 的 PR 不下载模型 | GPU job 仍只装 `requirements-ci.txt`；审计与 SBOM 只读锁文件，不 `pip install -r requirements.lock.txt` | job 定义即证据 |
-| 故意破坏静态资源/媒体缓存能被拦住 | 现有生产 smoke 已断言 HTTPS/CSP、匿名媒体 403、认证后不复用共享缓存、Range 206 | **未执行**：本机无 Docker，`frontend/scripts/production-smoke.ps1` 是 Windows 专用；负控（临时改坏 nginx 后 smoke 必须红）尚未实现，见下方遗留 |
+| 故意破坏静态资源/媒体缓存能被拦住 | 现有生产 smoke 已断言 HTTPS/CSP、匿名媒体 403、认证后不复用共享缓存、Range 206 | 2026-10-31 实跑：Docker Desktop 隔离栈上四条负控（删 CSP、删 Permissions-Policy、改 `/media/` 的 `Range`、加 `X-Powered-By`）逐条变红，恢复配置后绿；见 [`production-smoke-2026-10-31.md`](production-smoke-2026-10-31.md) |
 
 ## 遗留（明确不在本轮「已完成」里）
 
-1. **生产 smoke 实跑与负控**：需要一次带 Docker 的窗口，跑完 `production-smoke.ps1` 后再做一次「故意破坏」（例如去掉 CSP
-   或让匿名媒体可缓存）确认 smoke 变红。负控不做，这条出口条件不成立。
+1. **生产 smoke 实跑与负控**：已于 2026-10-31 完成（Docker Desktop 隔离栈，四条负控逐条变红、恢复后绿），
+   过程中修掉一个生产包 TDZ 崩溃与两处过期断言，见
+   [`production-smoke-2026-10-31.md`](production-smoke-2026-10-31.md)。仍未做的：`PRODUCTION_REGRESSION=1`
+   整批回归、Firefox/WebKit 首跑、原 PowerShell 脚本原样执行。
 2. **A12 放量**：埋点与迁移上生产后观察两周；`metrics` 口径版本 1 的生效日要写进发布记录。
 3. **GPU 锁的平台**：当前锁按 Windows/py312 解析（本机 GPU worker）。若部署迁到 Linux，必须用
    `gpu-worker/scripts/lock_requirements.py` 重新生成，并在锁头更新平台。
