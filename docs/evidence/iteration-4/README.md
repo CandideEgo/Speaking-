@@ -60,7 +60,9 @@
    过程中修掉一个生产包 TDZ 崩溃与两处过期断言，见
    [`production-smoke-2026-10-31.md`](production-smoke-2026-10-31.md)。仍未做的：`PRODUCTION_REGRESSION=1`
    整批回归、Firefox/WebKit 首跑、原 PowerShell 脚本原样执行。
-2. **A12 放量**：埋点与迁移上生产后观察两周；`metrics` 口径版本 1 的生效日要写进发布记录。
+2. **A12 放量**：迁移与埋点已于 **2026-10-31** 上生产（`b7c8d9e0f1a2`，口径版本 1 生效日 = 2026-10-31 UTC），
+   T+0 采集到的全是零样本——生产库当前只有 5 个账号、近 30 天 1 条 `learning_events`，
+   **两周基线要等真实流量进来才有意义，空样本不能当「基线已建立」**。观察期内不要放量体验改动。
 3. **GPU 锁的平台**：当前锁按 Windows/py312 解析（本机 GPU worker）。若部署迁到 Linux，必须用
    `gpu-worker/scripts/lock_requirements.py` 重新生成，并在锁头更新平台。
 4. **torch/transformers 公告**：whisperx 3.8.6 钉 `torch~=2.8.0`，14 条接受项在 2026-11-30 到期前要么升级
