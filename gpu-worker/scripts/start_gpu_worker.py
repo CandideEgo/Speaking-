@@ -148,12 +148,23 @@ def main():
     signal.signal(signal.SIGTERM, _shutdown)
 
     # Start Celery worker — this blocks until shutdown
+    #
+    # --without-mingle: mingle 会让 worker 向其它节点广播 hello 并**声明一个
+    #   <uuid>.reply.celery.pidbox 回复队列**来收答复。GPU 身份在 A10 的 ACL
+    #   里没有这个键，于是每次启动都 LLEN 失败、以 NoPermissionError 退出，
+    #   NSSM 再把进程拉起来 —— 表现为「一直在重启、心跳一直有、任务一条不消费」。
+    #   GPU 只有一个 worker，mirror 邻居没有任何意义，直接关掉。
+    # --without-gossip：同理，事件/gossip 也是跨节点控制面，本 worker 不参与。
+    # （配合 gpu_worker/celery_app.py 的 worker_enable_remote_control=False，
+    #   后者需要 Celery >= 5.5 才存在。）
     argv = [
         "worker",
         "--pool=solo",
         f"--queues={settings.transcription_gpu_queue_name}",
         "--loglevel=info",
         "--concurrency=1",
+        "--without-mingle",
+        "--without-gossip",
     ]
     celery_app.worker_main(argv)
 
