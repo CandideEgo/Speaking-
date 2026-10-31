@@ -193,7 +193,7 @@ jobs:
           cyclonedx-py requirements gpu-worker/requirements.lock.txt -o gpu-sbom.json
 
       - name: Upload GPU SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gpu-sbom
           path: gpu-sbom.json
