@@ -57,6 +57,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 上面那张表是「只起一件东西」或排查时用的原始命令，不是推荐入口。前端相关的运行方式与 `dev` 代理前提见 [`frontend/CLAUDE.md`](frontend/CLAUDE.md)。
 
+**部署与主机访问**：生产机与 GPU 机怎么连、某个 secret 放在哪台机的哪个文件、迭代证据分别在哪个目录，
+写在本机 `~/.seeword/ACCESS.md`（仓库外，含路径不含凭据）。本仓库不保存任何密码或私钥。
+
 ## 架构大图
 
 以下都是读多个文件才能拼出来的部分；单个文件的结构直接打开看即可。
