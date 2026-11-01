@@ -15,6 +15,7 @@ from app.models.learning_plan import LearningEvent
 from app.models.pipeline_dispatch import DISPATCH_STATUS_PENDING, PipelineDispatch
 from app.models.user import PlanType, RoleType, User
 from app.models.video import Video, VideoSource, VideoStatus
+from app.services.event_contract import MEANINGFUL_EVENT_TYPES
 from app.services.measurement_service import learning_metrics, percentile
 
 
@@ -292,3 +293,31 @@ async def test_behavior_ingest_accepts_flow_id_and_rejects_newer_schema(client) 
         json={"event_type": "flow_result", "schema_version": 99},
     )
     assert newer.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_behavior_ingest_accepts_v3_gloss_events(client) -> None:
+    """A14：词卡会话事件随契约 v3 上报，且不进「有效学习日」的分母。
+
+    `gloss_open` / `replay` 是交互意图，不是学习事实：它们可以入库、可以按
+    flow_id 配对，但一旦被塞进 `MEANINGFUL_EVENT_TYPES`，一次查词就会改变
+    激活/留存的分母，历史可比性随之作废。
+    """
+    for event_type, event_id, payload in (
+        ("gloss_open", "33333333-3333-4333-8333-333333333331", {"word": "welcome", "sentence_index": 0}),
+        ("replay", "33333333-3333-4333-8333-333333333332", {"sentence_index": 0, "from_gloss": True}),
+    ):
+        response = await client.post(
+            "/api/v1/behavior/events",
+            json={
+                "event_type": event_type,
+                "event_payload": payload,
+                "flow_id": "22222222-2222-4222-8222-222222222222",
+                "schema_version": 3,
+                "event_id": event_id,
+            },
+        )
+        assert response.status_code == 200, response.text
+
+    assert "gloss_open" not in MEANINGFUL_EVENT_TYPES
+    assert "replay" not in MEANINGFUL_EVENT_TYPES

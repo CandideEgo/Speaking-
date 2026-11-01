@@ -14,7 +14,20 @@ Postgres 的 ``DateTime(timezone=True)`` 列读回来是 aware 的，但 SQLite�
 
 from datetime import UTC, datetime
 
-__all__ = ["to_aware_utc"]
+__all__ = ["iso_or_none", "to_aware_utc"]
+
+
+def iso_or_none(value: object) -> str | None:
+    """把 datetime 序列化成 ISO 字符串；``None`` 原样返回，其它值转 ``str``。
+
+    管理端读模型（用户列表、收款列表、仪表盘）共用这一条日期序列化规则，
+    免得每处各写一遍 ``v.isoformat() if v else None`` 后对 ``None`` 的判断不一致。
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
 
 
 def to_aware_utc(value: datetime) -> datetime:

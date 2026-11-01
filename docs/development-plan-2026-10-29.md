@@ -6,7 +6,7 @@
 
 - 输入：审计目录的 `README.md`（优先级原则）、`execution-plan.md`（A01–A15 任务表）、`frontend.md` / `backend.md` / `ops.md` / `metrics.md`（证据），以及参考产品 [TypeWords](https://github.com/zyronon/TypeWords)。
 - 时间口径：**工程日**（1 主工程师 ≈ 5 工程日/周），另有兼职设计／测试／运维评审。日历周是粗略换算，不是承诺。
-- 状态（2026-10-30 晚）：迭代 0–3 已在 `redesign` 上实施，迭代 4 的代码与 CI 门已落地并逐项取证（见 §3 与 `docs/evidence/iteration-4/`）；放量与观察窗口（A12 两周基线、A11 生产 smoke 实跑）仍待窗口。审计已复现不等于已修复——以各任务的验收用例和真实执行记录为准，不以本文件的「已完成」代替。
+- 状态（2026-10-31 晚）：迭代 0–3 已在 `redesign` 上实施，迭代 4 的代码与 CI 门已落地并逐项取证（见 §3 与 `docs/evidence/iteration-4/`）；放量与观察窗口（A12 两周基线、A11 生产 smoke 实跑）仍待窗口。迭代 5 的 A15 已按业务边界拆完可验证切片（11-01 补齐剩余三处），A14 只把主指标依赖的事件接线可用、研究仍未执行，轨道 B 只落地了 B01 的跟打模式；见 §3 的迭代 5 记录与 [`docs/evidence/iteration-5/`](../evidence/iteration-5/README.md)。审计已复现不等于已修复——以各任务的验收用例和真实执行记录为准，不以本文件的「已完成」代替。
 
 ## 1 三条排序原则
 
@@ -54,7 +54,7 @@ flowchart TB
 | 2 完整性 | 第 4–5 周 | A05、A06、A13 | 3.5–8 | 管线派发最终收敛且不重复；两次并发提交只产生一套答案一次事件；72/73 字节密码行为一致 | A06 已完成（`47dd51d6`）；A05、A13 已完成（2026-10-29）；三项出口条件 2026-10-30 复核通过，证据见 [`docs/evidence/iteration-2/verification-2026-10-30.md`](../evidence/iteration-2/verification-2026-10-30.md) |
 | 3 可恢复 | 第 6–8 周 | A09 → A07 → A10 → A08 | 8–14 | 站外告警可达；Redis 有命名卷与允许损失窗口；GPU 身份越权操作被服务端拒绝；导出含全部活跃数据、注销清理旧媒体 | 已完成（2026-10-30）：A09（告警/备份）、A07（8/8）、A10（9 PASS / 1 SKIP）、A08（28/28）均通过隔离验收；A07/A10 的生产放量：**A07 已于 2026-10-31 完成**（命名卷 + AOF，键跨容器重启存活）；**A10 已切到各自身份**（云端 `cloud`、GPU `gpu`，两者实测在线；GPU 身份只能碰自己的键），`default` 刻意保留——它与 `cloud` 同密码同全权，单独关掉不增加边界，真正的下一步是轮换云端密码。**T9 宿主 sshd 已于 2026-10-31 完成**（GPU 钥匙加 `restrict,port-forwarding,permitopen="127.0.0.1:6379"`，全局 `AllowTcpForwarding local`；实测越权 `-L/-R/-D` 全部被拒）；回调密钥轮换仍未做，见 [`docs/evidence/iteration-3/`](../evidence/iteration-3/README.md) |
 | 4 测量 | 第 9–11 周 | A12、A11 | 5–8 | 事件带版本且有去重与缺失率；激活/D1/D7 分母固定；生产构建与移动闭环进 CI；GPU 有独立依赖审计 | 代码与门已落地（2026-10-30），证据见 [`docs/evidence/iteration-4/`](../evidence/iteration-4/README.md)。**未完成**：两周真实基线（2026-10-31 已上生产、埋点生效，但要等真实流量；T+0 为零样本）、GPU 独立环境回归。生产 smoke 实跑与四条「故意破坏」负控已于 2026-10-31 在 Docker Desktop 上完成并抓到一个生产包 TDZ 崩溃，见 [`docs/evidence/iteration-4/production-smoke-2026-10-31.md`](../evidence/iteration-4/production-smoke-2026-10-31.md)。 |
-| 5 按证据优化 | 第 12 周起 | A14、A15、轨道 B 放量 | 每轮 2–4 | 每轮只验证一项假设，预先写主指标/护栏/撤回条件 | 未开始 |
+| 5 按证据优化 | 第 12 周起 | A14、A15、轨道 B 放量 | 每轮 2–4 | 每轮只验证一项假设，预先写主指标/护栏/撤回条件 | **A15 已按边界拆完可验证切片（2026-10-31 / 11-01）**：观看页四个提取点、两条播放后端的共用状态映射与 YouTube 适配器、后台编排编辑器、后端首页内容服务三层拆分、契约测试提速，证据见 [`docs/evidence/iteration-5/`](../evidence/iteration-5/README.md)。**A14 事件已接线（契约 v3 的 `gloss_open`/`replay`），但研究未执行**（未招募），协议见 [`docs/a14-research-protocol-2026-10-31.md`](a14-research-protocol-2026-10-31.md)。**轨道 B 只有 B01 的跟打模式落地**，B02–B05 未实现（B02 卡在 D3） |
 
 **为什么 A04 放进迭代 0**：它 0.5–1 日、与 A01 无文件冲突、修的是用户可见的「漏页」，且不依赖任何其他任务。这是唯一允许插进「恢复交付」的前端体验修复。
 
@@ -77,6 +77,21 @@ flowchart TB
 
 - **A12（测量口径）**：新增事件契约模块 [`backend/app/services/event_contract.py`](../../backend/app/services/event_contract.py)（版本、有效学习事件集合、flow 路径）与 [`measurement_service.py`](../../backend/app/services/measurement_service.py)（激活/留存、权益、事件质量、性能基线）。迁移 `b7c8d9e0f1a2` 给 `learning_events` 加 `flow_id`/`source`/`schema_version`、给 `behavior_events` 加 `flow_id`/`schema_version`；历史行按 v1 回填，旧客户端不带版本仍按 v1 理解，**高于服务端版本的上报一律 422**（拒绝而不是猜测）。听写/试卷/词汇轮次/练习提交四个写入口统一带 `flow_id=服务端会话 id` 与 `source`；前端同 id 的 `flow_result` 意图事件落在 `behavior_events`，管理端据此算客户端意图与服务端事实的 matched / client_only / server_only / 重复率。口径（分母、成熟判定、时间边界）随 `GET /api/v1/admin/metrics/learning` 一起返回在 `definitions` 里。**MET-02**：管理端原「Pro 转化漏斗」改名为「累计行为分布 · 非时序漏斗」，付费只认已匹配账号的金数据 `applied` 流水，试用/人工赠送单列。**RUM**：`frontend/src/lib/webVitals.ts`（LCP/INP/CLS 纯累加器，5 条单测）在离页时经 `behavior_events` 上报；观看页记录首次出画耗时 `first_play`；`backend/scripts/measure_baseline.py` 用同一口径输出可复现基线（含 Prometheus 直方图近似的 API p95 与管线派发积压年龄）。验证：新增 7 条后端用例（分母、成熟 cohort、付费/试用分离、对账、p75 与积压）、前端 `npm run check` 与 340 条单测通过、mypy 无新增。**未执行**：两周真实基线（埋点尚未放量，样本 0 的设备/网络分层）、A/B 或因果结论。
 - **A11（供应链与生产验收）**：GPU 运行依赖新增 [`gpu-worker/requirements.lock.txt`](../../gpu-worker/requirements.lock.txt)（128 个包，由 `scripts/lock_requirements.py` 用 `pip --dry-run --report` 生成，平台写死在文件头）、[`gpu-worker/.pip-audit-ignore`](../../gpu-worker/.pip-audit-ignore) 与 CI 的 GPU 依赖审计（`pip_audit_gate.py --no-deps`）和 CycloneDX SBOM artifact；审计实测 14 条公告全部落在 torch/transformers，逐条写明不可达理由与 2026-11-30 复核期限（whisperx 3.8.6 约束 `torch~=2.8.0`，盲升需 GPU 回归）。Dependabot 增加 `/gpu-worker`。新增 [`backend/scripts/production_preflight.py`](../../backend/scripts/production_preflight.py) 与 CI `production-config` job：弱/缺密钥、生产假短信、站内支付误开、compose 告警变量白名单、nginx CSP/HSTS 任何一项漂移都会失败（本机 8/8 PASS）。frontend job 增加 standalone 产物断言；新增夜间工作流 `.github/workflows/cross-browser.yml` + `playwright.crossbrowser.config.ts`（Firefox/WebKit 跑观看、认证与公共页主干；mobile-chrome/mobile-iphone 跑 `*mobile*.spec.ts` 的关键手机闭环）。**未执行**：生产 smoke 经 HTTPS nginx 的实跑与「故意破坏静态资源/媒体缓存」负控（本机无 Docker、脚本是 Windows PowerShell），真实 GPU 机器上的锁安装与 whisperx 回归，Firefox/WebKit 工作流首跑（需在 GitHub 上触发）。
+
+### 迭代 5 的实施记录（2026-10-31）
+
+- **A15（FE-06 前端拆分，四个可验证提取点）**：观看页词卡状态机（`hooks/useWatchWordCard.ts`）、词汇读模型（`hooks/useWatchVocabulary.ts`）、偏好读写（`hooks/useWatchPreferences.ts`）从 1,770 行页面组件抽出；着色四档与来源句解析变成纯函数（`lib/watchWordHighlight.ts`、`lib/watchWordSource.ts`）并各有单测。播放生命周期两种后端改走同一张映射表（`lib/mediaLifecycle.ts`），未知 IFrame 状态仍按旧实现落 paused。页面净减约 300 行，外部契约（路由、深链、请求与降级）不变。
+- **A15（后端架构债）**：管理端仪表盘读模型拆到 `app/services/admin_stats.py`（341 行，只读、仅服务 `GET /admin/stats`），`admin_service` 只留用户/设置/支付写入；日期序列化统一为 `core/time_utils.iso_or_none`。契约测试的 OpenAPI 文档改为按进程缓存，38 条断言从「每条重建应用」变为一次装配（同文件 43.86s）。
+- **验证**：前端 `npm run check` exit 0、单测 36 文件 / 361 项；fixture 型观看 e2e（chromium 45 passed / 1 failed，mobile-chrome 41 passed / 1 failed）——两处失败是同一个用例，在本机 master 检出同样失败，非本轮回归；后端 ruff 通过、mypy 基线 0 新增、全量 **1476 passed / 23 skipped**（修复了一条在 UTC 00:00–01:00 必红的既有支付汇总 flaky，断言未改）。真实后端 `watch.spec.ts` 被 dev 注册限流（429）挡住，未用 testing 形态后端复跑；Firefox/WebKit 未跑。
+- **A14**：只交付预注册协议（[`docs/a14-research-protocol-2026-10-31.md`](a14-research-protocol-2026-10-31.md)）：目标人群、任务脚本、一个单项假设的主指标/护栏/窗口/撤回条件，以及「事件尚未接线、实验不能开始」的前置。**没有招募、没有结论**。
+- **未完成**：轨道 B 放量（B01–B05 未实现）、A15 剩余拆分（`useVideoPlayer` 的 YouTube 后端接线、`HomeLayoutEditor.tsx` 1,013 行）、A14 研究本身。证据与未执行清单见 [`docs/evidence/iteration-5/README.md`](../evidence/iteration-5/README.md)。
+
+### 迭代 5 的第二轮（2026-11-01）
+
+- **A14（事件接线）**：行为事件契约升到 **v3**，新增 `gloss_open` / `replay` 与 10 秒同句配对窗口；词卡打开时发 `gloss_open`（自带 flow_id），原句重听落在窗口内时带同一个 flow_id。两个事件**不进** `MEANINGFUL_EVENT_TYPES`，不改变激活/留存的分母。定义在 `event_contract.py`、前端 `lib/analytics.ts` 与 `metrics.md` 三处同步；后端补了 v3 入库用例。**实验本身仍未开始。**
+- **A15（剩余拆分）**：YouTube IFrame 的脚本加载/创建/销毁抽成 `frontend/src/lib/youtubePlayer.ts`；`HomeLayoutEditor.tsx` 从 1,013 行拆成页面骨架 + `hooks/useHomeLayoutEditor.ts`（状态机与保存/发布/回滚）+ `LayoutSlotSections` / `LayoutCandidateSelect` / `LayoutPositionSummary`；后端 `home_content_service`（2,148 行）按业务边界拆成 `home_content_content`（指纹/校验/DTO）、`home_content_layout`（布局与公共读取）与本体（草稿/版本/生成状态机），对外仍以 `home_content_service.<name>` 访问。
+- **B01（逐句打字练习）**：听写页增加「看原文跟打 / 听音默写」模式（不全会话、不改判分），并补上判分归一化规则的 14 条单测；跟打模式的原句取自公开的视频详情，不新增接口。
+- **验证**：前端 `npm run check` exit 0、单测 38 文件 / 375 项；后端 ruff/format 通过、mypy 0 新增、全量 **1492 passed / 23 skipped**；ego-browser 实测跑通「跟打模式切换与保持」与「`gloss_open` → `replay` 同 flow_id 配对」。**未执行**：后台首页编排页面的浏览器走查（缺管理员会话，提升角色的命令被权限拒绝）、真实后端 `watch.spec.ts`、Firefox/WebKit、PG 集成用例、生产部署。证据见 [`docs/evidence/iteration-5/README.md` §5](../evidence/iteration-5/README.md)。
 
 ## 4 轨道 B：学习闭环产品增量（TypeWords 参考）
 

@@ -6,6 +6,13 @@ import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { trackFlowResult } from "@/lib/analytics";
 import { toastApiError } from "@/lib/errors";
+import {
+  LISTENING_MODES,
+  listeningModeMeta,
+  loadListeningMode,
+  saveListeningMode,
+  type ListeningMode,
+} from "@/lib/listeningMode";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { ClipPlayer } from "@/components/listening/ClipPlayer";
@@ -23,11 +30,44 @@ export default function ListeningAttempt() {
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
+  // B01：练习模式只影响「输入时原句是否可见」，不改题面、草稿与判分（见 lib/listeningMode）。
+  const [mode, setMode] = useState<ListeningMode>("dictation");
+  const [originals, setOriginals] = useState<Record<string, string> | null>(null);
+  const [originalsFailed, setOriginalsFailed] = useState(false);
   const values = useRef({ answers: {} as Record<string, string>, index: 0 });
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dataRef = useRef<ListeningSession | null>(null);
   const key = `seeword-listening-draft:${id}`;
+  // 模式存在本机：首帧用默认值，挂载后再补一次，避免 SSR 与客户端首帧不一致。
+  useEffect(() => {
+    setMode(loadListeningMode());
+  }, []);
+  function changeMode(next: ListeningMode) {
+    setMode(next);
+    saveListeningMode(next);
+  }
+  // 「看原文跟打」需要原句，而会话题面在提交前**故意不含 text_en**（服务端剥掉）。
+  // 因此只在用户选了跟打时才去读公开的视频详情——同一份数据观看页本来就有，
+  // 不新增接口、也不改会话契约。
+  useEffect(() => {
+    if (mode !== "follow" || session?.submitted_at || originals || !session?.video_id) return;
+    const controller = new AbortController();
+    setOriginalsFailed(false);
+    api<{ subtitles?: { id: string; text_en: string }[] }>(`/api/v1/videos/${session.video_id}`, {
+      signal: controller.signal,
+    })
+      .then((detail) => {
+        if (controller.signal.aborted) return;
+        const map: Record<string, string> = {};
+        for (const subtitle of detail.subtitles ?? []) map[subtitle.id] = subtitle.text_en;
+        setOriginals(map);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setOriginalsFailed(true);
+      });
+    return () => controller.abort();
+  }, [mode, session?.submitted_at, originals, session?.video_id]);
   const saveDraft = useCallback(async () => {
     if (!dataRef.current || dataRef.current.submitted_at) return;
     const snapshot = { ...values.current };
@@ -275,6 +315,38 @@ export default function ListeningAttempt() {
               <Link href="/practice/listening" className="ml-2 text-brand-700">
                 换一段素材
               </Link>
+            </div>
+          )}
+          {!submitted && (
+            <div
+              role="group"
+              aria-label="练习模式"
+              className="mt-5 flex flex-wrap items-center gap-2"
+            >
+              {LISTENING_MODES.map((option) => {
+                const meta = listeningModeMeta(option);
+                return (
+                  <Button
+                    key={option}
+                    variant={option === mode ? "primary" : "outline"}
+                    size="sm"
+                    aria-pressed={option === mode}
+                    onClick={() => changeMode(option)}
+                  >
+                    {meta.label}
+                  </Button>
+                );
+              })}
+              <span className="text-caption text-muted">{listeningModeMeta(mode).hint}</span>
+            </div>
+          )}
+          {!submitted && mode === "follow" && (
+            <div className="mt-3 rounded-md border border-hairline bg-surface-soft p-4">
+              <p className="text-caption font-semibold text-muted">原句</p>
+              <p lang="en" className="mt-1 text-copy-lg leading-relaxed text-ink">
+                {originals?.[question.id] ??
+                  (originalsFailed ? "原句暂时取不到，先按听音默写继续。" : "正在加载原句…")}
+              </p>
             </div>
           )}
           <div className="mt-5">

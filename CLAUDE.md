@@ -133,7 +133,9 @@ Windows 上这些以 NSSM 服务托管：云端与 beat 用 `backend/scripts/run
 
 ### 首页编辑内容（选视频→AI 草稿→预览→发布替换→恢复上一版）
 
-后端的唯一事实源是 `backend/app/services/home_content_service.py` + `backend/app/schemas/home_content.py`；
+后端的唯一事实源是 `backend/app/services/home_content_service.py`（视频侧草稿 / 不可变版本 /
+生成状态机）、同目录的 `home_content_content.py`（来源指纹、字段级 issues、展示 DTO）与
+`home_content_layout.py`（布局写入与校验、公共读取）+ `backend/app/schemas/home_content.py`；
 前端 DTO 的唯一契约是 `frontend/src/types/homeContent.ts`（前后端字段一一对应，页面不得自行解释任意 JSON）。
 
 - **三张表、内容与位置分离**：`home_content_drafts`（每视频一份可编辑草稿 + 生成状态机）、

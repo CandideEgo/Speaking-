@@ -24,6 +24,7 @@ anything, the snapshot is right and the code is wrong.
 """
 
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 
 from app.models.favorite import UserFavorite, UserNote
 from app.models.video import Video, VideoReviewStatus, VideoStatus
@@ -326,12 +327,23 @@ class TestOpenApiResponseModels:
     """
 
     @staticmethod
-    def _schema(path: str, method: str, status: str = "200") -> dict:
+    @lru_cache(maxsize=1)
+    def _openapi() -> dict:
+        """The app's OpenAPI document, built once per test session.
+
+        此前每个断言都 ``create_app().openapi()``，这个文件的 38 条断言因此把
+        整个应用装配重复了几十次（A15 的后端债第 6 条）。OpenAPI 在同一进程里
+        只由已注册路由与响应模型决定，缓存不降低任何断言的强度。
+        """
         from app.main import create_app
 
-        return create_app().openapi()["paths"][path][method]["responses"][status]["content"]["application/json"][
-            "schema"
-        ]
+        return create_app().openapi()
+
+    @staticmethod
+    def _schema(path: str, method: str, status: str = "200") -> dict:
+        return TestOpenApiResponseModels._openapi()["paths"][path][method]["responses"][status]["content"][
+            "application/json"
+        ]["schema"]
 
     def test_admin_video_list_is_typed(self):
         assert self._schema("/api/v1/videos/admin", "get")["$ref"].endswith("PaginatedResponse_VideoAdminResponse_")
