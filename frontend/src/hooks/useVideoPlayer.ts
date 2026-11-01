@@ -3,6 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import {
+  mediaStateFor,
+  youTubeEventFor,
+  type MediaFacts,
+  type MediaLifecycleEvent,
+} from "@/lib/mediaLifecycle";
 import { SUBTITLE_MODE_ORDER } from "@/lib/subtitleModes";
 import { useWatchStore, type SubtitleMode } from "@/stores/watchStore";
 import { WatchSession, validInterval } from "@/lib/watchSession";
@@ -239,6 +245,16 @@ export function useVideoPlayer({
     onTimeTickRef.current = onTimeTick;
   }, [onTimeTick]);
 
+  /**
+   * 播放生命周期 → 媒体 UI 状态。原生 `<video>` 与 YouTube IFrame 的事件名
+   * 不同，但都先翻译成 `lib/mediaLifecycle` 的共同事件，再共用同一张映射表，
+   * 避免两条后端各写一份三元表达式后悄悄分叉。
+   */
+  const applyMediaEvent = useCallback((event: MediaLifecycleEvent, facts: MediaFacts) => {
+    const next = mediaStateFor(event, facts);
+    if (next) setMediaState(next);
+  }, []);
+
   const rawPause = useCallback(() => {
     playRequestRef.current++;
     pendingPlayRef.current = false;
@@ -417,59 +433,58 @@ export function useVideoPlayer({
     });
   }, []);
 
-  const createYouTubePlayer = useCallback((ytId: string): boolean => {
-    if (!ytContainerRef.current || !window.YT?.Player) return false;
-    ytReadyRef.current = false;
-    ytPlayingRef.current = false;
-    ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
-      videoId: ytId,
-      playerVars: { rel: 0, playsinline: 1 },
-      events: {
-        onReady: () => {
-          ytReadyRef.current = true;
-          setMediaState("paused");
-          const pendingSeek = pendingYtSeekRef.current;
-          const player = ytPlayerRef.current;
-          if (pendingSeek && player?.seekTo) {
-            pendingYtSeekRef.current = null;
-            player.seekTo(pendingSeek.time, true);
-            if (pendingSeek.playAfterSeek) player.playVideo();
-          }
+  const createYouTubePlayer = useCallback(
+    (ytId: string): boolean => {
+      if (!ytContainerRef.current || !window.YT?.Player) return false;
+      ytReadyRef.current = false;
+      ytPlayingRef.current = false;
+      ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
+        videoId: ytId,
+        playerVars: { rel: 0, playsinline: 1 },
+        events: {
+          onReady: () => {
+            ytReadyRef.current = true;
+            setMediaState("paused");
+            const pendingSeek = pendingYtSeekRef.current;
+            const player = ytPlayerRef.current;
+            if (pendingSeek && player?.seekTo) {
+              pendingYtSeekRef.current = null;
+              player.seekTo(pendingSeek.time, true);
+              if (pendingSeek.playAfterSeek) player.playVideo();
+            }
+          },
+          onStateChange: (e: { data?: number }) => {
+            // 1 = playing, 2 = paused, 3 = buffering, 0 = ended
+            if (e?.data === 1) {
+              window.speechSynthesis?.cancel();
+              positionTouchedRef.current = true;
+            }
+            applyMediaEvent(youTubeEventFor(e.data), {
+              // 3（buffering）按「未暂停」处理，否则会被 waiting 规则当成预取忽略。
+              paused: e.data !== 1 && e.data !== 3,
+              ended: e.data === 0,
+            });
+            ytPlayingRef.current = e?.data === 1;
+            setIsPlaying(e?.data === 1);
+            if (e?.data === 2) {
+              // Surface the final position once when pausing (time ticks keep
+              // running so subtitle highlight stays in sync during pause too).
+              onTimeTickRef.current?.(ytPlayerRef.current?.getCurrentTime?.() ?? 0);
+              if (positionTouchedRef.current)
+                progressRef.current?.enqueue(ytPlayerRef.current?.getCurrentTime?.() ?? 0);
+            }
+          },
+          onError: () => {
+            sessionRef.current.command();
+            setMediaState("error");
+            setMediaError("视频暂时无法播放，请重试或返回来源");
+          },
         },
-        onStateChange: (e: { data?: number }) => {
-          // 1 = playing, 2 = paused, 0 = ended
-          if (e?.data === 1) {
-            window.speechSynthesis?.cancel();
-            positionTouchedRef.current = true;
-          }
-          setMediaState(
-            e.data === 1
-              ? "playing"
-              : e.data === 3
-                ? "buffering"
-                : e.data === 0
-                  ? "ended"
-                  : "paused"
-          );
-          ytPlayingRef.current = e?.data === 1;
-          setIsPlaying(e?.data === 1);
-          if (e?.data === 2) {
-            // Surface the final position once when pausing (time ticks keep
-            // running so subtitle highlight stays in sync during pause too).
-            onTimeTickRef.current?.(ytPlayerRef.current?.getCurrentTime?.() ?? 0);
-            if (positionTouchedRef.current)
-              progressRef.current?.enqueue(ytPlayerRef.current?.getCurrentTime?.() ?? 0);
-          }
-        },
-        onError: () => {
-          sessionRef.current.command();
-          setMediaState("error");
-          setMediaError("视频暂时无法播放，请重试或返回来源");
-        },
-      },
-    });
-    return true;
-  }, []);
+      });
+      return true;
+    },
+    [applyMediaEvent]
+  );
 
   /** Mount the YouTube IFrame player into ytContainerRef (idempotent per video). */
   const mountYouTube = useCallback(
@@ -543,25 +558,25 @@ export function useVideoPlayer({
       window.speechSynthesis?.cancel();
       positionTouchedRef.current = true;
       setIsPlaying(true);
-      setMediaState("playing");
+      applyMediaEvent("play", { paused: el.paused, ended: el.ended });
       setMediaError(null);
     };
     const onPause = () => {
       setIsPlaying(false);
-      setMediaState(el.ended ? "ended" : "paused");
+      applyMediaEvent("pause", { paused: true, ended: el.ended });
       if (positionTouchedRef.current && expectedSeekRef.current === null)
         progressRef.current?.enqueue(el.currentTime);
     };
     const onReady = () => {
-      setMediaState(el.paused ? "paused" : "playing");
+      applyMediaEvent("ready", { paused: el.paused, ended: el.ended });
       setMediaError(null);
     };
     const onWaiting = () => {
-      if (!el.paused) setMediaState("buffering");
+      applyMediaEvent("waiting", { paused: el.paused, ended: el.ended });
     };
     const onError = () => {
       sessionRef.current.command();
-      setMediaState("error");
+      applyMediaEvent("error", { paused: el.paused, ended: el.ended });
       setMediaError("媒体加载失败，请重试或返回来源");
     };
     const onSeeking = () => {
@@ -622,7 +637,7 @@ export function useVideoPlayer({
       for (const [name, fn] of Object.entries(listeners)) el.removeEventListener(name, fn);
       clearInterval(interval);
     };
-  }, [playbackMode, isYtMode, markIntent, rawPlay]);
+  }, [playbackMode, isYtMode, markIntent, rawPlay, applyMediaEvent]);
 
   // Clean up the IFrame player on unmount.
   useEffect(() => {

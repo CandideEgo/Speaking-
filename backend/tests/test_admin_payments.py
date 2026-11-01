@@ -245,14 +245,20 @@ class TestListAdminPayments:
 class TestPaymentSummary:
     async def test_summary_math(self, client: AsyncClient, db_session, admin_headers: dict):
         now = datetime.now(UTC)
+        # ``paid_today_fen`` 用 UTC 日界统计。若在 UTC 00:00–01:00 之间运行，
+        # 「1 小时前」会落到昨天，这条断言就会无故变红（2026-11-01 实测）。
+        # 把两条时间夹在今天的 UTC 日界之后，用例与运行时刻无关。
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        paid_at_today = max(today_start, now - timedelta(hours=1))
+        applied_today = max(today_start, now - timedelta(minutes=30))
         db_session.add_all(
             [
                 # applied today, 19.90
                 _payment(
                     serial_number=4001,
                     amount_fen=1990,
-                    entry_created_at=now - timedelta(hours=1),
-                    applied_at=now - timedelta(minutes=30),
+                    entry_created_at=paid_at_today,
+                    applied_at=applied_today,
                 ),
                 # applied 5 days ago, 49.90
                 _payment(

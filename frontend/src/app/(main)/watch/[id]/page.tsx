@@ -11,7 +11,6 @@ import {
 } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
 import { useDeepLink } from "@/hooks/useDeepLink";
 import { useWatchClip } from "@/hooks/useWatchClip";
 import { validWatchClip } from "@/lib/watchClip";
@@ -24,17 +23,20 @@ import { useWatchChromeBridge } from "@/hooks/useWatchChromeBridge";
 import { useVideoPlayer, bestVideoUrl, youtubeId, PLAYBACK_RATES } from "@/hooks/useVideoPlayer";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useVideoMeta } from "@/hooks/useVideoMeta";
-import { api, mediaUrl } from "@/lib/api";
-import { apiErrorMessage } from "@/lib/errors";
+import { useWatchPreferences } from "@/hooks/useWatchPreferences";
+import { useWatchVocabulary } from "@/hooks/useWatchVocabulary";
+import { useWatchWordCard } from "@/hooks/useWatchWordCard";
+import { mediaUrl } from "@/lib/api";
 import { endWatchTime, track, trackFirstPlay, trackWatchTime } from "@/lib/analytics";
+import { isWordSelected } from "@/lib/watchWordHighlight";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { resolveWatchReturn, watchFocusIssue, watchHref } from "@/lib/watchEntry";
-import type { Subtitle, VideoDetail, VocabSet, VocabSetCreateResponse } from "@/types";
+import type { Subtitle, VideoDetail } from "@/types";
 import { formatDuration, formatTime, formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { WordTooltipInline } from "@/components/subtitle/WordTooltipInline";
 import { WordCardSheet } from "@/components/watch/WordCardSheet";
-import { VideoControls, type SubtitleFontSize } from "@/components/watch/VideoControls";
+import { VideoControls } from "@/components/watch/VideoControls";
 import { WatchDivider } from "@/components/watch/WatchDivider";
 import { SaveSentenceButton } from "@/components/watch/SaveSentenceButton";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -47,7 +49,6 @@ import { useWatchLayout } from "@/hooks/useWatchLayout";
 import { CurrentSentenceCard } from "@/components/watch/CurrentSentenceCard";
 import { LearningActions } from "@/components/watch/LearningActions";
 import { WatchMoreSheet } from "@/components/watch/WatchMoreSheet";
-import { shouldDisplay, wordHighlightClass, cleanToken } from "@/lib/examLevels";
 import { reducedAid, validInterval } from "@/lib/watchSession";
 import { cefrWithExamHint } from "@/lib/cefrLevels";
 import {
@@ -459,83 +460,24 @@ export default function WatchPage() {
   const handleSaveWord = saveToVocabulary;
 
   // ---- 词卡锚点 / 来源句（audit D-watch P1 #9、#13）----------------------------
-  // 桌面词卡此前固定 left:24 / bottom:24，400px 宽、内容长时 765px 高，整块压住左侧
-  // 240px 一级导航。现在把被点词的视口矩形交给 WordTooltipInline 做锚定；无锚点
-  // （深链 ?word=）退化为右下停泊。词卡同时补设计里的来源行与「回看原句」第二出口。
-  const [wordAnchorRect, setWordAnchorRect] = useState<{
-    left: number;
-    top: number;
-    bottom: number;
-    width: number;
-    height: number;
-  } | null>(null);
-  const [wordSource, setWordSource] = useState<{ index: number; line: number } | null>(null);
-
-  const wordTriggerRef = useRef<HTMLElement | null>(null);
-  const closeWordCard = useCallback(() => {
-    clearWord();
-    setWordAnchorRect(null);
-    setWordSource(null);
-    closeHelp();
-    wordTriggerRef.current?.focus({ preventScroll: true });
-  }, [clearWord, closeHelp]);
-  const openWordCard = useCallback(
-    (word: string, anchor?: HTMLElement | null, sourceOverride?: Subtitle | null) => {
-      const source =
-        sourceOverride ??
-        replayTarget ??
-        wordContext ??
-        video?.subtitles[currentIndexRef.current] ??
-        null;
-      if (
-        selectedWord === word.replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "") &&
-        wordContext?.id === source?.id
-      ) {
-        closeWordCard();
-        return;
-      }
-      wordTriggerRef.current = anchor ?? null;
-      setWordAnchorRect(anchor ? anchor.getBoundingClientRect() : null);
-      const sourceIndex = source
-        ? (videoForTickRef.current?.subtitles.findIndex((s) => s.id === source.id) ?? -1)
-        : -1;
-      setWordSource(sourceIndex >= 0 ? { index: sourceIndex, line: sourceIndex + 1 } : null);
-      pauseForHelp();
-      void handleWordClick(word, source);
-    },
-    [selectedWord, wordContext, replayTarget, video, closeWordCard, pauseForHelp, handleWordClick]
-  );
-
-  /** 设计 `.word-pop-actions .undo`「回看原句」：不新建弹层，把文稿滚到该句（桌面滚右栏、
-   *  移动滚回当前句卡），并恢复字幕跟随。 */
-  const revealWordSource = useCallback(() => {
-    const target = wordSource;
-    closeWordCard();
-    if (!target) return;
-    resumeFollow();
-    requestAnimationFrame(() => {
-      const row = immersive
-        ? document.querySelector('[data-testid="current-sentence-card"]')
-        : document.getElementById(`subtitle-${target.index}`);
-      if (!row) return;
-      if (isMobile) {
-        row.scrollIntoView({ block: "center", behavior: "smooth" });
-        return;
-      }
-      const scroller = row.closest(".subtitle-scroll") as HTMLElement | null;
-      if (!scroller) return;
-      const top =
-        row.getBoundingClientRect().top -
-        scroller.getBoundingClientRect().top +
-        scroller.scrollTop -
-        12;
-      scroller.scrollTo({ top, behavior: "smooth" });
+  // 位置与来源句状态在 useWatchWordCard；来源句解析与「再点同一个词 = 收起」的判定在
+  // lib/watchWordSource（纯函数，有单测）。页面只把结果交给渲染。
+  const { wordAnchorRect, wordSourceLabel, closeWordCard, openWordCard, revealWordSource } =
+    useWatchWordCard({
+      selectedWord,
+      wordContext,
+      replayTarget,
+      subtitles: video?.subtitles,
+      getCurrentIndex: () => currentIndexRef.current,
+      clearWord,
+      lookUpWord: handleWordClick,
+      pauseForHelp,
+      closeHelp,
+      resumeFollow,
+      videoTitle: video?.title,
+      isMobile,
+      immersive,
     });
-  }, [wordSource, closeWordCard, resumeFollow, isMobile, immersive]);
-
-  const wordSourceLabel = wordSource
-    ? `《${video?.title ?? "本视频"}》第 ${wordSource.line} 句 · ${wordContext?.text_en ?? ""}`
-    : null;
 
   // D3b/S7b: deep-link focus — ?sub=<subtitle id> lands on one sentence
   // 「回到对应句子」/「回看原句」, ?word= highlights that word too, legacy ?t=
@@ -600,157 +542,22 @@ export default function WatchPage() {
     return () => setImmersive(false);
   }, [id, hydrateSubtitleMode, hydrateLayout, setImmersive]);
 
-  // D1：字幕字号（小/中/大）持久化到用户偏好。
-  const [subtitleFontSize, setSubtitleFontSize] = useState<SubtitleFontSize>("medium");
+  // D1：目标考试级别与字幕字号都来自用户偏好（读写集中在 useWatchPreferences）。
+  const { subtitleFontSize, handleExamLevelChange, handleFontSizeChange } = useWatchPreferences({
+    enabled: isAuthenticated,
+    setSelectedExamLevel,
+  });
 
-  // Load the user's target exam level + subtitle font size from preferences on mount.
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const prefs = await api<{
-          target_exam: string | null;
-          subtitle_font_size?: string | null;
-        }>("/api/v1/users/me/preferences");
-        if (cancelled) return;
-        setSelectedExamLevel(prefs.target_exam ?? "cet4");
-        if (
-          prefs.subtitle_font_size === "small" ||
-          prefs.subtitle_font_size === "medium" ||
-          prefs.subtitle_font_size === "large"
-        ) {
-          setSubtitleFontSize(prefs.subtitle_font_size);
-        }
-      } catch {
-        if (!cancelled) setSelectedExamLevel("cet4");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, setSelectedExamLevel]);
-
-  // Sprint 3: Load the user's actively-learning vocabulary for subtitle highlight.
-  const [vocabWords, setVocabWords] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api<{ words: string[] }>(
-          "/api/v1/vocabulary/words?mastery=learning,reviewing"
-        );
-        if (!cancelled) setVocabWords(new Set(res.words));
-      } catch {
-        // non-fatal: vocab highlight simply won't show
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated]);
-
-  // DEC-073：高亮四档里的「已掌握」那一档要单独一次查询 —— 同一个端点按 mastery 过滤、
-  // 只回词串，learning/reviewing 与 mastered 必须能区分开才谈得上降底色。
-  const [masteredWords, setMasteredWords] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api<{ words: string[] }>("/api/v1/vocabulary/words?mastery=mastered");
-        if (!cancelled) setMasteredWords(new Set(res.words));
-      } catch {
-        // non-fatal: 拿不到已掌握词表就退化成「未掌握」那一档，只是底色略多，不挡播放。
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated]);
-
-  // 词汇集合：本视频是否已生成过筛集合（GET /vocab-sets 按 video_id 匹配）。
-  // 已加入 → 图标点亮并跳转集合页；未加入 → POST 创建并 toast 服务端 message。
-  const [vocabSet, setVocabSet] = useState<VocabSet | null>(null);
-  const [addingVocabSet, setAddingVocabSet] = useState(false);
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const sets = await api<VocabSet[]>("/api/v1/vocab-sets");
-        if (!cancelled) setVocabSet(sets.find((s) => s.video_id === id) ?? null);
-      } catch {
-        // non-fatal: 按钮保持「加入学习」态
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, id]);
-
-  async function handleVocabSetClick() {
-    if (!requireAuth()) return;
-    if (vocabSet) {
-      router.push(`/vocabulary/sets/${vocabSet.id}`);
-      return;
-    }
-    if (addingVocabSet) return;
-    setAddingVocabSet(true);
-    try {
-      const res = await api<VocabSetCreateResponse>("/api/v1/vocab-sets", {
-        method: "POST",
-        body: JSON.stringify({
-          video_id: id,
-          ...(selectedExamLevel ? { exam_level: selectedExamLevel } : {}),
-        }),
-      });
-      toast.success(res.message || "已加入学习");
-      setVocabSet({
-        id: res.id,
-        video_id: res.video_id,
-        exam_level: res.exam_level,
-        title: video?.title ?? "",
-        thumbnail_url: video?.thumbnail_url ?? null,
-        total: res.total,
-        mastered_count: 0,
-        last_activity_at: null,
-        created_at: new Date().toISOString(),
-      });
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "加入失败，请重试"));
-    } finally {
-      setAddingVocabSet(false);
-    }
-  }
-
-  // Persist a target-level change back to preferences (best-effort).
-  async function handleExamLevelChange(lv: string) {
-    setSelectedExamLevel(lv);
-    try {
-      await api("/api/v1/users/me/preferences", {
-        method: "PUT",
-        body: JSON.stringify({ target_exam: lv }),
-      });
-    } catch {
-      // non-fatal: selection still applies for this session
-      toast.error("偏好保存失败，本次会话仍生效");
-    }
-  }
-
-  // D1：字幕字号变更 —— 立即生效 + 写入偏好（尽力而为）。
-  async function handleFontSizeChange(size: SubtitleFontSize) {
-    setSubtitleFontSize(size);
-    try {
-      await api("/api/v1/users/me/preferences", {
-        method: "PUT",
-        body: JSON.stringify({ subtitle_font_size: size }),
-      });
-    } catch {
-      // non-fatal: 本次会话仍生效
-    }
-  }
+  // 字幕着色所需的词表、本视频的过筛集合与「加入学习」动作（见 useWatchVocabulary）。
+  const { vocabSet, addingVocabSet, addVocabSet, levelClassFor } = useWatchVocabulary({
+    videoId: id,
+    isAuthenticated,
+    requireAuth,
+    selectedExamLevel,
+    videoTitle: video?.title,
+    thumbnailUrl: video?.thumbnail_url,
+    onOpenSet: (setId) => router.push(`/vocabulary/sets/${setId}`),
+  });
 
   function handleNextSubtitle() {
     if (!video?.subtitles) return;
@@ -782,34 +589,12 @@ export default function WatchPage() {
     };
   }, [resumeFollow, navigateSubtitle, onNextStable, replayStable]);
 
-  // 考试词高亮 —— DEC-073 的四档，从强到弱：
-  //   ① learning/reviewing（正在学）→ 品牌实底 + 实线（Sprint 3 语义不变，最强档）
-  //   ② 未收录、且命中目标级别 → 极浅底 + 虚线（`wordHighlightClass` 的 soft 档）
-  //   ③ 已掌握 → 只留虚线下划线，不给底色
-  //   ④ 其余 → 无样式
-  // `shouldDisplay` 的「目标级别及以上」语义**不变**，本轮只降视觉重量：一屏十来处底色把
-  // 英文正文的连续阅读打断，也让「当前句」的橙色锚点被稀释。
-  function levelClassFor(word: string, wordLevels: Record<string, string[]> | null): string {
-    const token = cleanToken(word);
-    if (vocabWords.has(token)) {
-      return "bg-brand-100 text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-2 rounded-md px-0.5";
-    }
-    if (!wordLevels || !selectedExamLevel) return "";
-    const levels = wordLevels[token];
-    if (!levels || !shouldDisplay(levels, selectedExamLevel)) return "";
-    // 已掌握的词只留形状（虚线下划线），不再吃底色。
-    if (masteredWords.has(token)) {
-      return wordHighlightClass(levels, selectedExamLevel, { only: true });
-    }
-    // 目标分级优先取色：词属于所选分级时用该分级颜色（如选四级 → 蓝色），
-    // 否则回退词自身的最高分级颜色。见 lib/examLevels.ts displayLevel。
-    return wordHighlightClass(levels, selectedExamLevel);
-  }
-
-  function isSelectedWord(word: string): boolean {
-    if (!selectedWord) return false;
-    return selectedWord === cleanToken(word);
-  }
+  // 考试词高亮（DEC-073 四档）与「当前词是否被选中」的判定都在
+  // `useWatchVocabulary` / `lib/watchWordHighlight`，页面只把 `levelClassFor` 交给渲染。
+  const isSelectedWord = useCallback(
+    (word: string) => isWordSelected(word, selectedWord),
+    [selectedWord]
+  );
 
   // ---- 页面 → 壳：顶栏内容 + 底栏句柄（DEC-069 / #31）----------------------------
   // 装配与 INV-025 那几条约束都在 useWatchChromeBridge 里；这里只交出页面这一侧的状态与回调。
@@ -1663,7 +1448,7 @@ export default function WatchPage() {
             compact={isMobile}
             vocabSet={vocabSet}
             addingVocabSet={addingVocabSet}
-            onVocabSet={handleVocabSetClick}
+            onVocabSet={addVocabSet}
             onDrill={() => router.push("/vocabulary")}
           />
         </div>
@@ -1759,7 +1544,7 @@ export default function WatchPage() {
               compact
               vocabSet={vocabSet}
               addingVocabSet={addingVocabSet}
-              onVocabSet={handleVocabSetClick}
+              onVocabSet={addVocabSet}
               onDrill={() => router.push("/vocabulary")}
             />
           </div>

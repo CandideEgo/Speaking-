@@ -38,7 +38,7 @@ from app.schemas.admin import (
     WorkerStatusResponse,
 )
 from app.schemas.pagination import PaginatedResponse
-from app.services import admin_service
+from app.services import admin_service, admin_stats
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -81,7 +81,7 @@ async def get_admin_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Dashboard KPIs, trend data, distributions, and recent activity."""
-    return await admin_service.get_admin_stats(db, days=days)
+    return await admin_stats.get_admin_stats(db, days=days)
 
 
 @router.get("/metrics/learning", response_model=AdminLearningMetricsResponse)
