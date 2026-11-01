@@ -64,11 +64,15 @@
 
 ### 3.3 技术要求
 
-- 主指标依赖的事件当前**尚未完整接线**：`gloss_open` 还不存在，`replay` 的 `flow_id` 也还没有用词卡会话串联。
-  在补这两个事件之前，本实验**不能开始**；补事件属于 A12 契约的版本内扩展（升版本 + 前端镜像 + 消费方更新）。
+- 主指标依赖的两个事件已于 2026-11-01 接线：`gloss_open` 在词卡打开时发一次并带本次词卡自己的
+  `flow_id`；`replay` 在原句重听发起时发一次，若距该次查词 ≤10 秒且同一句就带同一个 `flow_id`。
+  契约版本随之从 v2 升到 v3（`backend/app/services/event_contract.py`、前端
+  `frontend/src/lib/analytics.ts`、[`metrics.md`](../comprehensive-audit-2026-10-29/metrics.md) 三处同步）。
 - 事件定义与版本必须同时更新 `backend/app/services/event_contract.py`、前端 `lib/analytics.ts` 与
   `metrics.md`；不得把新事件直接塞进 `MEANINGFUL_EVENT_TYPES` 改变旧分母。
 - 分析脚本与 SQL 随实验一起提交，结果与样本量一起报告；小样本不报百分比结论。
+- 实验仍未开始：这里是「事件已可用」，不是「实验已在跑」。上线后需要先积累至少两周有
+  `gloss_open` 的样本，才能按 3.2 的分组与窗口分析。
 
 ## 4 隐私与数据边界
 

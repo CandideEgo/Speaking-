@@ -27,7 +27,14 @@ import { useWatchPreferences } from "@/hooks/useWatchPreferences";
 import { useWatchVocabulary } from "@/hooks/useWatchVocabulary";
 import { useWatchWordCard } from "@/hooks/useWatchWordCard";
 import { mediaUrl } from "@/lib/api";
-import { endWatchTime, track, trackFirstPlay, trackWatchTime } from "@/lib/analytics";
+import {
+  endWatchTime,
+  glossFlowForReplay,
+  track,
+  trackFirstPlay,
+  trackReplay,
+  trackWatchTime,
+} from "@/lib/analytics";
 import { isWordSelected } from "@/lib/watchWordHighlight";
 import { findSubtitleIndex } from "@/lib/subtitles";
 import { resolveWatchReturn, watchFocusIssue, watchHref } from "@/lib/watchEntry";
@@ -475,6 +482,7 @@ export default function WatchPage() {
       closeHelp,
       resumeFollow,
       videoTitle: video?.title,
+      videoId: id,
       isMobile,
       immersive,
     });
@@ -514,13 +522,23 @@ export default function WatchPage() {
     setTemporaryMode(null);
   }, [preferredMode]);
   function handleReplay(reduce = false) {
-    const source = replayTarget ?? wordContext ?? video?.subtitles[currentSubtitleIndex];
+    const subtitles = video?.subtitles;
+    const source = replayTarget ?? wordContext ?? subtitles?.[currentSubtitleIndex];
     if (!source) return;
     clearWord();
     closeHelp(false);
     if (replaySentence(source.start_time, source.end_time)) {
       setReplayTarget(source);
       if (reduce) setTemporaryMode(reducedAid(subtitleMode));
+      // A14：落在词卡会话窗口内、同一句的重听带上该次 gloss_open 的 flow_id；
+      // 普通逐句重听不带，两类分开计数（见 lib/analytics.ts 的 trackReplay）。
+      const sourceIndex = subtitles ? subtitles.indexOf(source) : -1;
+      const glossFlowId = glossFlowForReplay(sourceIndex >= 0 ? sourceIndex : null);
+      trackReplay(id, glossFlowId, {
+        sentence_index: sourceIndex >= 0 ? sourceIndex : null,
+        from_gloss: glossFlowId !== undefined,
+        reduced_aid: reduce,
+      });
     }
   }
   const replayRef = useRef(handleReplay);

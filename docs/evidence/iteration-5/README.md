@@ -52,3 +52,45 @@
 
 - 走查时在 dev 库用固定假验证码创建了一个测试账号 `13900000001`（`onboarding_completed=true`），并给它加入了一条词汇 `actually`（带来源句）。属于本机 dev 数据，未写入生产。
 - 为跑 e2e 与走查，:3000 上的 Next dev 曾从主检出停止并按工作区重启；工作区缺少可用的 Next 依赖解析（`node_modules` 是指向主检出的符号链接，Turbopack 拒绝跨根解析），因此工作区 dev 用 `next dev --webpack` 启动。结束后 :3000 已恢复为**主检出**的 `npm run dev`。
+
+## 5 第二轮（2026-11-01）：A14 事件接线 · A15 剩余拆分 · B01
+
+### 5.1 落点
+
+| # | 切片 | 落点 | 对外契约 |
+| --- | --- | --- | --- |
+| A14-1 | 契约升到 v3，新增 `gloss_open` / `replay` 与 10 秒配对窗口 | `backend/app/services/event_contract.py`、`frontend/src/lib/analytics.ts`、`docs/comprehensive-audit-2026-10-29/metrics.md` | 行为事件仍是 `{event_id,event_type,event_payload,flow_id,schema_version}`；旧客户端 v1/v2 照旧入库。两个新事件**不进** `MEANINGFUL_EVENT_TYPES` |
+| A14-2 | 词卡打开发 `gloss_open`（带本次词卡自己的 `flow_id` 与句号） | `frontend/src/hooks/useWatchWordCard.ts` | 无（不改词卡行为） |
+| A14-3 | 重听发 `replay`；落在 10 秒窗口且同句时带同 `flow_id`（`from_gloss=true`） | `frontend/src/lib/analytics.ts`（`matchesGlossLink` / `glossFlowForReplay`，模块级记忆）、观看页 `handleReplay` | 无 |
+| A15-1 | YouTube IFrame 后端接线从 `useVideoPlayer` 抽出 | 新 `frontend/src/lib/youtubePlayer.ts`（脚本加载 / 创建 / 销毁），hook 只留回调与播放时钟 | 无（`isYtMode`、seek、倍速、音量的调用点不变） |
+| A15-2 | 后台首页编排编辑器按边界拆成 5 个文件 | `HomeLayoutEditor.tsx`（1,013 → 297 行骨架）、`hooks/useHomeLayoutEditor.ts`（状态机与三条写路径）、`LayoutSlotSections.tsx`、`LayoutCandidateSelect.tsx`、`LayoutPositionSummary.tsx` | 无（页面路径、接口调用、`expected_revision` 冲突语义不变） |
+| A15-3 | 后端首页内容服务按业务边界拆成三层 | `home_content_content.py`（常量 / 指纹 / 字段校验 / DTO）、`home_content_layout.py`（布局读写与公共读取）、`home_content_service.py`（草稿、不可变版本、生成状态机，2,148 → 1,024 行）；`home_content_service` 重新导出另两层的公开名字 | 无（路由、Celery 任务、测试仍按 `home_content_service.<name>` 访问） |
+| B01 | 逐句听写增加「看原文跟打 / 听音默写」模式；判分归一化补单测 | `frontend/src/lib/listeningMode.ts` + 单测、`practice/listening/[id]/page.tsx`；`backend/tests/test_listening_grading.py` | 无（会话冻结、草稿、判分与提交幂等不变；跟打模式的原句来自公开的 `GET /videos/{id}`，不改会话题面） |
+
+### 5.2 本轮实际执行的验证
+
+| 检查 | 命令 / 环境 | 结果 |
+| --- | --- | --- |
+| 前端门禁 | `frontend/` · `npm run check` | **exit 0**：设计系统 9 条 + 会话写入 2 条 + tsc + ESLint + Prettier 全通过（ESLint 0 warning） |
+| 前端单测 | `npm run test:unit` | **38 文件 / 375 项通过**（新增 `analyticsGloss`、`listeningMode` 两个测试文件） |
+| 后端 lint | `ruff check app/ tests/`、`ruff format --check app/ tests/` | 通过（340 files formatted） |
+| 后端 mypy 基线门 | `mypy app --ignore-missing-imports` + 与 `.mypy-baseline` 比对 | **0 条新增**（基线 39 条中 4 条因代码移动已不再出现，未改基线文件） |
+| 后端定点 | 首页内容三套件 + 听写 API + 新判分单测 | **122 passed**（83s） |
+| 后端事件契约 | `pytest tests/test_measurement_service.py` | **8 passed**（新增 v3 `gloss_open`/`replay` 入库用例；这条在 1492 那次全量之后补入，单独运行通过，未再跑一次全量） |
+| 后端全量套件 | `pytest tests/ -q`（内存 SQLite + fake Redis） | **1492 passed / 0 failed / 23 skipped**（1,147s）；23 skipped 仍是需要 `PG_TEST_URL` 的集成用例等既有跳过项 |
+| 浏览器走查 B01（ego-browser） | 工作区 dev（webpack，`:3001`）+ 本机后端 `:8000`，登录后打开真实 `/practice/listening/{id}` | 练习模式组渲染两个按钮；`aria-pressed` 正确随选择切换；「看原文跟打」显示原句「I walk into the office every morning.」；刷新后模式保持；切回「听音默写」原句隐藏 |
+| 浏览器走查 A14（ego-browser） | 同一会话打开 `/watch/{video_id}`，拦截 `POST /behavior/events/batch` 的请求体 | 点词后发出 `gloss_open`（`schema_version=3`，`word=welcome`，`sentence_index=0`，`flow_id=9f66…`）；随后点「重听本句」发出 `replay`（**同一 `flow_id`**，`from_gloss=true`，`sentence_index=0`） |
+
+### 5.3 未执行
+
+- **后台首页编排页面的浏览器走查**：需要管理员会话。本机 dev 库刚迁移，没有既有管理员；把测试账号提升为 `admin` 的命令被 auto-mode 拒绝，因此只做了类型/静态检查，**没有在浏览器里打开该页面**。
+- 真实后端形态的 `watch.spec.ts`（需 `ENV=testing` 后端 + 独立库）、Firefox / WebKit project、需要 `PG_TEST_URL` 的 PostgreSQL 集成用例、生产部署与 smoke：与第一轮相同，未执行。
+- A14 的研究本身（招募、任务观察、实验分组）：仍未执行。本轮只把主指标依赖的两个事件接线可用，**不是**实验已在跑。
+- 轨道 B 的 B02–B05：未实现（B02 仍卡在 D3 决策）。
+
+### 5.4 本机环境变更（不在仓库内）
+
+- **dev Postgres 的 `seeword` 库此前是空的（0 张表）**，`:8000` 后端所有读库接口都返回 500。经用户同意后本轮执行了 `alembic upgrade head`（84 个 revision）与 `python scripts/seed_e2e.py`，现有 49 张表；页面恢复正常。迁移前该库没有任何数据，因此没有覆盖任何内容。
+- 走查用测试账号 `13900000001` 由短信假码登录创建（`is_new_user=true`），并在界面上完成首次引导（目标级别 B1 / 大学英语四级）。属本机 dev 数据。
+- 工作区 dev 运行在 `:3001`（`next dev --webpack`，因为工作区的 `node_modules` 是指向主检出的符号链接）；`:3000` 仍是主检出的 `npm run dev`。本轮另起过一个 `:8005` 后端用于定位 500 的原因，已停止。
+- **`:8000` 当前跑的是主检出（master）代码**：它把 `schema_version=3` 的行为事件按 422 拒绝，前端因此会重试并重复上报同一条事件。这在两侧同时发布后不会出现；本轮以「请求体内容」与后端 v3 用例作为证据，未把它记成端到端已通过。

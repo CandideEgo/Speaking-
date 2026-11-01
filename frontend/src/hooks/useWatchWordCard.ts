@@ -11,6 +11,7 @@
 
 import { useCallback, useRef, useState } from "react";
 
+import { newFlowId, trackGlossOpen } from "@/lib/analytics";
 import {
   isSameWordSelection,
   resolveWordSource,
@@ -49,6 +50,8 @@ interface Options {
   /** 「回看原句」要把字幕跟随拉回来。 */
   resumeFollow: () => void;
   videoTitle: string | null | undefined;
+  /** 词卡事件挂在哪个视频上（A14 `gloss_open`）。 */
+  videoId: string;
   isMobile: boolean;
   immersive: boolean;
 }
@@ -82,6 +85,7 @@ export function useWatchWordCard({
   closeHelp,
   resumeFollow,
   videoTitle,
+  videoId,
   isMobile,
   immersive,
 }: Options): WatchWordCard {
@@ -112,9 +116,18 @@ export function useWatchWordCard({
       }
       wordTriggerRef.current = anchor ?? null;
       setWordAnchorRect(anchor ? anchor.getBoundingClientRect() : null);
-      setWordSource(wordSourcePosition(subtitles, source));
+      const position = wordSourcePosition(subtitles, source);
+      setWordSource(position);
       pauseForHelp();
       lookUpWord(word, source);
+      // A14：每次真正打开词卡发一条 gloss_open，带本次词卡自己的 flow_id；
+      // 配对窗口的记忆也在 analytics 里（窗口不随词卡关闭而清零）。
+      // 重复点同一个词在上面就收起并 return 了，不会刷事件。
+      const flowId = newFlowId();
+      trackGlossOpen(videoId, flowId, position?.index ?? null, {
+        word,
+        has_source: position !== null,
+      });
     },
     [
       selectedWord,
@@ -125,6 +138,7 @@ export function useWatchWordCard({
       closeWordCard,
       pauseForHelp,
       lookUpWord,
+      videoId,
     ]
   );
 

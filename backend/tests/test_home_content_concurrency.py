@@ -12,7 +12,9 @@
 
 并发是**确定性模拟**的：把「另一个管理员的写入」插到被测调用内部的一个已知钩子
 （``_get_or_create_draft`` / ``_get_draft`` / ``_load_subtitles`` /
-``_validate_layout`` / ``_is_publicly_visible``）上，精确复现 TOCTOU 窗口。真实
+``_validate_layout`` / ``_is_publicly_visible``）上，精确复现 TOCTOU 窗口。钩子要打在
+**定义它的那个模块**上：布局侧（``_get_or_create_config`` / ``_validate_layout``）在
+``home_content_layout``，其余在 ``home_content_service``。真实
 线程并发在内存 SQLite（默认测试库）上不可靠，而这里的每一处窗口都是真实存在的
 （生产是 Postgres，条件 UPDATE 在两种库上都真的生效）。
 """
@@ -28,7 +30,7 @@ from app.core.errors import ErrorCode
 from app.models.home_content import HomeContentDraft, HomeContentRevision, HomePageConfig
 from app.models.subtitle import Subtitle
 from app.models.video import Video, VideoStatus
-from app.services import home_content_service
+from app.services import home_content_layout, home_content_service
 from tests.conftest import TestSessionLocal
 
 ADMIN = "/api/v1/admin/home-content"
@@ -447,14 +449,14 @@ async def test_layout_save_conflicts_when_another_admin_saved_first(client, admi
     assert saved.status_code == 200, saved.text
     current_revision = saved.json()["revision"]
 
-    original = home_content_service._get_or_create_config
+    original = home_content_layout._get_or_create_config
 
     async def _hook(db):
         config = await original(db)
         await bump_layout_revision_in_other_session()
         return config
 
-    monkeypatch.setattr(home_content_service, "_get_or_create_config", _hook)
+    monkeypatch.setattr(home_content_layout, "_get_or_create_config", _hook)
 
     response = await save_layout(client, admin_headers, layout, expected_revision=current_revision)
     assert response.status_code == 409
@@ -480,7 +482,7 @@ async def test_publish_layout_conflicts_when_layout_changed_concurrently(
     assert saved.status_code == 200, saved.text
     current_revision = saved.json()["revision"]
 
-    original = home_content_service._validate_layout
+    original = home_content_layout._validate_layout
     fired = {"n": 0}
 
     async def _hook(db, placement):
@@ -489,7 +491,7 @@ async def test_publish_layout_conflicts_when_layout_changed_concurrently(
             await bump_layout_revision_in_other_session()
         return await original(db, placement)
 
-    monkeypatch.setattr(home_content_service, "_validate_layout", _hook)
+    monkeypatch.setattr(home_content_layout, "_validate_layout", _hook)
 
     response = await client.post(
         f"{ADMIN}/layout/publish", headers=admin_headers, json={"expected_revision": current_revision}

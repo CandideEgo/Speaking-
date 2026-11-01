@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EVENT_SCHEMA_VERSION } from "./analytics";
+import { EVENT_SCHEMA_VERSION, GLOSS_REPLAY_WINDOW_MS } from "./analytics";
 
 /**
  * A12 契约对齐：前端只能「镜像」后端的 `BEHAVIOR_EVENT_SCHEMA_VERSION`
@@ -8,7 +8,11 @@ import { EVENT_SCHEMA_VERSION } from "./analytics";
  * 字段名，任一边改契约都必须同时改两边并让测试红一次，避免静默漂移。
  */
 describe("behavior event contract", () => {
-  it("上报契约版本与后端一致（v2）", () => {
-    expect(EVENT_SCHEMA_VERSION).toBe(2);
+  it("上报契约版本与后端一致（v3）", () => {
+    expect(EVENT_SCHEMA_VERSION).toBe(3);
+  });
+
+  it("词卡重听配对窗口与后端 GLOSS_REPLAY_WINDOW_SECONDS 一致", () => {
+    expect(GLOSS_REPLAY_WINDOW_MS).toBe(10_000);
   });
 });

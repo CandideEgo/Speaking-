@@ -34,7 +34,7 @@ import {
  * `BEHAVIOR_EVENT_SCHEMA_VERSION`——前端不能 import 后端模块，两边的对齐靠
  * 这个常量与 `analytics.test.ts` 的契约断言。改版本必须同时改两处。
  */
-export const EVENT_SCHEMA_VERSION = 2;
+export const EVENT_SCHEMA_VERSION = 3;
 
 interface BehaviorEvent {
   /** 客户端生成的事件 id：服务端按它去重，重发/重试不会重复累计学习时长。 */
@@ -239,6 +239,91 @@ export function trackFlowResult(
 export function trackFirstPlay(ms: number, videoId?: string): void {
   if (!Number.isFinite(ms) || ms < 0) return;
   track("first_play", { ms: Math.round(ms), v: EVENT_SCHEMA_VERSION }, videoId);
+}
+
+// ---------------------------------------------------------------------------
+// 词卡会话（A14 单项实验）
+// ---------------------------------------------------------------------------
+//
+// 口径镜像 `backend/app/services/event_contract.py` 的 `CLIENT_GLOSS_OPEN` /
+// `CLIENT_REPLAY` / `GLOSS_REPLAY_WINDOW_SECONDS`。主指标是「查词后 10 秒内
+// 回到同一句并重听」的比例，按同一个 `flow_id` 把两条事件配对即可算出。
+
+/** 词卡会话与重听配对的时间窗（毫秒）。改动必须同步后端的秒数常量。 */
+export const GLOSS_REPLAY_WINDOW_MS = 10_000;
+
+export interface GlossLink {
+  flowId: string;
+  sentenceIndex: number | null;
+  at: number;
+}
+
+/**
+ * 一次重听是否算作「回到刚才那次查词的原句」——窗口期内且同一句。
+ * 任一侧句号未知（null）时不据此否决，宁可配对也不把窗口边缘丢掉。
+ */
+export function matchesGlossLink(
+  link: GlossLink | null,
+  sentenceIndex: number | null,
+  now: number
+): boolean {
+  if (!link) return false;
+  if (now - link.at > GLOSS_REPLAY_WINDOW_MS) return false;
+  if (
+    link.sentenceIndex !== null &&
+    sentenceIndex !== null &&
+    link.sentenceIndex !== sentenceIndex
+  ) {
+    return false;
+  }
+  return true;
+}
+
+// 最近一次词卡会话放在模块级，而不是词卡 hook 的 ref：词卡开着时页面可能重排
+// 甚至重挂载，ref 会随之丢掉，配对窗口就静默失效、主指标被系统性低估。
+let lastGlossLink: GlossLink | null = null;
+
+/**
+ * 词卡打开。`flowId` 是本次词卡会话自己的 id，不是学习流程的会话 id。
+ * 同时记住这次会话，供 10 秒内的 `replay` 配对。
+ */
+export function trackGlossOpen(
+  videoId: string | undefined,
+  flowId: string,
+  sentenceIndex: number | null,
+  extra: Record<string, unknown> = {}
+): void {
+  lastGlossLink = { flowId, sentenceIndex, at: Date.now() };
+  track(
+    "gloss_open",
+    { v: EVENT_SCHEMA_VERSION, sentence_index: sentenceIndex, ...extra },
+    videoId,
+    flowId
+  );
+}
+
+/** 这次重听该带的词卡 `flow_id`；不在窗口内或不同句时返回 undefined。 */
+export function glossFlowForReplay(sentenceIndex: number | null): string | undefined {
+  return matchesGlossLink(lastGlossLink, sentenceIndex, Date.now())
+    ? lastGlossLink?.flowId
+    : undefined;
+}
+
+/** 仅测试用：清掉模块级记忆，避免用例互相污染。 */
+export function resetGlossLink(): void {
+  lastGlossLink = null;
+}
+
+/**
+ * 原句重听。带 `flowId` 表示它落在那次查词的窗口内（同一句），不带则是
+ * 普通的逐句重听——两者分开计数，避免把日常重听算成实验效果。
+ */
+export function trackReplay(
+  videoId: string | undefined,
+  flowId: string | undefined,
+  extra: Record<string, unknown> = {}
+): void {
+  track("replay", { v: EVENT_SCHEMA_VERSION, ...extra }, videoId, flowId);
 }
 
 let vitalsState: VitalsState = createVitalsState();

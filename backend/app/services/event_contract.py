@@ -20,8 +20,9 @@ from __future__ import annotations
 #: 服务端学习事件（``learning_events``）的契约版本。v2 = 带 flow_id/source。
 LEARNING_EVENT_SCHEMA_VERSION = 2
 
-#: 客户端行为事件（``behavior_events``）的契约版本。v2 = 带 flow_id。
-BEHAVIOR_EVENT_SCHEMA_VERSION = 2
+#: 客户端行为事件（``behavior_events``）的契约版本。
+#: v2 = 带 flow_id；v3 = 词卡会话事件 ``gloss_open`` / ``replay``（A14 预注册指标）。
+BEHAVIOR_EVENT_SCHEMA_VERSION = 3
 
 #: 计入「有效学习日」的事件类型。``met_daily_goal`` 是元事件（由别的学习事件
 #: 触发），不能单独把一天算成学习日；``watched_video`` 是 A02 定义的「当天看过
@@ -49,6 +50,20 @@ CLIENT_FLOW_RESULT = "flow_result"
 CLIENT_WEB_VITAL = "web_vital"
 CLIENT_FIRST_PLAY = "first_play"
 WEB_VITAL_METRICS: frozenset[str] = frozenset({"lcp", "inp", "cls"})
+
+#: 观看页词卡会话（A14 单项实验的主指标事件，v3 起）。
+#: ``gloss_open`` 在词卡打开时发一次，带本次词卡自己的 ``flow_id``；
+#: ``replay`` 在触发原句重听时发，若它发生在同一词卡会话的窗口内，就带上
+#: 同一个 ``flow_id``——「查词后回到同一句重听」因此可以直接按 flow_id 配对。
+#: 两者都**不进** ``MEANINGFUL_EVENT_TYPES``：它们是交互意图，不是学习事实，
+#: 不能让一次查词改变有效学习日的分母。
+CLIENT_GLOSS_OPEN = "gloss_open"
+CLIENT_REPLAY = "replay"
+
+#: ``replay`` 被判定为「同一次查词的回看」的最大间隔（秒）。与
+#: ``docs/a14-research-protocol-2026-10-31.md`` 的主指标窗口一致；前端镜像在
+#: ``frontend/src/lib/analytics.ts`` 的 ``GLOSS_REPLAY_WINDOW_MS``。
+GLOSS_REPLAY_WINDOW_SECONDS = 10
 
 
 #: 学习事件里允许出现 ``source`` 的路径；``None`` 表示历史或非路径事件。
