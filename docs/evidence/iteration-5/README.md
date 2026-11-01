@@ -94,3 +94,19 @@
 - 走查用测试账号 `13900000001` 由短信假码登录创建（`is_new_user=true`），并在界面上完成首次引导（目标级别 B1 / 大学英语四级）。属本机 dev 数据。
 - 工作区 dev 运行在 `:3001`（`next dev --webpack`，因为工作区的 `node_modules` 是指向主检出的符号链接）；`:3000` 仍是主检出的 `npm run dev`。本轮另起过一个 `:8005` 后端用于定位 500 的原因，已停止。
 - **`:8000` 当前跑的是主检出（master）代码**：它把 `schema_version=3` 的行为事件按 422 拒绝，前端因此会重试并重复上报同一条事件。这在两侧同时发布后不会出现；本轮以「请求体内容」与后端 v3 用例作为证据，未把它记成端到端已通过。
+
+## 6 合并与合并前复核（2026-11-01）
+
+迭代 5 的两个提交（`78fb3cb0`、`08ca4532`）已以 merge commit **`3da12fd7`** 合回 `master` 并推送 `origin/master`。合并前在合并树上重新执行了下列检查（不只是引用上一轮记录）：
+
+| 检查 | 命令 / 环境 | 结果 |
+| --- | --- | --- |
+| 后端 ruff / format | `ruff check app/ tests/`、`ruff format --check app/ tests/` | 通过（340 files formatted） |
+| mypy 基线门 | `mypy app/ --ignore-missing-imports` 与 `.mypy-baseline` 比对（路径归一化后） | **0 条新增** |
+| 后端全量套件 | `pytest tests/ -q --timeout=180`（内存 SQLite + fake Redis） | **1493 passed / 0 failed / 23 skipped**（1,168s，exit 0） |
+| PostgreSQL 集成用例 | dev 容器内一次性库 `seeword_iter5_test`（跑完即删）+ `PG_TEST_URL=…` `pytest -m integration` | **17 passed**（159s），此前的 skipped 不再包含这些用例 |
+| 前端门禁 | `npm run check` | **exit 0**（设计系统 9 条、会话写入 2 条、tsc、ESLint、Prettier 全通过） |
+| 前端单测 | `npm run test:unit` | **38 文件 / 375 项通过** |
+| 空白错误 | `git diff --check origin/master..HEAD` | 通过 |
+
+仍未执行：后台首页编排页面的浏览器走查、真实后端形态的 `watch.spec.ts`、Firefox / WebKit、生产部署与 smoke。A14 研究本身与 B02–B05 的状态不变。
