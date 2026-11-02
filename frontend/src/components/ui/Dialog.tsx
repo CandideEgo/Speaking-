@@ -48,10 +48,9 @@ export function DialogPopup({ className, ...props }: DialogPrimitive.Popup.Props
   return (
     <DialogPrimitive.Popup
       data-slot="dialog-popup"
-      className={cn(
-        "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-hairline bg-canvas text-ink outline-none",
-        className
-      )}
+      // 这里只给「在视口里、在最上层、不画焦点框」这三件不变的事；
+      // 居中（Modal）还是贴某条边（WordCardSheet）由调用方的 className 决定。
+      className={cn("fixed z-50 outline-none", className)}
       {...props}
     />
   );

@@ -371,6 +371,57 @@
 
 走查中同时确认了一个**遗留问题**（不属于本次改动、也未修）：`useModalFocus` 在 `AdminDialog` 打开时偶尔会把焦点放在对话框根节点而不是首个按钮上（`getClientRects()` 在挂载瞬间还不稳定）。`AdminDialog` 迁到 `ui/Dialog` 时会一并解决。
 
+## 15. Phase 1 实施记录：Drawer（2026-11-02）
+
+交付：
+
+- 新增 [`frontend/src/components/ui/Drawer.tsx`](../frontend/src/components/ui/Drawer.tsx)：Base UI Drawer 的薄封装（Root / Portal / Backdrop / Viewport / Popup / Content / Title / Close，外加 `VirtualKeyboardProvider`）。焦点陷阱、滚动锁、背景 aria-hidden、Escape、外点关闭与下拉手势都由原语负责。
+- [`components/watch/WatchMoreSheet.tsx`](../frontend/src/components/watch/WatchMoreSheet.tsx) 换成 `ui/Drawer`：不再用 `useModalFocus` 手写焦点与 Esc，遮罩/滚动区改由 Backdrop 与 Content 承担；`extra` 里的笔记输入框接了 `VirtualKeyboardProvider`。
+- [`components/watch/WordCardSheet.tsx`](../frontend/src/components/watch/WordCardSheet.tsx) 的模态壳换成 `ui/Dialog`。**没有用 Drawer**：词卡顶边由 `useSheetGeometry` 贴着画框算出来、底边不越过播放栏，而 Drawer 的视口模型是「贴视口底 + snap points + 整卡 swipe」，两者会互相拉扯。几何、把手手势与 `data-testid` 全部保持原样。
+- [`components/watch/SheetHandle.tsx`](../frontend/src/components/watch/SheetHandle.tsx) 增加 `handleRef`（给 `initialFocus` 用）与 `dragEnabled`（下拉交给原语时关掉自己的指针拖动，避免抢同一个手势）。
+- [`components/ui/Dialog.tsx`](../frontend/src/components/ui/Dialog.tsx) 的 `DialogPopup` 只保留「fixed + z-50 + outline-none」，居中/贴边交给调用方：`common/Modal` 补回原来的居中类，`WordCardSheet` 用自己的几何。
+
+**行为差异（都是有意的）**
+
+- **下拉覆盖整张卡片，不再只认把手**；关闭阈值改用原语规则：慢拖超过弹层高度的一半，或速度 ≥ 0.5px/ms 的快速甩动。把手上的指针拖动已关掉（键盘 Enter/Space 仍关闭），否则两套手势会互相拉扯。词卡仍走自己的 64px 把手规则（`SHEET_CLOSE_DRAG_PX`）。
+- **背景从「只拦焦点」变成真 modal**：背景元素 `aria-hidden` + body 滚动锁，焦点按原语规则循环。
+- **内容区不能起下拉**：从滚动区里拖是滚动，从标题栏/把手拖才是关闭（原语按「可滚动祖先」判断，实测符合预期）。
+- 进场/退场仍无动画（`transition-none` + `data-ending-style:hidden`，理由同 §14），动效留到 Phase 2。
+
+验证（`ego-browser`，390×844 移动视口 + 本机 dev 站点）：
+
+| 检查 | 结果 |
+| --- | --- |
+| 抽屉语义 | ✓ `role="dialog"`、`aria-modal="true"`、`aria-label="更多设置"`；弹层 390×675 贴视口底 |
+| 打开后首焦点 | ✓ 落在把手上（鼠标点开与键盘 Enter 都一致） |
+| Escape / 关闭按钮 | ✓ 关闭并把焦点还给 ⋯ 按钮 |
+| 键盘关闭 | ✓ 把手 Enter 关闭，焦点回 ⋯ 按钮 |
+| 外点关闭 | ✓ 点遮罩关闭 |
+| 下拉关闭（鼠标） | ✓ 从标题栏拖 600px，`--drawer-swipe-movement-y` 跟手，松手关闭并回焦 |
+| 下拉关闭（触摸） | ✓ CDP 原生 touch 事件：拖动跟手（`data-swiping`、位移变量同步），松手后关闭 |
+| 内容滚动 | ✓ 内容区可滚动，滚动区内的拖动不触发关闭 |
+| 笔记输入区 | ✓ 打开「笔记」后 textarea 在视口内（574–681），抽屉高度不变 |
+| 词卡（换壳后） | ✓ 位置仍在 `max(8, min(句卡下沿, 底栏顶-240))`；短拉回弹（`transform: none`）、长拉关闭；关闭后焦点回被点的词 |
+| 词卡换词 | ✓ 卡片开着时直接点另一个词仍能切换（没有被 modal 挡掉） |
+| Modal 回归 | ✓ 词单删除确认（`design-rollout` 用例）仍居中可用 |
+| 门禁 | ✓ `npm run check` 全绿，白名单零新增 |
+
+相关 e2e（本机 Playwright + 已跑的 dev 服务）：
+
+| 用例 | 结果 |
+| --- | --- |
+| `ui-review-fixes-mobile.spec.ts` › 更多设置模态焦点进入、约束、Escape 与把手键盘关闭 | ✓ |
+| `mobile-wordcard-drawer.spec.ts`（6 条，含 375×480/600/812 定位、短拉回弹、长拉关闭） | ✓ |
+| `watch-end-screen.spec.ts`（2 条，手机档经由 ⋯ 抽屉点「继续播放」） | ✓ |
+| `design-rollout.spec.ts` › 观看页保留全站导航…句子收藏在抽屉 | ✓ |
+| `design-rollout.spec.ts` 其余几条 | 首轮 4 条失败，逐条重跑 3 条通过；「每日推荐换组…」单独重跑仍失败，它依赖每日推荐数据状态、且页面不引用本轮任何组件（与本次改动无关） |
+
+未覆盖：
+
+- **软键盘**：桌面浏览器没有软键盘，`VirtualKeyboardProvider` 接上了但没在真机上验证「键盘弹出后输入框不被遮挡」。
+- iOS Safari 的视口/安全区行为、真实触屏设备（触摸手势用 CDP 模拟，不是真手指）。
+- 下拉关闭的松手动画：现在关闭是瞬时的（`data-ending-style:hidden`），Phase 2 做动效时要重新检查一次。
+
 ## Sources
 
 - [July 2026 · Base UI as the Default · shadcn/ui](https://ui.shadcn.com/docs/changelog/2026-07-base-ui-default)：默认切 Base UI、Radix 继续支持、迁移不强制；读取于 2026-11-01。

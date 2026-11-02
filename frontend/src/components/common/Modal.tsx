@@ -63,7 +63,11 @@ export function Modal({
       <DialogPortal container={container}>
         <DialogBackdrop />
         <DialogPopup
-          className={cn("space-y-3 p-5", maxWidth)}
+          className={cn(
+            // 定位与外观都归 Modal：DialogPopup 只保证 fixed + 最上层。
+            "top-1/2 left-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-hairline bg-canvas text-ink space-y-3 p-5",
+            maxWidth
+          )}
           finalFocus={returnFocusRef ?? true}
           aria-labelledby={title ? titleId : undefined}
           aria-label={title ? undefined : "对话框"}

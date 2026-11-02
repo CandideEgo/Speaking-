@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type Ref } from "react";
 
 /** #26 决议：把手下拉超过这个距离就关闭（实测可关；也是手势集 #29 要认的那一条）。 */
 export const SHEET_CLOSE_DRAG_PX = 64;
@@ -16,11 +16,21 @@ export function SheetHandle({
   onRelease,
   label = "下拉关闭",
   testId,
+  handleRef,
+  dragEnabled = true,
 }: {
   onDrag: (dy: number) => void;
   onRelease: (dy: number) => void;
   label?: string;
   testId?: string;
+  /** 弹层要把首焦点放在把手上（Base UI 的 `initialFocus`）时传进来。 */
+  handleRef?: Ref<HTMLDivElement>;
+  /**
+   * 关掉后只保留键盘关闭（Enter/Space）与视觉把手，指针拖动交给外层原语
+   * —— `WatchMoreSheet` 换成 Base UI Drawer 后整张卡片都由原语接管下拉，
+   * 这里再拖一次会与它抢同一个手势。
+   */
+  dragEnabled?: boolean;
 }) {
   const startYRef = useRef<number | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -51,6 +61,7 @@ export function SheetHandle({
 
   return (
     <div
+      ref={handleRef}
       data-testid={testId}
       role="button"
       tabIndex={0}
@@ -62,10 +73,10 @@ export function SheetHandle({
           onRelease(SHEET_CLOSE_DRAG_PX + 1);
         }
       }}
-      onPointerDown={down}
-      onPointerMove={move}
-      onPointerUp={up}
-      onPointerCancel={up}
+      onPointerDown={dragEnabled ? down : undefined}
+      onPointerMove={dragEnabled ? move : undefined}
+      onPointerUp={dragEnabled ? up : undefined}
+      onPointerCancel={dragEnabled ? up : undefined}
       className={
         "flex shrink-0 cursor-grab touch-none justify-center pt-2 pb-1 active:cursor-grabbing " +
         (dragging ? "" : "transition-transform duration-150")
