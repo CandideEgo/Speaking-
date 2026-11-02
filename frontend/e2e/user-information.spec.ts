@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { setupWatch, openWatch, VIDEO_ID, subtitles } from "./watch-baseline.fixture";
+import { chooseSelectMenu } from "./helpers";
 
 const VIDEO = {
   id: "content-video",
@@ -504,10 +505,10 @@ for (const width of [1440, 390]) {
       return route.fulfill({ json: { items, page: 1, page_size: 24, total: 24, has_more: false } });
     });
     await page.goto("/?category=tech&level=B1&sort=favorite");
-    await expect(page.locator("#feed-level")).toHaveValue("B1");
-    await page.locator("#feed-level").selectOption("A2");
+    await expect(page.locator("#feed-level")).toContainText("B1 · ≈四级");
+    await chooseSelectMenu(page, page.locator("#feed-level"), /^A2 · /);
     await expect.poll(() => requests.at(-1)?.get("level")).toBe("A2");
-    await page.locator("#feed-sort").selectOption("hot");
+    await chooseSelectMenu(page, page.locator("#feed-sort"), "热播");
     await expect.poll(() => requests.at(-1)?.get("sort")).toBe("hot");
     const video = page
       .locator('#feed [data-testid="home-feed-grid"] > a')
@@ -525,8 +526,8 @@ for (const width of [1440, 390]) {
     ).toBeVisible();
     await page.getByRole("button", { name: "返回首页", exact: true }).click();
     await expect(page).toHaveURL(/category=tech&level=A2&sort=hot/);
-    await expect(page.locator("#feed-level")).toHaveValue("A2");
-    await expect(page.locator("#feed-sort")).toHaveValue("hot");
+    await expect(page.locator("#feed-level")).toContainText("A2 · ≈高考");
+    await expect(page.locator("#feed-sort")).toContainText("热播");
     await expect
       .poll(() => page.locator("#main-scroll").evaluate((element) => element.scrollTop))
       .toBe(scrollTop);

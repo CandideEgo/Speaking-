@@ -15,7 +15,7 @@ import { LinkButton } from "@/components/ui/LinkButton";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Input } from "@/components/ui/Input";
 import { Image } from "@/components/ui/Image";
-import { TabPills } from "@/components/ui/TabPills";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/ToggleGroup";
 import type { VocabSet } from "@/types";
 
 type SetFilter = "all" | "doing" | "done";
@@ -142,16 +142,15 @@ export default function VocabSetsPage() {
           ) : (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <TabPills
-                  variant="chips"
-                  tabs={[
-                    { key: "all", label: "全部" },
-                    { key: "doing", label: "进行中" },
-                    { key: "done", label: "已完成" },
-                  ]}
-                  activeKey={filter}
-                  onChange={(key) => setFilter(key as SetFilter)}
-                />
+                <ToggleGroup
+                  value={filter}
+                  onValueChange={(key) => setFilter(key as SetFilter)}
+                  aria-label="词单状态筛选"
+                >
+                  <ToggleGroupItem value="all">全部</ToggleGroupItem>
+                  <ToggleGroupItem value="doing">进行中</ToggleGroupItem>
+                  <ToggleGroupItem value="done">已完成</ToggleGroupItem>
+                </ToggleGroup>
                 <span className="text-meta text-muted tabular-nums">{countLabel}</span>
               </div>
 

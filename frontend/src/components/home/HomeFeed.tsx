@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { SelectMenu } from "@/components/ui/SelectMenu";
-import { TabPills } from "@/components/ui/TabPills";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/ToggleGroup";
 import { VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { HomeFeedCard } from "@/components/home/HomeFeedCard";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -86,13 +86,18 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
     <>
       <div className="discover-filters">
         <div className="min-w-0" aria-label="视频分类">
-          <TabPills
-            tabs={categories.map((category) => ({ key: category.id, label: category.label }))}
-            activeKey={activeCategory}
-            onChange={setActiveCategory}
-            variant="chips"
+          <ToggleGroup
+            value={activeCategory}
+            onValueChange={setActiveCategory}
             className="discover-categories"
-          />
+            aria-label="视频分类"
+          >
+            {categories.map((category) => (
+              <ToggleGroupItem key={category.id} value={category.id}>
+                {category.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </div>
         <div className="discover-filter-settings">
           <SlidersHorizontal

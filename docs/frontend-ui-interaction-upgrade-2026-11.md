@@ -422,6 +422,92 @@
 - iOS Safari 的视口/安全区行为、真实触屏设备（触摸手势用 CDP 模拟，不是真手指）。
 - 下拉关闭的松手动画：现在关闭是瞬时的（`data-ending-style:hidden`），Phase 2 做动效时要重新检查一次。
 
+## 16. Phase 1 实施记录：ToggleGroup（2026-11-02）
+
+交付：
+
+- 新增 [`frontend/src/components/ui/ToggleGroup.tsx`](../frontend/src/components/ui/ToggleGroup.tsx)：Base UI Toggle Group 的薄封装（`ToggleGroup` / `ToggleGroupItem`），沿用原 `.chip` 的视觉：移动端 44px 触控基线、桌面 32px、pill 描边、选中为墨色底。
+- 替换全部 6 处 `TabPills variant="chips"`：[`HomeFeed`](../frontend/src/components/home/HomeFeed.tsx) 分类、[`channels`](../frontend/src/app/(main)/channels/page.tsx) 学习方向、[`contact`](../frontend/src/app/(main)/contact/page.tsx) 反馈类型、[`practice/exams/result/[id]`](../frontend/src/app/(main)/practice/exams/result/[id]/page.tsx) 错题筛选、[`vocabulary/sets`](../frontend/src/app/(main)/vocabulary/sets/page.tsx) 状态筛选、[`vocabulary/sets/[id]`](../frontend/src/app/(main)/vocabulary/sets/[id]/page.tsx) 词表范围。
+- [`ui/TabPills`](../frontend/src/components/ui/TabPills.tsx) 删除 `variant="chips"`：筛选 chip 只保留一个实现。分段控件（`default`）与 ghost 版本不变。
+
+实现细节（都写进了组件注释）：
+
+1. **单选但不可为空。** Base UI `multiple={false}` 允许「再点一次已选项 → 全部取消」；筛选 chip 必须始终有值，所以封装忽略空数组的变化，点已选项不再回调。
+2. **键盘与语义交给原语。** 组根是 `role="group"`（配 `aria-label`），按钮是原生 `<button>` + `aria-pressed`，方向键 / Home / End 移动焦点，Space / Enter 激活。HomeFeed 的分类外观仍由 `user-ui.css` 的 `[aria-pressed="true"]` 覆盖，没有改品牌色。
+3. **不改公共 API 的落点。** 每处调用仍是「值 + onChange + 选项列表」，没有引入受控数组。
+
+验证（本机 dev 站点 + `ego-browser`，登录态）：
+
+| 检查 | 结果 |
+| --- | --- |
+| 语义 | ✓ `group "视频分类"`、9 个按钮带 `aria-pressed`，选中项 `tabIndex=0`、其余 `-1` |
+| 点击切换 | ✓ 点「TED」后 URL 变 `?category=ted`，`aria-pressed` 同步 |
+| 点已选中项 | ✓ 仍保持选中，不产生空筛选 |
+| 键盘 | ✓ ArrowRight 移动焦点；Space / Enter 激活未选中项并更新 URL |
+| 移动端 390×844 | ✓ chip 高 44px、圆角 pill、`brand-50` 选中底；分类行换行后无横向溢出 |
+| 其他落点 | ✓ `/contact` 反馈类型、`/channels` 学习方向均为 `role=group` + `aria-pressed` |
+
+未覆盖：
+
+- `/vocabulary/sets` 当前账号没有词单，页面走空态，筛选行不渲染；组件本身与其它 5 处共用同一实现。
+- 真题结果页需要已提交的考试会话，本轮未单独走查。
+- **截图未取到**：`Page.captureScreenshot` 连续 CDP 超时（与 §12 同因），视觉结论来自计算样式与 DOM，不是看图。
+
+## 17. Phase 1 实施记录：Tabs（2026-11-02）
+
+交付：
+
+- 新增 [`frontend/src/components/ui/Tabs.tsx`](../frontend/src/components/ui/Tabs.tsx)：Base UI Tabs 的薄封装（`Tabs` / `TabsList` / `TabsTab` / `TabsPanel`）。`TabsList` 默认 `activateOnFocus`，保持原手写实现「方向键即切换」的行为。
+- 迁移两处真正的分栏切换：
+  - [`profile`](../frontend/src/app/(main)/profile/page.tsx)：5 个分组（内容 / 资料 / 进度 / 账号 / 设置），删除手写的 `onTabKeyDown`、`aria-selected`、`tabIndex` 与面板条件渲染。
+  - [`login`](../frontend/src/app/login/page.tsx)：验证码 / 密码两种登录方式，删除 `tabRefs`、`handleTabKeyDown` 与 `switchMode` 的 `moveFocus` 分支。
+- **保留既有 id**：`profile-tab-*` / `profile-panel-*`、`tab-code` / `panel-code` 都原样传给原语，`e2e` 里 `#profile-panel-content` 等选择器不用改。
+
+行为差异（有意）：
+
+- 方向键 / Home / End 现在**移动焦点并立即切换**，与原手写实现一致；`aria-selected` 与 roving `tabIndex` 由原语维护。
+- 非激活面板卸载（`keepMounted` 默认 false）。切换瞬间上一个面板会短暂保留在 DOM 里且 `hidden`，随后卸载；对视觉与无障碍树无影响。
+- 登录页切换方式仍会清空错误与字段错误（`onValueChange` 里调 `switchMode`）。
+
+**`AdminTabs` 没有迁移**：全仓只有 `components/admin/ui/index.ts` 的一处 re-export，0 个调用点；它的 props 只描述「标签条」，没有面板契约，硬套 `Tabs` 会生成指向不存在面板的 `aria-controls`。等后台真正出现分栏页面时，按 `Tabs` 的面板契约接入。
+
+验证（本机 dev 站点 + `ego-browser`，登录态）：
+
+| 检查 | 结果 |
+| --- | --- |
+| 个人页语义 | ✓ `tablist "账户与学习设置分组"`、5 个 `role=tab`、选中项 `aria-selected=true` 且 `tabIndex=0`；面板 `#profile-panel-*` 保留 |
+| 个人页键盘 | ✓ ArrowRight 两次依次切到「资料」「进度」并改 URL；End / Home 切到「设置」「内容」；面板与 URL 同步 |
+| 个人页视觉 | ✓ 选中 tab 下边框 `rgb(0,113,227)`、文字为品牌蓝；未选中为灰色透明边框 |
+| 移动端 390×844 | ✓ tablist 宽 358px、不横向溢出；短标签换行正常 |
+| 登录页语义 | ✓ `tablist "登录方式"`、`tabpanel` 的 `id` / `aria-labelledby`（`panel-code` ↔ `tab-code`）保留 |
+| 登录页键盘 | ✓ ArrowRight 从「验证码登录」切到「密码登录」，焦点随 tab，面板同步切换 |
+| 登录闭环 | ✓ 退出登录 → 固定验证码 `1234` 重新登录成功，回到 `/` |
+| e2e | ✓ `auth.spec.ts`（13 条）+ `avatar.spec.ts`（1 条）全绿 |
+| 门禁 | ✓ `npm run check` 全绿，白名单零新增 |
+| 单测 | ✓ 38 个文件 / 375 条全绿 |
+
+未覆盖：
+
+- `npm run build` 未执行：当时 `:3000` 的 dev 进程正在使用 `.next`，避免构建打断走查。Tabs / ToggleGroup 都不使用 Portal，静态预渲染风险低，但仍应在下次独立构建里复核一次。
+- 面板切换的退场时序（上一面板短暂保留在 DOM）没有做动画验收，Phase 2 接动效时一并检查。
+
+### 17.1 顺带修复：Select 落地后遗留的 e2e 漂移
+
+§12 把 `#feed-level` / `#feed-sort` 从原生 `<select>` 换成 Base UI Select，但 e2e 仍在用 `selectOption()` 与 `toHaveValue()`；本轮跑 `home-feed` 时暴露出来，属真实回归，不是放宽检查。
+
+- [`e2e/helpers.ts`](../frontend/e2e/helpers.ts) 新增 `chooseSelectMenu(page, trigger, option)`：点开触发器，再点弹层里的同名选项；选项标签带等级提示时传 RegExp（如 `/^B2 · /`）。
+- 更新 `home-feed.spec.ts`、`discover-layout.spec.ts`、`user-information.spec.ts`、`watch-return.spec.ts`：`selectOption` → `chooseSelectMenu`，`toHaveValue` → 断言触发器文案；`option:checked` / `selectedOptions` 与「标签是否放得下」的检查改为对触发器做 `scrollWidth <= clientWidth + 1`。
+- `home-feed` 的「空结果可清除筛选」用例同时修掉 strict mode 冲突：工具条与空态各有一个「清除筛选」按钮，改用 `.first()`。
+
+验证：
+
+| 用例 | 结果 |
+| --- | --- |
+| `discover-layout.spec.ts`（8 档视口） | ✓ 9/9 |
+| `home-feed.spec.ts` | ✓ 6/7；剩余 1 条 `.home-editorial-lead` 依赖 dev 库里已发布的首页编辑内容，本机未播种，与本次改动无关 |
+| `user-information.spec.ts` › 我的默认展示 / 筛选写入请求（1440/390） | ✓ 3/3 |
+| `watch-return.spec.ts` | ✓ 1/1 |
+
 ## Sources
 
 - [July 2026 · Base UI as the Default · shadcn/ui](https://ui.shadcn.com/docs/changelog/2026-07-base-ui-default)：默认切 Base UI、Radix 继续支持、迁移不强制；读取于 2026-11-01。

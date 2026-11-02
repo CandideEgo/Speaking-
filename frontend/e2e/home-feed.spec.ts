@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
+import { uniquePhone, registerUserViaApi, loginViaToken, chooseSelectMenu } from "./helpers";
 
 /**
  * 首页下滑流：`/browse` 的分类 / 难度 / 排序并入首页后，筛选仍然是 URL 的
@@ -115,8 +115,8 @@ test.describe("首页下滑流 · 筛选", () => {
           },
           "ted-null-latest",
         ],
-        [() => page.locator("#feed-level").selectOption("B2"), "ted-B2-latest"],
-        [() => page.locator("#feed-sort").selectOption("favorite"), "ted-B2-favorite"],
+        [() => chooseSelectMenu(page, page.locator("#feed-level"), /^B2 · /), "ted-B2-latest"],
+        [() => chooseSelectMenu(page, page.locator("#feed-sort"), "收藏最多"), "ted-B2-favorite"],
       ] as const) {
         await action();
         await expect(page.getByText(`${expected}视频 0`, { exact: true })).toBeVisible();
@@ -129,7 +129,7 @@ test.describe("首页下滑流 · 筛选", () => {
       await page.reload();
       await expect(page.getByText("ted-B2-favorite视频 0", { exact: true })).toBeVisible();
       await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(initialTop);
-      await page.locator("#feed-sort").selectOption("hot");
+      await chooseSelectMenu(page, page.locator("#feed-sort"), "热播");
       await expect(page.getByText("没有同时满足这些条件的视频")).toBeVisible();
       await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(initialTop);
     });
@@ -144,7 +144,7 @@ test.describe("首页下滑流 · 筛选", () => {
         (r) => r.url().includes("/browse/feed") && r.url().includes("sort=favorite"),
         { timeout: 20000 }
       ),
-      sort.selectOption("favorite"),
+      chooseSelectMenu(page, sort, "收藏最多"),
     ]);
     expect(favoriteResponse.status()).toBe(200);
     await expect(page).toHaveURL(/sort=favorite/);
@@ -154,7 +154,7 @@ test.describe("首页下滑流 · 筛选", () => {
         (r) => r.url().includes("/browse/feed") && r.url().includes("sort=weekly_favorite"),
         { timeout: 20000 }
       ),
-      sort.selectOption("weekly_favorite"),
+      chooseSelectMenu(page, sort, "本周收藏"),
     ]);
     expect(weeklyResponse.status()).toBe(200);
     await expect(page).toHaveURL(/sort=weekly_favorite/);
@@ -168,7 +168,7 @@ test.describe("首页下滑流 · 筛选", () => {
 
     // 默认是推荐流，没有「看全部视频」的中转按钮
     await expect(page.getByRole("link", { name: "看全部视频" })).toHaveCount(0);
-    await expect(sort).toHaveValue("recommended");
+    await expect(sort).toContainText("推荐");
 
     const [categoryResponse] = await Promise.all([
       page.waitForResponse(
@@ -180,15 +180,19 @@ test.describe("首页下滑流 · 筛选", () => {
     expect(categoryResponse.status()).toBe(200);
     await expect(page).toHaveURL(/category=news/);
     // 后端没有「分类内的个性化」这条排序，界面如实显示最新，并隐藏推荐
-    await expect(sort).toHaveValue("latest");
-    await expect(sort.locator('option[value="recommended"]')).toHaveCount(0);
+    await expect(sort).toContainText("最新");
+    await sort.click();
+    await expect(
+      page.getByRole("listbox").getByRole("option", { name: "推荐", exact: true })
+    ).toHaveCount(0);
+    await page.keyboard.press("Escape");
 
     const [levelResponse] = await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes("/browse/feed") && r.url().includes("level=B2"),
         { timeout: 20000 }
       ),
-      level.selectOption("B2"),
+      chooseSelectMenu(page, level, /^B2 · /),
     ]);
     expect(levelResponse.status()).toBe(200);
     await expect(page).toHaveURL(/level=B2/);
@@ -236,10 +240,11 @@ test.describe("首页下滑流 · 筛选", () => {
     await page.goto("/?category=movie");
     await expect(page.getByText("没有同时满足这些条件的视频")).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole("button", { name: "清除筛选" }).click();
+    // 工具条与空态各有一个「清除筛选」按钮；任一点击都走同一个 clearFilters。
+    await page.getByRole("button", { name: "清除筛选" }).first().click();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByText("首页推荐视频")).toBeVisible({ timeout: 15000 });
-    await expect(page.locator("#feed-sort")).toHaveValue("recommended");
+    await expect(page.locator("#feed-sort")).toContainText("推荐");
   });
 
   test("旧链接 /browse 307 到首页并保留筛选，丢弃无关参数", async ({ page }) => {
@@ -247,7 +252,7 @@ test.describe("首页下滑流 · 筛选", () => {
     await page.goto("/browse?category=ted&sort=hot&utm_source=old&page=2");
 
     await expect(page).toHaveURL(/\/\?category=ted&sort=hot$/);
-    await expect(page.locator("#feed-sort")).toHaveValue("hot");
+    await expect(page.locator("#feed-sort")).toContainText("热播");
   });
 
   test("真实数据首页以完整视频为主，辅助练习接口保持可用", async ({ page, request }) => {

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { TabPills } from "@/components/ui/TabPills";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/ToggleGroup";
 import { api } from "@/lib/api";
 import { channelMatchesQuery } from "@/lib/channelLearning";
 import type { ChannelSubscriptionSummary, ChannelSummary } from "@/types/channels";
@@ -294,13 +294,18 @@ export default function ChannelsPage() {
             </div>
             {directionOptions.length > 0 && (
               <div className="mt-3 flex min-w-0 items-center gap-2 overflow-x-auto scrollbar-none">
-                <TabPills
-                  tabs={directionTabs}
-                  activeKey={direction}
-                  onChange={setDirection}
-                  variant="chips"
+                <ToggleGroup
+                  value={direction}
+                  onValueChange={setDirection}
                   className="flex-nowrap"
-                />
+                  aria-label="学习方向筛选"
+                >
+                  {directionTabs.map((tab) => (
+                    <ToggleGroupItem key={tab.key} value={tab.key}>
+                      {tab.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
               </div>
             )}
           </div>

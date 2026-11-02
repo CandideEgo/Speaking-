@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { setupWatch } from "./watch-baseline.fixture";
+import { chooseSelectMenu } from "./helpers";
 
 const videos = Array.from({ length: 8 }, (_, index) => ({
   id: `discover-layout-${index}`,
@@ -105,23 +106,13 @@ for (const width of [360, 390, 430, 600, 820, 1024, 1366, 1440, 1920]) {
       expect(bounds.x).toBeGreaterThanOrEqual(0);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
     }
-    await page.locator("#feed-level").selectOption("C1");
+    await chooseSelectMenu(page, page.locator("#feed-level"), /^C1 · /);
     await expect(page).toHaveURL(/level=C1/);
-    await expect(page.locator("#feed-level option:checked")).toHaveText("C1 · ≈考研/雅思");
-    await page.locator("#feed-sort").selectOption("weekly_favorite");
-    const selectFits = await page.locator("#feed-level").evaluate((element) => {
-      const select = element as HTMLSelectElement;
-      const style = getComputedStyle(select);
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d")!;
-      context.font = `${style.fontSize} ${style.fontFamily}`;
-      return (
-        context.measureText(select.selectedOptions[0].text).width +
-          parseFloat(style.paddingLeft) +
-          parseFloat(style.paddingRight) <=
-        select.clientWidth
-      );
-    });
+    await expect(page.locator("#feed-level")).toContainText("C1 · ≈考研/雅思");
+    await chooseSelectMenu(page, page.locator("#feed-sort"), "本周收藏");
+    const selectFits = await page
+      .locator("#feed-level")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
     expect(selectFits).toBe(true);
     expect(
       await page.locator("main").evaluate((el) => el.scrollWidth - el.clientWidth)
@@ -138,8 +129,8 @@ for (const width of [360, 390, 430, 600, 820, 1024, 1366, 1440, 1920]) {
       });
     }
     await page.getByRole("button", { name: "清除筛选", exact: true }).click();
-    await expect(page.locator("#feed-level")).toHaveValue("all");
-    await expect(page.locator("#feed-sort")).toHaveValue("weekly_favorite");
+    await expect(page.locator("#feed-level")).toContainText("全部档位");
+    await expect(page.locator("#feed-sort")).toContainText("本周收藏");
     await expect(page.getByRole("button", { name: "清除筛选", exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: /看全部词汇/ })).toHaveAttribute(
       "href",

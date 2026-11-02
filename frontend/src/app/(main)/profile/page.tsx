@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { api, isProUser } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/Tabs";
 import { Avatar } from "@/components/ui/Avatar";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -178,19 +179,6 @@ export default function ProfilePage() {
   const dailyMinutes = weeklyStats?.daily_minutes ?? [];
   const dailyMax = Math.max(1, ...dailyMinutes.map((d) => d.minutes));
 
-  function onTabKeyDown(e: React.KeyboardEvent, index: number) {
-    let next = -1;
-    if (e.key === "ArrowRight") next = (index + 1) % TABS.length;
-    else if (e.key === "ArrowLeft") next = (index - 1 + TABS.length) % TABS.length;
-    else if (e.key === "Home") next = 0;
-    else if (e.key === "End") next = TABS.length - 1;
-    if (next < 0) return;
-    e.preventDefault();
-    const key = TABS[next].key;
-    setActiveTab(key);
-    requestAnimationFrame(() => document.getElementById(`profile-tab-${key}`)?.focus());
-  }
-
   return (
     <PageTransition>
       {searchParams.get("retired") === "weekly-report" && (
@@ -249,64 +237,44 @@ export default function ProfilePage() {
 
         <div className="user-page-layout has-aside">
           <div className="user-page-main">
-            {/* Tabs（设计稿 aria-tablist 语义 + 方向键；375 短标签避免竖排换行） */}
-            <div
-              role="tablist"
-              aria-label="账户与学习设置分组"
-              className="flex flex-wrap gap-1 border-b border-hairline min-[1025px]:flex-nowrap"
-            >
-              {TABS.map((tab, index) => (
-                <button
-                  key={tab.key}
-                  id={`profile-tab-${tab.key}`}
-                  role="tab"
-                  type="button"
-                  aria-selected={activeTab === tab.key}
-                  aria-controls={`profile-panel-${tab.key}`}
-                  tabIndex={activeTab === tab.key ? 0 : -1}
-                  onClick={() => setActiveTab(tab.key)}
-                  onKeyDown={(e) => onTabKeyDown(e, index)}
-                  className={cn(
-                    "flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap border-b-2 px-3 py-3 text-copy font-medium transition-colors sm:px-4",
-                    activeTab === tab.key
-                      ? "border-brand-500 text-brand-700"
-                      : "border-transparent text-muted hover:text-ink"
-                  )}
-                >
-                  {/* 手机上五个 tab 带图标会超宽，把「设置」挤到横向滚动区外；
-                      窄屏只留文字，桌面再显示图标。 */}
-                  <tab.icon size={16} className="hidden sm:block" />
-                  <span className="sm:hidden">{tab.label}</span>
-                  <span className="hidden sm:inline">{tab.longLabel}</span>
-                </button>
-              ))}
-            </div>
+            {/* Tabs（Base UI：tablist / tabpanel 关联、方向键与 roving tabindex；
+                375 短标签避免竖排换行） */}
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)}>
+              <TabsList
+                aria-label="账户与学习设置分组"
+                className="flex flex-wrap gap-1 border-b border-hairline min-[1025px]:flex-nowrap"
+              >
+                {TABS.map((tab) => (
+                  <TabsTab
+                    key={tab.key}
+                    value={tab.key}
+                    id={`profile-tab-${tab.key}`}
+                    className={cn(
+                      "flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-3 text-copy font-medium transition-colors sm:px-4",
+                      "border-transparent text-muted hover:text-ink",
+                      "data-active:border-brand-500 data-active:text-brand-700"
+                    )}
+                  >
+                    {/* 手机上五个 tab 带图标会超宽，把「设置」挤到横向滚动区外；
+                        窄屏只留文字，桌面再显示图标。 */}
+                    <tab.icon size={16} className="hidden sm:block" />
+                    <span className="sm:hidden">{tab.label}</span>
+                    <span className="hidden sm:inline">{tab.longLabel}</span>
+                  </TabsTab>
+                ))}
+              </TabsList>
 
-            {/* Tab content */}
-            <div className="mt-6">
-              {activeTab === "content" && (
-                <div
-                  id="profile-panel-content"
-                  role="tabpanel"
-                  aria-labelledby="profile-tab-content"
-                >
+              {/* Tab content */}
+              <div className="mt-6">
+                <TabsPanel value="content" id="profile-panel-content">
                   <ProfileOverview />
-                </div>
-              )}
-              {activeTab === "profile" && (
-                <div
-                  id="profile-panel-profile"
-                  role="tabpanel"
-                  aria-labelledby="profile-tab-profile"
-                >
+                </TabsPanel>
+                <TabsPanel value="profile" id="profile-panel-profile">
                   <ProfileTab user={user} onUpdate={applyUser} />
-                </div>
-              )}
-              {activeTab === "progress" && (
-                <div
+                </TabsPanel>
+                <TabsPanel
+                  value="progress"
                   id="profile-panel-progress"
-                  role="tabpanel"
-                  aria-labelledby="profile-tab-progress"
                   className="max-w-2xl space-y-6"
                 >
                   {/* 学习统计（设计稿 profile「学习统计」四个数字：词库总量 / 今天到期 / 之后到期 / 已掌握） */}
@@ -412,14 +380,8 @@ export default function ProfilePage() {
                       <EventDistributionChart data={eventDist} />
                     </Card>
                   </section>
-                </div>
-              )}
-              {activeTab === "account" && (
-                <div
-                  id="profile-panel-account"
-                  role="tabpanel"
-                  aria-labelledby="profile-tab-account"
-                >
+                </TabsPanel>
+                <TabsPanel value="account" id="profile-panel-account">
                   <SettingsTab
                     key="account"
                     section="account"
@@ -427,14 +389,8 @@ export default function ProfilePage() {
                     preferences={preferences}
                     onUpdatePreferences={setPreferences}
                   />
-                </div>
-              )}
-              {activeTab === "settings" && (
-                <div
-                  id="profile-panel-settings"
-                  role="tabpanel"
-                  aria-labelledby="profile-tab-settings"
-                >
+                </TabsPanel>
+                <TabsPanel value="settings" id="profile-panel-settings">
                   <SettingsTab
                     key="learning"
                     section="learning"
@@ -442,9 +398,9 @@ export default function ProfilePage() {
                     preferences={preferences}
                     onUpdatePreferences={setPreferences}
                   />
-                </div>
-              )}
-            </div>
+                </TabsPanel>
+              </div>
+            </Tabs>
           </div>
 
           <aside className="user-page-aside">

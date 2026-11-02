@@ -1,4 +1,4 @@
-import type { Page, APIRequestContext } from "@playwright/test";
+import type { Locator, Page, APIRequestContext } from "@playwright/test";
 
 /**
  * Shared helpers for the e2e suite.
@@ -25,6 +25,24 @@ export async function fillSmsOtp(page: Page, code = DEV_SMS_CODE): Promise<void>
 
 /** Password meeting the frontend policy (>=8 chars, upper + lower + digit). */
 export const TEST_PASSWORD = "TestPass123";
+
+/**
+ * 选择 Base UI `ui/SelectMenu` 的选项：点开触发器，再点弹层里的选项。
+ *
+ * `#feed-level` / `#feed-sort` 已从原生 `<select>` 换成 Base UI Select
+ * （触发器是 `button[role="combobox"]`），Playwright 的 `selectOption()` 与
+ * `toHaveValue()` 都不再适用。选项标签含等级提示（如 `B2 · ≈六级`），需要按
+ * 前缀选时传 RegExp。
+ */
+export async function chooseSelectMenu(
+  page: Page,
+  trigger: Locator,
+  option: string | RegExp
+): Promise<void> {
+  await trigger.click();
+  const listbox = page.getByRole("listbox").last();
+  await listbox.getByRole("option", { name: option, exact: typeof option === "string" }).click();
+}
 
 let phoneCounter = 0;
 

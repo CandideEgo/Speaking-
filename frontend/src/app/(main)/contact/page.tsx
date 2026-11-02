@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge, type BadgeTone } from "@/components/common/Badge";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
-import { TabPills } from "@/components/ui/TabPills";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/ToggleGroup";
 import {
   Megaphone,
   Send,
@@ -300,13 +300,18 @@ export default function ContactPage() {
                 >
                   <div>
                     <span className="block text-copy font-medium text-ink">反馈类型</span>
-                    <TabPills
-                      variant="chips"
-                      tabs={CATEGORIES.map((c) => ({ key: c.key, label: c.label }))}
-                      activeKey={category}
-                      onChange={(key) => setCategory(key)}
+                    <ToggleGroup
+                      value={category}
+                      onValueChange={setCategory}
                       className="mt-2"
-                    />
+                      aria-label="反馈类型"
+                    >
+                      {CATEGORIES.map((c) => (
+                        <ToggleGroupItem key={c.key} value={c.key}>
+                          {c.label}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
                   </div>
                   <label className="block text-copy font-medium text-ink">
                     反馈标题（可选）

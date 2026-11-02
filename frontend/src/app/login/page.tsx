@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Lock } from "lucide-react";
@@ -18,6 +18,7 @@ import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthenticatedRedirect } from "@/components/auth/AuthenticatedRedirect";
 import { SmsOtpInput } from "@/components/auth/SmsOtpInput";
 import { PasswordField } from "@/components/auth/PasswordField";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/Tabs";
 import { cn } from "@/lib/utils";
 
 type LoginMode = "code" | "password";
@@ -55,10 +56,6 @@ function LoginForm() {
   const [focusSignal, setFocusSignal] = useState(0);
   // 登录后去哪：提交前声明，之后由 useRedirectIfAuthenticated 导航（见 handleSubmit）。
   const [postAuth, setPostAuth] = useState<string | null>(null);
-  const tabRefs = useRef<Record<LoginMode, HTMLButtonElement | null>>({
-    code: null,
-    password: null,
-  });
 
   const { cooldown, sending, sendCode, error: smsError, clearError } = useSmsCode(phone);
   const { isAuthenticated, isLoading, redirectStuck } = useRedirectIfAuthenticated(
@@ -75,33 +72,11 @@ function LoginForm() {
     return <AuthenticatedRedirect redirectStuck={redirectStuck} next={postAuth ?? next} />;
   }
 
-  function switchMode(nextMode: LoginMode, moveFocus = false) {
+  function switchMode(nextMode: LoginMode) {
     setMode(nextMode);
     setError("");
     setFieldErrors({});
     clearError();
-    if (moveFocus) {
-      // 键盘切换：焦点进入面板第一个可输入控件（设计 initTabs 的行为）。
-      requestAnimationFrame(() => {
-        const panel = document.getElementById(`panel-${nextMode}`);
-        const first = panel?.querySelector<HTMLElement>("input:not([disabled])");
-        first?.focus();
-      });
-    }
-  }
-
-  function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-    const index = TABS.findIndex((tab) => tab.value === mode);
-    let nextIndex: number | null = null;
-    if (event.key === "ArrowRight") nextIndex = (index + 1) % TABS.length;
-    else if (event.key === "ArrowLeft") nextIndex = (index - 1 + TABS.length) % TABS.length;
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = TABS.length - 1;
-    if (nextIndex === null) return;
-    event.preventDefault();
-    const nextMode = TABS[nextIndex].value;
-    switchMode(nextMode);
-    tabRefs.current[nextMode]?.focus();
   }
 
   function handlePhoneChange(value: string) {
@@ -178,46 +153,29 @@ function LoginForm() {
 
   return (
     <AuthCard title="欢迎回来" subtitle="登录账号，继续今天的学习。">
-      <div
-        role="tablist"
-        aria-label="登录方式"
-        className="mt-2 grid grid-cols-2 gap-1 rounded-md border border-hairline bg-surface-soft p-1"
-      >
-        {TABS.map((tab) => (
-          <button
-            key={tab.value}
-            ref={(node) => {
-              tabRefs.current[tab.value] = node;
-            }}
-            id={`tab-${tab.value}`}
-            type="button"
-            role="tab"
-            aria-selected={mode === tab.value}
-            aria-controls={`panel-${tab.value}`}
-            tabIndex={mode === tab.value ? 0 : -1}
-            onClick={() => switchMode(tab.value)}
-            onKeyDown={handleTabKeyDown}
-            className={cn(
-              "rounded-sm px-3 py-2 text-copy font-medium transition-colors",
-              mode === tab.value
-                ? "border border-hairline bg-canvas font-semibold text-ink"
-                : "border border-transparent text-body hover:text-ink"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={mode} onValueChange={(value) => switchMode(value as LoginMode)}>
+        <TabsList
+          aria-label="登录方式"
+          className="mt-2 grid grid-cols-2 gap-1 rounded-md border border-hairline bg-surface-soft p-1"
+        >
+          {TABS.map((tab) => (
+            <TabsTab
+              key={tab.value}
+              value={tab.value}
+              id={`tab-${tab.value}`}
+              className={cn(
+                "rounded-sm border px-3 py-2 text-copy font-medium transition-colors",
+                "border-transparent text-body hover:text-ink",
+                "data-active:border-hairline data-active:bg-canvas data-active:font-semibold data-active:text-ink"
+              )}
+            >
+              {tab.label}
+            </TabsTab>
+          ))}
+        </TabsList>
 
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {mode === "code" ? (
-          <div
-            id="panel-code"
-            role="tabpanel"
-            aria-labelledby="tab-code"
-            tabIndex={0}
-            className="space-y-4 outline-none"
-          >
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <TabsPanel value="code" id="panel-code" tabIndex={0} className="space-y-4 outline-none">
             <div>
               <label htmlFor="login-phone" className="block text-copy font-medium text-ink">
                 手机号
@@ -295,12 +253,10 @@ function LoginForm() {
               )}
               <p className="text-meta text-muted">未注册的手机号验证后会直接创建账号。</p>
             </div>
-          </div>
-        ) : (
-          <div
+          </TabsPanel>
+          <TabsPanel
+            value="password"
             id="panel-password"
-            role="tabpanel"
-            aria-labelledby="tab-password"
             tabIndex={0}
             className="space-y-4 outline-none"
           >
@@ -360,31 +316,31 @@ function LoginForm() {
               disabled={loading}
               hint="密码登录只在已经设置过密码的账号上可用；没设过就用验证码登录，然后在「设置登录密码」里补上。"
             />
-          </div>
-        )}
+          </TabsPanel>
 
-        {serverError && (
-          <div className="flex items-start gap-2 rounded-md border border-error/30 bg-red-soft px-3 py-2.5 [&>p]:text-error-text">
-            <AlertCircle
-              size={16}
-              className="mt-0.5 flex-none text-error-text"
-              aria-hidden="true"
-            />
-            {/* e2e（auth.spec.ts）钉住了 p.text-error 的文案，保留该选择器。 */}
-            <p
-              id="login-error"
-              role="alert"
-              className="min-w-0 text-meta leading-relaxed text-error"
-            >
-              {serverError}
-            </p>
-          </div>
-        )}
+          {serverError && (
+            <div className="flex items-start gap-2 rounded-md border border-error/30 bg-red-soft px-3 py-2.5 [&>p]:text-error-text">
+              <AlertCircle
+                size={16}
+                className="mt-0.5 flex-none text-error-text"
+                aria-hidden="true"
+              />
+              {/* e2e（auth.spec.ts）钉住了 p.text-error 的文案，保留该选择器。 */}
+              <p
+                id="login-error"
+                role="alert"
+                className="min-w-0 text-meta leading-relaxed text-error"
+              >
+                {serverError}
+              </p>
+            </div>
+          )}
 
-        <Button type="submit" fullWidth loading={loading} className="mt-2 h-12">
-          {loading ? "登录中..." : "登录"}
-        </Button>
-      </form>
+          <Button type="submit" fullWidth loading={loading} className="mt-2 h-12">
+            {loading ? "登录中..." : "登录"}
+          </Button>
+        </form>
+      </Tabs>
 
       {/* 次要入口 + 底部信任行 */}
       <p className="mt-5 text-center text-copy text-muted">

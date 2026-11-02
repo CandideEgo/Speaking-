@@ -17,8 +17,8 @@ export type ActiveStyle = "default" | "dark" | "brand";
 /** Size preset controlling padding. */
 export type TabSize = "md" | "sm";
 
-/** Visual variants: segmented tabs / bare ghost tabs / design `.chip` filter chips. */
-export type TabVariant = "default" | "ghost" | "chips";
+/** Visual variants: segmented tabs / bare ghost tabs. */
+export type TabVariant = "default" | "ghost";
 
 export interface TabPillsProps<K extends string = string> {
   /** List of tabs to render. */
@@ -31,8 +31,7 @@ export interface TabPillsProps<K extends string = string> {
   className?: string;
   /**
    * Visual variant. Default "default" = segmented pill control (设计 `.tabs`);
-   * "ghost" = no background, tighter; "chips" = 设计 `.chip` 行（32px 高、
-   * 描边、激活为墨色底），用于难度/分类这类筛选行。
+   * "ghost" = no background, tighter. 筛选 chip 行用 `ui/ToggleGroup`，不在这里。
    */
   variant?: TabVariant;
   /** Tab shape override. Default "pill"; "rect" = sharper corners. */
@@ -64,7 +63,6 @@ export function TabPills<K extends string = string>({
   activeStyle = "default",
   size = "md",
 }: TabPillsProps<K>) {
-  const isChips = variant === "chips";
   return (
     <div
       className={cn(
@@ -72,7 +70,6 @@ export function TabPills<K extends string = string>({
         variant === "default" &&
           "flex-wrap items-center rounded-pill border border-hairline bg-surface-soft p-1",
         variant === "ghost" && "flex-nowrap bg-transparent p-0",
-        isChips && "flex-wrap items-center gap-2 bg-transparent p-0",
         className
       )}
     >
@@ -86,18 +83,13 @@ export function TabPills<K extends string = string>({
             onClick={() => onChange(tab.key)}
             className={cn(
               // shrink-0 + nowrap：放进 overflow-x-auto 的筛选行时不被压缩成多行/竖排。
-              // 移动端把筛选 chip / tab 的高度抬到 44px 触控基线；桌面仍按设计 32px。
+              // 移动端把 tab 的高度抬到 44px 触控基线；桌面仍按设计 32px。
               "inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center whitespace-nowrap transition-colors duration-150 min-[1025px]:min-h-8",
-              !isChips && "rounded-pill text-meta font-medium text-muted",
-              !isChips && !isActive && "hover:text-ink",
-              !isChips && SIZE_CLASSES[size],
-              !isChips && shape === "rect" && "rounded-sm",
-              isChips &&
-                "h-11 rounded-pill border border-hairline-strong bg-canvas px-3 text-meta font-medium text-body hover:border-muted-soft hover:text-ink min-[1025px]:h-8",
-              isActive &&
-                (isChips
-                  ? "border-ink bg-ink text-canvas hover:text-canvas"
-                  : ACTIVE_CLASSES[activeStyle])
+              "rounded-pill text-meta font-medium text-muted",
+              !isActive && "hover:text-ink",
+              SIZE_CLASSES[size],
+              shape === "rect" && "rounded-sm",
+              isActive && ACTIVE_CLASSES[activeStyle]
             )}
           >
             {tab.label}

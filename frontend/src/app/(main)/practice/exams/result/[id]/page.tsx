@@ -17,7 +17,7 @@ import { FullPageSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
 import type { ExamSubmitResultItem } from "@/components/exam/ExamRunner";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { TabPills } from "@/components/ui/TabPills";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/ToggleGroup";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { cn } from "@/lib/utils";
 
@@ -131,15 +131,10 @@ export default function ExamResultPage() {
       <section className="mt-8" aria-label="每题回顾">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="user-sec-title">每题回顾</h2>
-          <TabPills
-            variant="chips"
-            tabs={[
-              { key: "wrong", label: `只看错题 ${wrong.length} 道` },
-              { key: "all", label: `全部 ${results.length} 题` },
-            ]}
-            activeKey={activeFilter}
-            onChange={setFilter}
-          />
+          <ToggleGroup value={activeFilter} onValueChange={setFilter} aria-label="题目筛选">
+            <ToggleGroupItem value="wrong">只看错题 {wrong.length} 道</ToggleGroupItem>
+            <ToggleGroupItem value="all">全部 {results.length} 题</ToggleGroupItem>
+          </ToggleGroup>
         </div>
         {!visible.length && <p className="py-6 text-muted">本次没有错题。</p>}
         <ol className="mt-4 divide-y divide-hairline">

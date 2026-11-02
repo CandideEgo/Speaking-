@@ -1,5 +1,5 @@
 import { test, expect, type Locator } from "@playwright/test";
-import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
+import { uniquePhone, registerUserViaApi, loginViaToken, chooseSelectMenu } from "./helpers";
 
 /**
  * 来源感知返回（S1）：首页列表 → 播放页 → 返回，筛选与列表都要回来，
@@ -42,7 +42,7 @@ test.describe("Watch Page - Return to source", () => {
         (r) => r.url().includes("/browse/feed") && r.url().includes("sort=hot"),
         { timeout: 20000 }
       ),
-      sort.selectOption("hot"),
+      chooseSelectMenu(page, sort, "热播"),
     ]);
     await expect(page).toHaveURL(/sort=hot/);
 

@@ -9,7 +9,7 @@ import { useVocabSetDetail } from "@/hooks/useVocabSetDetail";
 import { FullPageSpinner, InlineSpinner } from "@/components/common/Spinner";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Image } from "@/components/ui/Image";
-import { TabPills } from "@/components/ui/TabPills";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/ToggleGroup";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { SetEditor } from "@/components/vocabulary/SetEditor";
@@ -300,15 +300,20 @@ export default function VocabSetDetailPage() {
                 </span>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <TabPills
-                  variant="chips"
-                  tabs={SCOPE_TABS.map((t) => ({ key: t.key, label: t.label }))}
-                  activeKey={scope}
-                  onChange={(key) => {
+                <ToggleGroup
+                  value={scope}
+                  onValueChange={(key) => {
                     setScope(key as ScopeKey);
                     setBatch(1);
                   }}
-                />
+                  aria-label="词表范围筛选"
+                >
+                  {SCOPE_TABS.map((t) => (
+                    <ToggleGroupItem key={t.key} value={t.key}>
+                      {t.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
                 <span className="text-meta text-muted">点词可回观看页核对原句</span>
               </div>
 
