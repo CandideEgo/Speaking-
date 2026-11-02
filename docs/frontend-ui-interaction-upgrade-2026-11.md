@@ -1,7 +1,7 @@
 # SeeWord 前端 UI 与交互提升方案
 
 日期：2026-11-01
-状态：Phase 0–2 已实施（2026-11-02），Phase 3 待需求触发。Phase 1 与 Phase 2 的实施记录见 §10–§19。
+状态：Phase 0–3 已实施（2026-11-02）。Phase 1 / 2 的记录见 §10–§19，Phase 3 的 Command 与另两项评估结论见 §20。
 代码基线：`master af66755c`。文中调用点数量按该基线实测，改代码后会漂移，实施时以 `grep` 为准。
 范围：**仅前端组件层与交互层**。不改后端契约、不改路由、不改设计 token 的数值与品牌色。
 
@@ -144,7 +144,12 @@
 
 ### 4.4 Phase 3 · 可选增强（按需求触发，不排期）
 
-- **Command（⌘K / Ctrl+K）**：全站搜词、搜视频、跳转。收益直观，但需要后端搜索接口支持，属于独立需求。
+> 2026-11-02 已处理：Command 已实施（§20）；DataTable 经评估当前无真实需求，保留触发条件；
+> `@shadcn/lint` 按本节要求留作单独评审，本轮不加入门禁。
+
+- **Command（⌘K / Ctrl+K）**：全站搜词、搜视频、跳转。~~收益直观，但需要后端搜索接口支持，属于独立需求。~~
+  原文的“需要后端搜索接口”已过时：`discovery/search`、`videos/search`、`search/hot` 等接口早已存在，
+  本轮只改前端（§20）。
 - **DataTable（TanStack Table + Base UI）**：只有当后台列表真的要排序、筛选、虚拟滚动时才引入；现在 `admin/DataTable.tsx` 够用。
 - **`@shadcn/lint`**：agent-first 的 Tailwind v4 设计系统 linter，可补现有 9 条规则的盲区（乱写 padding、自造 variant）。**单独评审**，因为它会新增一条门禁；按仓库规则，"不为让检查变绿而放宽检查器"，新增检查器同样要走评审。
 
@@ -639,6 +644,112 @@
 - 真机软键盘、iOS Safari 视口/安全区、真实触摸手势仍未覆盖（同 §15）。
 - Firefox 的 View Transitions 支持度取决于版本；不支持时 React 组件按文档自动降级为
   瞬时切换，未在 Firefox 实测。
+
+## 20. Phase 3 实施记录：Command（2026-11-02）
+
+本轮只落地 Command；DataTable 与 `@shadcn/lint` 的结论见 §20.2 / §20.3。没有后端改动，也没有新增依赖。
+
+### 20.1 Command（⌘K / Ctrl+K / `/`）
+
+交付：
+
+- 新增 [`frontend/src/components/search/CommandPalette.tsx`](../frontend/src/components/search/CommandPalette.tsx)：
+  `ui/Dialog`（模态焦点陷阱、滚动锁、背景 `aria-hidden`、Escape、关闭回焦）+ Base UI
+  `Autocomplete`（`inline` + `filter={null}` + 外部 `items`）的组合。
+- 删除旧的 `components/search/GlobalSearchDialog.tsx`（原生 `<dialog>` + 手写键盘逻辑），
+  同步删除 [`user-ui.css`](../frontend/src/app/user-ui.css) 里失效的 `.user-search-dialog` 规则。
+- [`TopBar`](../frontend/src/components/layout/TopBar.tsx)：`Ctrl/Cmd+K` 改为**开关**（再按一次关闭），`/` 仍只打开；
+  两个搜索触发器补 `aria-expanded`。`Ctrl/Cmd+1..5` 导航不变。
+- Command 内容：
+  - 空查询：`跳转`（一级 + 二级导航，复用 `MAIN_NAV` / `SECONDARY_NAV`）、
+    `最近搜索`（读写 `seeword_search_history`，与 `/search` 页共用）、`热门搜索`
+    （`/api/v1/videos/search/hot`）。
+  - 输入后：`视频 / 原句 / 单词 / 频道` 四组 + `查看「…」的全部结果`；结果数同时进入
+    可见页脚与 `Autocomplete.Status`（`aria-live`）。
+  - 登录态走 `discovery/search?group=all&page_size=4`；401 时退回公开的
+    `videos/search` + `videos/search/subtitles`，不再静默显示“没有结果”。
+- 键盘/语义由原语提供：触发器是 combobox（`aria-expanded` / `aria-controls` /
+  `aria-activedescendant`），列表是 listbox，选项是 option；↑↓ 回环、Home/End、
+  Enter 激活、Escape 关闭并回焦、外点关闭。`initialFocus` 显式指向输入框，
+  不依赖对话框的“首个可聚焦元素”推断。
+
+行为差异（有意）：
+
+- 空查询时的第一组是“跳转”，所以 `autoHighlight` 默认选中“发现”；`End` 到最后一项再
+  `↓` 会回到第一项（原手写实现到两端停住）。
+- 搜索历史在**选择搜索结果/查看全部**时写入，与 `/search` 页同一份数据；点击历史/热搜项
+  是把词回填到输入框继续搜，而不是直接跳页。
+- 移动端面板宽度为 `min(42rem, calc(100vw - 2rem))`，390 视口下左右各 16px；高度用
+  `dvh` 封顶，软键盘弹起时列表自身滚动。
+
+实测发现：
+
+1. **ego-browser 里 `requestAnimationFrame` 被节流，焦点会晚约 1s 到输入框。**
+   打开瞬间 `document.activeElement` 是 `body`，1–2.5s 后才变成 input；同一环境下
+   Phase 2 也记录过 rAF 约 300ms 一次。真实浏览器不受影响，但自动化断言必须用
+   “重试到可见/聚焦”，不能读一次就下结论。`initialFocus={inputRef}` 保证目标明确，
+   不解决环境节流。
+2. **`Ctrl+K` 在 Chrome 是浏览器保留快捷键（聚焦地址栏）。** ego-browser 的合成按键里
+   页面仍能收到并 `preventDefault`，但本轮无法排除真实 Chrome 的焦点抢占；如果后续
+   人工走查发现地址栏抢焦点，再评估是否改用其它组合键（`/` 已可作为备用入口）。
+3. **热搜/历史项可能落在列表滚动区之外。** 空查询时 9 条导航 + 5 条历史 + 6 条热搜会
+   超过 `44rem` 高度；键盘导航会自动滚入视野，鼠标用户需要滚动列表。这是内容量决定的，
+   没有把导航改成两列或折叠。
+
+验证（本机 dev 站点 + `ego-browser`，登录态；数字为计算样式 / DOM 实测）：
+
+| 检查 | 结果 |
+| --- | --- |
+| 打开方式 | ✓ 顶栏按钮、`Ctrl+K`、`/` 均可打开；再按 `Ctrl+K` 关闭 |
+| 打开后焦点 | ✓ 延迟后落在输入框（`activeElement.tagName = INPUT`，见实测发现 1） |
+| 语义 | ✓ combobox `aria-expanded=true`、`aria-controls` 指向 listbox；选项为 `role=option`；`aria-activedescendant` 随 ↑↓ 更新 |
+| 分组 | ✓ 空查询 `跳转 / 最近搜索 / 热门搜索`；搜索 `原句 / 单词 / 更多`（按命中组渲染） |
+| 键盘 | ✓ `End` 到最后一项、`↓` 回环到第一项、`Home` 回第一项、`↑` 回环到最后一项；Enter 跳转 |
+| 真实搜索 | ✓ `hello` → 4 条原句 + 1 个单词 + “全部结果” = 6 条；`E2E` → 视频 / 频道 / 全部结果 |
+| 结果跳转 | ✓ 视频 → `/watch/<id>?from=search`；单词 → `/search?q=hello&group=words`；全部结果 → `/search?q=hello` |
+| 历史 | ✓ 选择“查看全部结果”后重新打开出现“最近搜索 · hello”；与 `/search` 页共用 key |
+| 热搜回填 | ✓ 点击 `TED Talks` 后输入框变为该词并触发搜索，焦点仍在输入框 |
+| 关闭 | ✓ Escape、关闭按钮、点遮罩都能关闭；Escape 后焦点回到触发按钮；`body` overflow 恢复 `visible` |
+| 移动端 390×844 | ✓ 面板 `x=16 / w=358 / bottom=776`，`documentElement.scrollWidth=390`，无横向溢出 |
+| 进场动画 | ✓ `prefers-reduced-motion: no-preference` 下 `.overlay-pop` = `overlay-pop-in 150ms`；系统 reduce 下 `animation: none` |
+| 门禁 | ✓ `npm run check` 全绿，白名单零新增 |
+| 单测 | ✓ 38 个文件 / 375 条全绿 |
+| 生产构建 | ✓ `next build` 通过（临时目录 + junction 复用依赖，完整路由表） |
+| e2e | ✓ 新增 `e2e/command-palette.spec.ts` 3/3（空查询跳转与回焦、四组结果与历史、390 不溢出） |
+
+未覆盖 / 环境限制：
+
+- **截图未取到**：`Page.captureScreenshot` 连续 CDP 超时（与 §12 / §16 / §19 同源），
+  视觉结论来自计算样式与 DOM，不是看图。
+- 真机软键盘、iOS Safari 的 `dvh` / 安全区、真实触摸滚动仍未覆盖（同 §15）。
+- 真实 Chrome 下 `Ctrl+K` 是否被地址栏抢焦点未在人工浏览器确认（见实测发现 2）。
+- 公开接口回退路径（401 → `videos/search`）有代码与类型覆盖，但没有在 e2e 中模拟 401；
+  登录墙下 TopBar 实际只出现在登录后的壳层里。
+
+### 20.2 DataTable 评估：当前不引入
+
+代码事实（2026-11-02）：
+
+- [`admin/DataTable.tsx`](../frontend/src/components/admin/DataTable.tsx) 是纯展示外壳，只有
+  1 个调用点 [`VideoManager`](../frontend/src/app/(admin)/admin/(shell)/videos/VideoManager.tsx:438)。
+- 视频、用户、反馈、付款列表都已经是**服务端分页 20 行 + 页级筛选 + 关键词**；
+  频道是表单维护的行，统计是报表表格，没有列排序、批量选择或虚拟滚动需求。
+- 后台列表接口只有 `page` / `page_size`（外加少量业务筛选），没有 `sort` / `order`。
+  跨页排序需要后端契约变更，越出本方案“仅前端”的范围；只排当前 20 行会制造
+  “全表已排序”的错觉。
+
+结论：不引入 `@tanstack/react-table`。出现以下任一条件时再评审，且按需只做其中一块：
+
+1. 某个后台列表取消分页、单页超过 100 行；
+2. 运营明确要求多列排序、列显隐或批量选择；
+3. 出现需要虚拟化的长列表（全量日志、全量词库等）。
+
+### 20.3 `@shadcn/lint`：留作单独评审
+
+它会新增第十条门禁规则，与 §5“九条规则一条不改、白名单零新增”的验收条件直接冲突；
+按仓库规则（“新增检查器同样要走评审”）本轮不安装、不接入 `npm run check`。
+若要引入，应单独评估它拦的盲区、与现有九条的重叠、以及白名单策略，再决定是否作为
+独立 PR 落地。
 
 ## Sources
 

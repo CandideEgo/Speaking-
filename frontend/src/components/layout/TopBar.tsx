@@ -12,7 +12,7 @@ import { useVocabularyStore } from "@/stores/vocabularyStore";
 import { useNotificationStore } from "@/stores/notificationStore";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { AccountMenu } from "@/components/layout/AccountMenu";
-import { GlobalSearchDialog } from "@/components/search/GlobalSearchDialog";
+import { CommandPalette } from "@/components/search/CommandPalette";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import {
@@ -46,7 +46,7 @@ export function TopBar() {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setSearchOpen(true);
+        setSearchOpen((open) => !open);
         return;
       }
       if (e.key === "/" && !e.metaKey && !e.ctrlKey) {
@@ -95,6 +95,7 @@ export function TopBar() {
           type="button"
           onClick={() => setSearchOpen(true)}
           aria-haspopup="dialog"
+          aria-expanded={searchOpen}
           aria-label="搜索视频、原句、单词或频道"
           className="hidden h-9 w-full max-w-[42.5rem] items-center gap-2 rounded-pill bg-surface-soft px-4 text-copy text-muted transition-colors hover:bg-surface-card min-[1025px]:flex"
         >
@@ -108,6 +109,8 @@ export function TopBar() {
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={searchOpen}
           aria-label="搜索"
           className="grid min-h-11 min-w-11 place-items-center rounded-pill text-muted hover:bg-surface-soft hover:text-ink min-[1025px]:hidden"
         >
@@ -170,7 +173,7 @@ export function TopBar() {
         </div>
       </div>
 
-      <GlobalSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );
 }
