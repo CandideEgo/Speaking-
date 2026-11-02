@@ -504,9 +504,62 @@
 | 用例 | 结果 |
 | --- | --- |
 | `discover-layout.spec.ts`（8 档视口） | ✓ 9/9 |
-| `home-feed.spec.ts` | ✓ 6/7；剩余 1 条 `.home-editorial-lead` 依赖 dev 库里已发布的首页编辑内容，本机未播种，与本次改动无关 |
+| `home-feed.spec.ts` | ✓ 6/7；剩余 1 条 `.home-editorial-lead` 依赖首页有可展示的精选视频，dev 库当时没有 `show_on_homepage` 视频；播种后 7/7（见 §18） |
 | `user-information.spec.ts` › 我的默认展示 / 筛选写入请求（1440/390） | ✓ 3/3 |
 | `watch-return.spec.ts` | ✓ 1/1 |
+
+## 18. Phase 1 收尾验证（2026-11-02）
+
+承 §15–§17 的「未覆盖」项。本轮不改产品代码，只做验证与 dev 数据播种。
+
+### 18.1 home-feed 的真实数据用例
+
+- `.home-editorial-lead` 是 [`FeaturedVideoCard`](../frontend/src/components/home/FeaturedVideoCard.tsx) 的类名，编辑主推与「精选」兜底共用。空库时 `/browse/featured` 为空，整卡不渲染——它**不依赖**已发布的首页编排，§17.1 原先的判读已更正。
+- 按 e2e 播种口径跑 `PYTHONUTF8=1 .venv/Scripts/python.exe scripts/seed_e2e.py`：新建 demo 视频 `d8c0300c-…`（4 句双语字幕、`show_on_homepage`）、频道 `e2e-channel`、听力视频 `668c6d4b-…`、演示试卷 `1af4e628-…`。脚本幂等。
+- `npx playwright test e2e/home-feed.spec.ts --project=chromium`：**7/7 通过**（1.5 分钟）。
+
+注意：该用例会重写 `docs/evidence/home-design-refresh/live-desktop.png` / `live-mobile.png`，内容变成演示视频；本轮已还原这两张图，不把播种数据当「真实首页」证据提交。
+
+### 18.2 生产构建
+
+`:3000` 的 `next dev` 占着 `.next`，本轮无法停（停止进程被权限策略拒绝）。改为把 `src/ public/ package*.json tsconfig.json next.config.js postcss.config.js` 复制到临时目录、junction 复用同一份 `node_modules`，在那里构建：
+
+| 检查 | 结果 |
+| --- | --- |
+| `npx next build --webpack` | ✓ 通过，输出完整路由表（含 `/watch/[id]`、`/vocabulary/sets/[id]` 等动态路由） |
+| 类型检查 | ✓ 构建内建类型检查通过；`npm run check` 的 `tsc --noEmit` 仍是独立门（本轮无代码改动，未重跑） |
+
+**偏差（如实记录）**：这不是项目原命令。Next 16 默认 Turbopack，而临时目录里 Turbopack 拒绝解析工作区外的 `node_modules`（junction），只能退回 webpack。跑原样的 `npm run build` 需要先停 dev 进程，留给下一次服务空窗期。
+
+### 18.3 Drawer 复检（ego-browser，Chromium 移动模拟 390×844）
+
+| 检查 | 结果 |
+| --- | --- |
+| 语义 | ✓ `role="dialog"`、`aria-modal="true"`、`aria-label="更多设置"`；遮罩 390×844，弹层底边 844 |
+| 打开后焦点 | ✓ 落在把手（`role=button`、`aria-label=下拉关闭`、`tabindex=0`） |
+| 焦点陷阱 | ✓ 连续 Tab 8 次全部停在弹层内（关闭 → 语言 → 字号 → …） |
+| Escape | ✓ 关闭并把焦点还给 ⋯ 按钮 |
+| 外点关闭 | ✓ 点弹层上方的遮罩关闭 |
+| 笔记输入区 | ✓ 打开「笔记」后 textarea 聚焦、落在 579–673px 视口内、可输入；`--drawer-keyboard-inset` 为 `0px`（无软键盘） |
+| 横向溢出 | ✓ 0 |
+
+仍未覆盖（同 §15）：真实软键盘、iOS Safari 视口/安全区、真实触摸设备。本机没有 iOS 设备，Chromium 模拟替代不了这三项。
+
+### 18.4 ToggleGroup 真实数据走查
+
+为让两处筛选行有数据，本轮往 dev 库写了：测试账号 `18800001111` 的一次已提交真题作答 `363845aa-ea26-4948-a1a2-01e1d6941886`（4 题、错 2），以及一个视频词单 `f8d4ea6e-8039-4902-bca4-e5d1bc19eae8`（159 词）。两者都是 dev 数据，需要时按 id 删除即可。
+
+| 页面 | 检查 | 结果 |
+| --- | --- | --- |
+| 真题结果 `/practice/exams/result/363845aa-…` | 语义与尺寸 | ✓ `group "题目筛选"`；390 下 chip 44px，1440 下 32px |
+| 同上 | 点击 / 键盘 | ✓ 点「全部」、Space、Enter 都切换 `aria-pressed` |
+| 同上 | 真的过滤 | ✓ 「只看错题」2 条，「全部」4 条 |
+| 词单列表 `/vocabulary/sets` | 语义、尺寸、计数 | ✓ 44/32px；选「已完成」后计数变「已完成 0 个（共 1 个）」 |
+| 词单详情 `/vocabulary/sets/f8d4ea6e-…` | 语义、点击、Space | ✓ 「全部 / 未掌握 / 已掌握」互斥切换，无横向溢出 |
+
+### 18.5 AdminTabs
+
+维持 §17 结论：全仓 0 调用点，等后台出现真正分栏页面时按 `ui/Tabs` 的面板契约接入。
 
 ## Sources
 
