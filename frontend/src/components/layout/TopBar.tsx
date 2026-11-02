@@ -15,6 +15,14 @@ import { AccountMenu } from "@/components/layout/AccountMenu";
 import { GlobalSearchDialog } from "@/components/search/GlobalSearchDialog";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import {
+  Popover,
+  PopoverPopup,
+  PopoverPortal,
+  PopoverPositioner,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
+import { useOverlayContainer } from "@/hooks/useOverlayContainer";
 import { MAIN_NAV } from "@/lib/navigation";
 
 export function TopBar() {
@@ -28,6 +36,7 @@ export function TopBar() {
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const overlayContainer = useOverlayContainer();
 
   useEffect(() => {
     if (user) void fetchMe();
@@ -118,28 +127,35 @@ export function TopBar() {
             </Link>
           )}
 
-          <div className="relative">
-            <Button
-              onClick={() => setShowNotifications((prev) => !prev)}
-              variant="ghost"
-              size="icon"
-              aria-label={unreadCount > 0 ? `通知，${unreadCount} 条未读` : "通知"}
-              aria-haspopup="dialog"
-              aria-expanded={showNotifications}
-              className="h-11 w-11"
+          <Popover open={showNotifications} onOpenChange={setShowNotifications}>
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={unreadCount > 0 ? `通知，${unreadCount} 条未读` : "通知"}
+                  className="relative h-11 w-11"
+                />
+              }
             >
               <Bell size={18} />
               {unreadCount > 0 && (
                 <span className="absolute top-2 right-2 h-[7px] w-[7px] rounded-full border-2 border-canvas bg-brand-500" />
               )}
-            </Button>
-            {showNotifications && (
-              <NotificationDropdown
-                onClose={() => setShowNotifications(false)}
-                onUnreadCountChange={(count) => useNotificationStore.getState().setUnread(count)}
-              />
-            )}
-          </div>
+            </PopoverTrigger>
+            <PopoverPortal container={overlayContainer}>
+              <PopoverPositioner side="bottom" align="end" sideOffset={8}>
+                <PopoverPopup className="w-80 overflow-hidden p-0 sm:w-96" aria-label="通知">
+                  <NotificationDropdown
+                    onClose={() => setShowNotifications(false)}
+                    onUnreadCountChange={(count) =>
+                      useNotificationStore.getState().setUnread(count)
+                    }
+                  />
+                </PopoverPopup>
+              </PopoverPositioner>
+            </PopoverPortal>
+          </Popover>
 
           <Link
             href="/profile"

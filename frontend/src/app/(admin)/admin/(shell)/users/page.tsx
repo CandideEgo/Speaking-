@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type RefObject } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/errors";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
@@ -93,6 +93,8 @@ export default function AdminUsersPage() {
   // 行内动作的在途保护：同一时刻只允许一个动作，按钮/菜单项在途禁用（A-07/A-36）。
   // ref 是同步闸门：同一 tick 的两次点击也会被拦下（state 要等下一次渲染才更新）。
   const busyRef = useRef(false);
+  /** 行操作菜单的触发按钮；确认框关闭后把焦点还给它，而不是落到 body。 */
+  const menuTriggerRef = useRef<HTMLElement | null>(null);
   const [busyAction, setBusyAction] = useState<{ id: string; kind: RowAction } | null>(null);
   const [confirmPrompt, setConfirmPrompt] = useState<{
     title: string;
@@ -371,6 +373,7 @@ export default function AdminUsersPage() {
                       isSelf={isSelf}
                       busy={rowBusy}
                       granting={rowBusy && busyAction?.kind === "grant"}
+                      returnFocusRef={menuTriggerRef}
                       onToggleExpand={() => setExpandedId(isExpanded ? null : u.id)}
                       onBan={() => {
                         if (!u.is_banned) {
@@ -430,6 +433,7 @@ export default function AdminUsersPage() {
         description={confirmPrompt?.description}
         confirmLabel={confirmPrompt?.confirmLabel}
         danger={confirmPrompt?.danger}
+        returnFocusRef={menuTriggerRef}
       />
     </div>
   );
@@ -450,6 +454,7 @@ function UserRow({
   onPromote,
   onGrantPro,
   onRevokePro,
+  returnFocusRef,
 }: {
   user: AdminUser;
   isExpanded: boolean;
@@ -461,6 +466,8 @@ function UserRow({
   onPromote: () => void;
   onGrantPro: (days: number) => void;
   onRevokePro: () => void;
+  /** 见 `AdminDropdownProps.returnFocusRef`：确认框关闭后焦点回到这里。 */
+  returnFocusRef: RefObject<HTMLElement | null>;
 }) {
   const [days, setDays] = useState(30);
   const detailId = `user-detail-${u.id}`;
@@ -568,6 +575,7 @@ function UserRow({
           <div title={isSelf ? selfTitle : undefined} className="inline-block">
             <AdminDropdown
               label={`${displayName} 的操作`}
+              returnFocusRef={returnFocusRef}
               items={[
                 {
                   key: "ban",

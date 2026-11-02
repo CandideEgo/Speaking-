@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
 import { X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useModalFocus } from "@/hooks/useModalFocus";
@@ -25,6 +25,11 @@ export interface AdminDialogProps {
    * 让可访问名始终指向可见文本）。
    */
   labelledBy?: string;
+  /**
+   * 关闭后把焦点还到哪里。不传时回到「打开前有焦点的元素」；从菜单条目打开
+   * 时要显式传，因为那种情况下打开前有焦点的条目在关闭时已经被移除。
+   */
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 const SIZES = {
@@ -55,11 +60,12 @@ export function AdminDialog({
   className,
   ariaLabel,
   labelledBy,
+  returnFocusRef,
 }: AdminDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
-  useModalFocus(dialogRef, open, onClose);
+  useModalFocus(dialogRef, open, onClose, true, returnFocusRef);
 
   useEffect(() => {
     if (!open) return;
@@ -136,6 +142,8 @@ export interface AdminConfirmDialogProps {
   cancelLabel?: string;
   danger?: boolean;
   loading?: boolean;
+  /** 关闭后焦点回到哪里，见 `AdminDialogProps.returnFocusRef`。 */
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function AdminConfirmDialog({
@@ -148,6 +156,7 @@ export function AdminConfirmDialog({
   cancelLabel = "取消",
   danger = false,
   loading = false,
+  returnFocusRef,
 }: AdminConfirmDialogProps) {
   const titleId = useId();
   return (
@@ -157,6 +166,7 @@ export function AdminConfirmDialog({
       size="sm"
       ariaLabel={title}
       labelledBy={titleId}
+      returnFocusRef={returnFocusRef}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>

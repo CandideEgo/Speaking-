@@ -111,6 +111,30 @@
   --color-sidebar-bg: var(--sidebar-bg);
   --color-topbar-bg: var(--topbar-bg);
 
+  /* --- shadcn / Base UI 兼容别名 ---
+     vendored 组件的类名会引用 foreground/card/popover/primary 等名字，
+     这里只做映射，不改上面的品牌刻度与半径刻度。
+     刻意不定义 --color-muted：本仓该名字已用作「文字灰」，
+     与 shadcn 的「面」语义冲突，落库组件里改用 bg-surface-soft。 */
+  --color-foreground: var(--ink);
+  --color-card: var(--surface-card);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface-card);
+  --color-popover-foreground: var(--ink);
+  /* primary 指向 action-primary(#c2410c) 而不是 brand-500(#ff5a1f)：
+     shadcn 按钮默认白字，后者只有 3.12:1，会被设计门禁第 7/9 条拦。 */
+  --color-primary: var(--color-action-primary);
+  --color-primary-foreground: var(--color-on-primary);
+  --color-secondary: var(--surface-card);
+  --color-secondary-foreground: var(--ink);
+  --color-accent: var(--surface-soft);
+  --color-accent-foreground: var(--ink);
+  --color-muted-foreground: var(--muted-c);
+  --color-destructive: var(--error);
+  --color-destructive-foreground: var(--color-on-primary);
+  --color-input: var(--hairline);
+  --color-ring: var(--focus-ring);
+
   /* --- Border radius（DEC-075 §4.1：3 档 + 2 个特殊）---
      sm 内嵌小块 / 输入 / 分段控件内段（旧 xs 4 + sm 8）；
      md 卡片与面板的默认（旧默认 12 + md 10）—— 旧档位里 md 比默认还小，这个坏序随合并消失；

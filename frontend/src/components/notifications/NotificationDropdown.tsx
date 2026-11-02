@@ -179,26 +179,9 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
     };
   }, [wsConnected, fetchNotifications, fetchUnreadCount]);
 
-  // Click-away and Escape to close
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [onClose]);
-
   // Move focus into the panel when it opens so keyboard users land in the
-  // popover instead of tabbing through the page behind it.
+  // popover instead of tabbing through the page behind it. 外部点击与 Escape
+  // 由外层 Popover 原语处理，这里不再自己挂 document 监听。
   useEffect(() => {
     dropdownRef.current?.querySelector<HTMLElement>("a, button")?.focus();
   }, []);
@@ -248,12 +231,7 @@ export function NotificationDropdown({ onClose, onUnreadCountChange }: Notificat
   const hasUnread = notifications.some((n) => !n.is_read);
 
   return (
-    <div
-      ref={dropdownRef}
-      role="dialog"
-      aria-label="通知"
-      className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-lg border border-hairline bg-canvas shadow-lg z-50 overflow-hidden"
-    >
+    <div ref={dropdownRef} className="overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-hairline">
         <div className="flex items-center gap-2">

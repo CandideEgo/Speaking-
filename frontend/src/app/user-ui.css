@@ -2955,21 +2955,6 @@
   padding-bottom: 0.875rem;
   border-bottom: 1px solid var(--hairline-soft);
 }
-.user-ui .discover-select {
-  position: relative;
-  display: inline-flex;
-}
-.user-ui .discover-select select {
-  border-color: var(--hairline-soft);
-  background: var(--surface-soft);
-}
-.user-ui .discover-select > svg {
-  position: absolute;
-  top: calc(50% - 7px);
-  right: 0.625rem;
-  pointer-events: none;
-  color: var(--muted-c);
-}
 .user-ui .video-poster-copy {
   display: flex;
   flex-direction: column;

@@ -1,11 +1,11 @@
 "use client";
 
-import { ChevronDown, Compass, SlidersHorizontal, X } from "lucide-react";
+import { Compass, SlidersHorizontal, X } from "lucide-react";
 import { useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
-import { Select } from "@/components/ui/Select";
+import { SelectMenu } from "@/components/ui/SelectMenu";
 import { TabPills } from "@/components/ui/TabPills";
 import { VideoCardSkeleton } from "@/components/ui/VideoCard";
 import { HomeFeedCard } from "@/components/home/HomeFeedCard";
@@ -102,39 +102,29 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
           />
           <label htmlFor="feed-level" className="flex items-center gap-1.5 text-caption text-muted">
             难度
-            <span className="discover-select">
-              <Select
-                id="feed-level"
-                value={activeLevel}
-                onChange={(event) => setActiveLevel(event.target.value)}
-                className="min-h-11 w-44 shrink-0 appearance-none rounded-md py-0 pl-3 pr-8 text-meta min-[1025px]:min-h-9"
-              >
-                {DIFFICULTY_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-              <ChevronDown size={14} aria-hidden />
-            </span>
+            <SelectMenu
+              id="feed-level"
+              value={activeLevel}
+              onValueChange={setActiveLevel}
+              options={DIFFICULTY_OPTIONS.map((option) => ({
+                value: option.id,
+                label: option.label,
+              }))}
+              className="min-h-11 w-44 shrink-0 border-hairline-soft bg-surface-soft min-[1025px]:min-h-9"
+            />
           </label>
           <label htmlFor="feed-sort" className="flex items-center gap-1.5 text-caption text-muted">
             排序
-            <span className="discover-select">
-              <Select
-                id="feed-sort"
-                value={effectiveSort}
-                onChange={(event) => setSort(event.target.value as FeedSort)}
-                className="min-h-11 w-28 shrink-0 appearance-none rounded-md py-0 pl-3 pr-8 text-meta min-[1025px]:min-h-9"
-              >
-                {sortOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-              <ChevronDown size={14} aria-hidden />
-            </span>
+            <SelectMenu
+              id="feed-sort"
+              value={effectiveSort}
+              onValueChange={(next) => setSort(next as FeedSort)}
+              options={sortOptions.map((option) => ({
+                value: option.id,
+                label: option.label,
+              }))}
+              className="min-h-11 w-28 shrink-0 border-hairline-soft bg-surface-soft min-[1025px]:min-h-9"
+            />
           </label>
           {isFiltered && (
             <Button variant="text" size="sm" icon={X} onClick={clearFilters}>
