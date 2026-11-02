@@ -553,6 +553,95 @@
   .animate-shake {
     animation: shake 0.25s ease-in-out;
   }
+
+  /* === Phase 2 · 动效（2026-11） ===
+     原则：只动 opacity 与 transform 系属性（独立 translate / scale），不触发布局。
+     进场用 `backwards`，动画结束回到自然态，不留 transform（否则会生成 containing
+     block，破坏 sticky —— 同 `.animate-fade-in` 的说明）。
+     进场 150ms（抽屉 180ms）；退场不做动画，见下面 `[data-ending-style]` 的说明。 */
+
+  /* Base UI 浮层：Dialog / Popover / Menu / Select 共用「从锚点方向轻微放大」。
+     进场挂在基础态而不是 `[data-starting-style]`：后者只存在一帧，属性移除时
+     动画会被一起取消，实际看不到。 */
+  .overlay-pop {
+    animation: overlay-pop-in 150ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  /* 关闭保持 Phase 1 的「瞬时卸载」：本机实测（ego-browser）CSS / WAAPI 动画
+     都不会推进（currentTime 恒为 0），若挂着退场动画，Base UI 会等一个永远
+     不会 finished 的动画，弹层在屏上多留约 2.5 秒。display:none + animation:none
+     让 `getAnimations()` 立刻为空，原语当帧卸载；进场动画不受影响。 */
+  .overlay-pop[data-ending-style] {
+    display: none;
+    animation: none;
+  }
+  /* 遮罩：只淡入淡出，不动位置。 */
+  .overlay-fade {
+    animation: overlay-fade-in 150ms ease-out backwards;
+  }
+  .overlay-fade[data-ending-style] {
+    display: none;
+    animation: none;
+  }
+  /* 底部抽屉：上升 24px；用独立 `translate` 属性，不抢原语的下拉 `transform`。 */
+  .overlay-sheet {
+    animation: overlay-sheet-in 180ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .overlay-sheet[data-ending-style] {
+    display: none;
+    animation: none;
+  }
+
+  /* 一次性进场（词卡、Tab 面板等）：挂上就播一次。 */
+  .motion-pop-in {
+    animation: overlay-pop-in 150ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .motion-rise-in {
+    animation: motion-rise-in 150ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+
+  /* 列表骨架 → 内容：子项逐个淡入，60ms 错位。只给列表子项用，别套在含
+     sticky 元素的容器上（动画期间的 translate 会生成 containing block）。 */
+  .motion-stagger > * {
+    animation: motion-stagger-in 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .motion-stagger > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .motion-stagger > *:nth-child(2) {
+    animation-delay: 60ms;
+  }
+  .motion-stagger > *:nth-child(3) {
+    animation-delay: 120ms;
+  }
+  .motion-stagger > *:nth-child(4) {
+    animation-delay: 180ms;
+  }
+  .motion-stagger > *:nth-child(5) {
+    animation-delay: 240ms;
+  }
+  .motion-stagger > *:nth-child(6) {
+    animation-delay: 300ms;
+  }
+  .motion-stagger > *:nth-child(7) {
+    animation-delay: 360ms;
+  }
+  .motion-stagger > *:nth-child(8) {
+    animation-delay: 420ms;
+  }
+  .motion-stagger > *:nth-child(n + 9) {
+    animation-delay: 480ms;
+  }
+
+  /* 可点卡片的按压反馈（按钮在 `ui/Button` 里已有 `active:scale-[0.98]`）。 */
+  .pressable {
+    transition:
+      scale 150ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+  .pressable:active {
+    scale: 0.98;
+  }
 }
 
 /* Keyframes must be outside @layer for global scope */
@@ -621,6 +710,122 @@
   }
   75% {
     transform: translateX(4px);
+  }
+}
+
+/* ============================================================
+   Phase 2 · 动效 keyframes（2026-11）
+   全部只改 opacity / scale / translate。`scale` 与 `translate` 是独立于
+   `transform` 的属性，因此可以和 Tailwind 的 `-translate-x-1/2`、
+   抽屉的 `--drawer-swipe-movement-y` 等 transform 叠加而不互相覆盖。
+   ============================================================ */
+@keyframes overlay-pop-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 只给路由过渡的旧页快照用（浮层的退场是瞬时的，见上面的说明）。 */
+@keyframes overlay-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes overlay-sheet-in {
+  from {
+    opacity: 0;
+    translate: 0 24px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes motion-rise-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes motion-stagger-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* 降级：减少动效时直接关掉新动效，而不是靠全局 0.01ms 的时长压缩。
+   对 Base UI 还有一层意义——没有动画时 `getAnimations()` 为空，弹层立刻卸载，
+   不会出现「关了还在屏上」的等待（见方案文档 §11 / §14）。 */
+@media (prefers-reduced-motion: reduce) {
+  .overlay-pop,
+  .overlay-pop[data-ending-style],
+  .overlay-fade,
+  .overlay-fade[data-ending-style],
+  .overlay-sheet,
+  .overlay-sheet[data-ending-style],
+  .motion-pop-in,
+  .motion-rise-in,
+  .motion-stagger > * {
+    animation: none;
+  }
+  .pressable,
+  .pressable:active {
+    transition: none;
+    scale: 1;
+  }
+}
+
+/* ============================================================
+   Phase 2 · 路由过渡
+   React 19.3 的 <ViewTransition> 给页面快照挂类名；只对同文档导航生效，
+   浏览器不支持 View Transitions 时组件自动降级为瞬时切换。旧页先走
+   （120ms），新页稍慢（180ms）进入，避免两块内容抢注意力。
+   ============================================================ */
+::view-transition-old(.page-out) {
+  animation: overlay-fade-out 120ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+::view-transition-new(.page-in) {
+  animation: overlay-fade-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* 过渡期间不截获点击，避免动画把快速点击吞掉。 */
+::view-transition {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(.page-out),
+  ::view-transition-new(.page-in) {
+    animation: none;
   }
 }
 

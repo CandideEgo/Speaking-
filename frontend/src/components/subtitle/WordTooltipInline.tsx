@@ -547,9 +547,19 @@ export function WordTooltipInline({
   const style: React.CSSProperties = pos
     ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
     : { right: 24, bottom: 24, left: "auto", top: "auto" };
+  // 展开方向跟着词走：词在卡上方 → 从底边展开；在卡下方 → 从顶边展开。
+  // 水平方向尽量对准被点的词，卡片贴边时收到 8–392px。
+  if (pos && anchorRect) {
+    const originX = Math.max(8, Math.min(anchorRect.left + anchorRect.width / 2 - pos.x, 392));
+    style.transformOrigin = `${originX}px ${anchorRect.top < pos.y ? "0px" : "100%"}`;
+  } else {
+    style.transformOrigin = "100% 100%";
+  }
 
   return (
     <div
+      // 换词时重挂一次 DOM，让 150ms 的展开动画重新播。
+      key={word}
       ref={cardRef}
       style={style}
       data-testid="word-tooltip"
@@ -563,7 +573,7 @@ export function WordTooltipInline({
           onClose();
         }
       }}
-      className="fixed z-50 flex max-h-[min(72dvh,580px)] flex-col overflow-hidden bg-canvas border border-hairline rounded-lg shadow-lift w-[min(92vw,400px)] touch-none"
+      className="motion-pop-in fixed z-50 flex max-h-[min(72dvh,580px)] flex-col overflow-hidden bg-canvas border border-hairline rounded-lg shadow-lift w-[min(92vw,400px)] touch-none"
     >
       <WordCardBody
         word={word}

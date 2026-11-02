@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState, ViewTransition } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { HomeEditorialHeader, HomeEditorialHero } from "@/components/home/HomeEditorialHero";
@@ -101,7 +101,9 @@ export default function HomePage() {
     };
   }, []);
 
-  return (
+  // 路由过渡（Phase 2）：首页与观看页共享 page-in / page-out 快照动画。
+  // 包成变量再交给 <ViewTransition>，避免整页 JSX 缩进 churn。
+  const page = (
     <div className="home-compact pt-4 pb-18">
       <HomeEditorialHeader />
       <DiscoverContinue />
@@ -140,6 +142,12 @@ export default function HomePage() {
 
       <HomeSubscribedChannels />
     </div>
+  );
+
+  return (
+    <ViewTransition enter="page-in" exit="page-out" default="none">
+      {page}
+    </ViewTransition>
   );
 }
 

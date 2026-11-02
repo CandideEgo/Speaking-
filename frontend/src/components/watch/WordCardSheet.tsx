@@ -62,18 +62,11 @@ export function WordCardSheet({
   const container = useOverlayContainer();
   const cardRef = useRef<HTMLDivElement>(null);
   const [dy, setDy] = useState(0);
-  const [entered, setEntered] = useState(false);
 
   // 换词时把下拉位移清零，避免上一次拖到一半的状态留着。
   useEffect(() => {
     setDy(0);
   }, [word]);
-
-  useEffect(() => {
-    if (!geo) return;
-    const id = window.requestAnimationFrame(() => setEntered(true));
-    return () => window.cancelAnimationFrame(id);
-  }, [geo]);
 
   if (!geo) return null;
 
@@ -94,8 +87,10 @@ export function WordCardSheet({
           className={cn(
             "inset-x-0 flex flex-col overflow-hidden bg-canvas",
             "rounded-t-lg border-t border-hairline shadow-lift",
-            entered ? "opacity-100" : "opacity-0",
-            dy === 0 && "transition-[transform,opacity] duration-200 ease-out"
+            // 进场：从画面下沿升起 24px + 淡入（`.overlay-sheet`）。
+            // 用独立 `translate`，与上面的下拉 `transform` 互不覆盖。
+            "overlay-sheet",
+            dy === 0 && "transition-transform duration-200 ease-out"
           )}
         >
           <SheetHandle

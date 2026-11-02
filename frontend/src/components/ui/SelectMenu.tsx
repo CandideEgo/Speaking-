@@ -67,7 +67,7 @@ export function SelectMenu<T extends string>({
 
       <Select.Portal container={container}>
         <Select.Positioner sideOffset={4} alignItemWithTrigger={false} className="z-50">
-          <Select.Popup className="min-w-[var(--anchor-width)] rounded-lg border border-hairline bg-canvas p-1 text-meta text-ink shadow-card transition-none data-ending-style:hidden">
+          <Select.Popup className="overlay-pop min-w-[var(--anchor-width)] origin-[var(--transform-origin)] rounded-lg border border-hairline bg-canvas p-1 text-meta text-ink shadow-card">
             <Select.List className="max-h-72 overflow-y-auto">
               {options.map((option) => (
                 <Select.Item

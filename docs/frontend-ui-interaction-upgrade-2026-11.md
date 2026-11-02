@@ -1,7 +1,7 @@
 # SeeWord 前端 UI 与交互提升方案
 
 日期：2026-11-01
-状态：待评审、待实施。本文只是选型与实施计划，不是已交付能力。
+状态：Phase 0–2 已实施（2026-11-02），Phase 3 待需求触发。Phase 1 与 Phase 2 的实施记录见 §10–§19。
 代码基线：`master af66755c`。文中调用点数量按该基线实测，改代码后会漂移，实施时以 `grep` 为准。
 范围：**仅前端组件层与交互层**。不改后端契约、不改路由、不改设计 token 的数值与品牌色。
 
@@ -124,6 +124,8 @@
 `TabPills` 的多数调用（11 个文件中大部分）是筛选控件，**保持现状**，只把确实表达"多个互斥视图"的地方换成 Tabs。不做语义上的"一刀切"。
 
 ### 4.3 Phase 2 · 动效与过渡（约 2–3 天）
+
+> 2026-11-02 已实施，记录见 §19（含实测到的两个平台限制与退场策略）。
 
 原则：**只动 `transform` 与 `opacity`**，不触发布局；不新增动画库。
 
@@ -560,6 +562,83 @@
 ### 18.5 AdminTabs
 
 维持 §17 结论：全仓 0 调用点，等后台出现真正分栏页面时按 `ui/Tabs` 的面板契约接入。
+
+## 19. Phase 2 实施记录：动效与过渡（2026-11-02）
+
+交付：
+
+- [`globals.css`](../frontend/src/app/globals.css) 新增一组只跑在合成线程上的动效原语：
+  `.overlay-pop` / `.overlay-fade` / `.overlay-sheet`（Base UI 浮层进场）、
+  `.motion-pop-in` / `.motion-rise-in`、`.motion-stagger`（列表子项 60ms 错位）、
+  `.pressable`（卡片按压），以及路由过渡的 `::view-transition-*` 规则。
+  全部只改 `opacity` / `scale` / `translate`，不触发布局；`prefers-reduced-motion: reduce`
+  下直接 `animation: none`（不是靠全局 0.01ms 压缩）。
+- 浮层：Dialog/Modal、Popover、Select、DropdownMenu、Drawer 全部接上进场动画
+  （150ms；抽屉 180ms）。**退场仍保持 Phase 1 的瞬时卸载**，原因见下面的实测发现 2。
+- 词卡：桌面浮动卡挂 `.motion-pop-in`，`transform-origin` 按被点词的位置算（卡在词下方
+  从顶边展开，反之从底边）；换词时重挂一次 DOM 重播。移动端 `WordCardSheet` 挂
+  `.overlay-sheet`（上升 24px + 淡入），下拉手势的 `transform` 不受影响。
+- 句子切换：[`CurrentSentenceCard`](../frontend/src/components/watch/CurrentSentenceCard.tsx)
+  换句时用 WAAPI 播 120ms、4px 上移淡入；首帧不播，减少动效时跳过。旧句不保留退场
+  —— 句卡高度是预算死的，叠一层旧句会顶高卡片。
+- 列表骨架 → 内容：[`HomeFeed`](../frontend/src/components/home/HomeFeed.tsx)、
+  [词汇词表](../frontend/src/app/(main)/vocabulary/page.tsx)、
+  [`DataTable`](../frontend/src/components/admin/DataTable.tsx) 的列表容器挂 `.motion-stagger`
+  （260ms 淡入、60ms 错位、第 9 项起统一 480ms）。
+- 按压：[`VideoCard`](../frontend/src/components/ui/VideoCard.tsx) 两种形态加 `.pressable`
+  （`:active` 时 `scale: .98`，150ms）。`ui/Button` 原有的 `active:scale-[0.98]` 不动。
+- 路由过渡：首页与观看页用 React 19.3 的
+  `<ViewTransition enter="page-in" exit="page-out" default="none">` 包住页面内容
+  （包成 `const page` 再交给组件，避免整页 JSX 缩进 churn）。CSS：旧页 120ms 淡出、
+  新页 180ms 淡入；`::view-transition { pointer-events: none }` 保证动画期间可点。
+  **为此把 `react` / `react-dom` / `@types/react*` 升到 19.3.1**：React 19.2 没有
+  `ViewTransition` 导出，Next 16.4.3 的 peer 范围允许 19.3，`npm run check`、单测与
+  生产构建均通过。
+- Toast：[`ThemedToaster`](../frontend/src/components/common/ThemedToaster.tsx) 统一
+  `duration=3000`、`offset=72`（顶栏 56 + 16），页面不再各自传时长。
+
+实测发现（都已写进对应组件注释）：
+
+1. **进场不能挂在 `[data-starting-style]` 上。** 该属性只存在一帧，属性移除时动画会被
+   一起取消，实际看不到。进场要挂基础态，退场才挂 `[data-ending-style]`。
+2. **退场动画在本机会把弹层钉在屏上。** ego-browser 里 CSS 与 WAAPI 动画都不推进
+   （`currentTime` 恒为 0、`playState: running`；`document.timeline.currentTime` 却在走），
+   Base UI 等的是 `animation.finished`，一次 100ms 的退场会退化成约 2.5s 的滞留。
+   处理与 Phase 1 一致：`[data-ending-style]` 下 `display: none; animation: none`，
+   `getAnimations()` 当帧为空，原语立即卸载。进场动画不受影响。
+3. **`translate` / `scale` 独立属性是这次动效的底座。** 它们不和 Tailwind 的
+   `-translate-x-1/2`（Modal 居中）或抽屉的 `--drawer-swipe-movement-y` 抢 `transform`，
+   所以弹层定位与下拉手势都不用改。
+
+验证（本机 dev 站点 + `ego-browser`，登录态；数字为计算样式 / DOM 实测）：
+
+| 检查 | 结果 |
+| --- | --- |
+| 首页列表 stagger | ✓ `animation-name: motion-stagger-in`，delay 0 / 60 / 120 / 180ms |
+| 通知 Popover | ✓ `.overlay-pop` 150ms，初始 `opacity: 0` / `scale: .97`；Escape 后当帧 `display: none` |
+| Modal（个人资料 → 更换手机号） | ✓ `.overlay-pop` 150ms；Escape 后 `display: none` |
+| Select（首页难度） | ✓ `.overlay-pop` 150ms，`origin: var(--transform-origin)` |
+| Drawer（390×844 → 更多设置） | ✓ `.overlay-sheet` 180ms、`translate: 0 24px`；Escape 后 `display: none` |
+| 桌面词卡 | ✓ `.motion-pop-in`，`transform-origin: 58.86px 414px`（跟着被点词） |
+| 移动词卡 | ✓ `.overlay-sheet` 180ms；卡 390×240，底边 714 < 视口 844 |
+| 句子切换 | ✓ WAAPI keyframes `opacity 0→1` / `translate 0 4px→0`，计数 1/4 → 2/4 |
+| Tab 面板（个人页） | ✓ `.motion-rise-in` 150ms |
+| 路由过渡 | ✓ 首页 → 观看页 `document.startViewTransition` 调用 1 次，`::view-transition-group(root)` 伪元素存在 |
+| 减少动效 | ✓ 所有新动画 `animation: none`；Popover 初始 `opacity: 1` / `scale: none`；关闭即时 |
+| 门禁 | ✓ `npm run check` 全绿，白名单零新增 |
+| 单测 | ✓ 38 个文件 / 375 条全绿 |
+| 生产构建 | ✓ `npm run build` 通过（React 19.3.1 + Next 16.4.3，完整路由表） |
+| e2e | ✓ 复跑（`--workers=1`）21/21：home-feed 7、当前句卡 6、词卡抽屉 6、watch-end 2；另 auth 13/13、ui-review-mobile 7/7 单跑全绿。首轮并行跑的 4 条失败逐条单跑均通过（dev 库/账号被并行 worker 共享导致的既知 flake，不是本轮回归） |
+
+未覆盖 / 环境限制：
+
+- **动画的视觉流畅度与截图没有被验证。** ego-browser 里 `requestAnimationFrame` 被节流到
+  约 300ms 一次、CSS/WAAPI 动画不推进，`Page.captureScreenshot` 连续 CDP 超时（与
+  Phase 1 §12/§16 同源）。本轮结论来自计算样式、`getAnimations()`、DOM 状态与真实键鼠
+  操作，不是看图；真实浏览器里的观感需要人工确认一次。
+- 真机软键盘、iOS Safari 视口/安全区、真实触摸手势仍未覆盖（同 §15）。
+- Firefox 的 View Transitions 支持度取决于版本；不支持时 React 组件按文档自动降级为
+  瞬时切换，未在 Firefox 实测。
 
 ## Sources
 

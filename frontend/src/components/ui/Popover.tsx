@@ -41,9 +41,7 @@ export function PopoverPopup({ className, ...props }: PopoverPrimitive.Popup.Pro
     <PopoverPrimitive.Popup
       data-slot="popover-popup"
       className={cn(
-        "rounded-lg border border-hairline bg-canvas text-ink shadow-card outline-none transition-none",
-        // 关闭时立刻从画面与无障碍树里消失，理由见 ui/DropdownMenu.tsx 里同一条注释。
-        "data-ending-style:hidden",
+        "overlay-pop origin-[var(--transform-origin)] rounded-lg border border-hairline bg-canvas text-ink shadow-card outline-none",
         className
       )}
       {...props}

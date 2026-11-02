@@ -14,8 +14,9 @@ import { cn } from "@/lib/utils";
  *
  * 1. `Portal` + `Positioner` 是必需的。缺了弹层不渲染；静态预渲染时只抛
  *    生产错误码，看不出原因。
- * 2. 不要给 `Popup` 加 `data-starting-style:` / `data-ending-style:` 过渡类。
- *    原语会等 `transitionend` 才卸载，本仓这套类名等不到事件，菜单会卡在屏上。
+ * 2. 进出场用 **keyframes 动画**（`.overlay-pop`，见 `globals.css`），不要用
+ *    `transition`：原语会等动画结束才卸载，而本仓的 reduced-motion 覆盖会让
+ *    transition 等不到 `transitionend`，菜单会卡在屏上（方案文档 §14 的实测）。
  *
  * 定位同样交给原语：贴边时自动翻转 / 位移，`--available-height` 给超高菜单
  * 封顶并内部滚动，因此 `overflow-hidden` 的表格容器裁不到它。
@@ -52,10 +53,7 @@ export function DropdownMenuPopup({ className, ...props }: MenuPrimitive.Popup.P
     <MenuPrimitive.Popup
       data-slot="dropdown-menu-popup"
       className={cn(
-        "max-h-[var(--available-height)] min-w-40 overflow-y-auto rounded-lg border border-hairline bg-canvas py-1 text-copy text-ink shadow-card outline-none transition-none",
-        // 关闭时立刻不可见：原语要等自己的退场检查走完才卸载（实测 200–500ms），
-        // 没有这条会看到菜单在 Escape 之后还停在屏上（详见方案文档 §14）。
-        "data-ending-style:hidden",
+        "overlay-pop max-h-[var(--available-height)] min-w-40 origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-hairline bg-canvas py-1 text-copy text-ink shadow-card outline-none",
         className
       )}
       {...props}

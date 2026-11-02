@@ -10,13 +10,13 @@ import { cn } from "@/lib/utils";
  * 都由原语负责，调用方只写内容。视觉沿用站内浮层：贴视口底、顶部圆角 +
  * 细线 + `shadow-lift`，内容区自己滚动。
  *
- * 与 `ui/Dialog` 一样不开退场过渡：本仓 `prefers-reduced-motion` 会把过渡压到
- * 0.01ms，原语等不到 transitionend 才卸载（详见 `ui/Dialog.tsx`）。这里再用
- * `data-ending-style:hidden` 让关闭瞬间从画面与无障碍树里消失，进场同样没有
- * 动画，动效统一留到 Phase 2。
+ * 与 `ui/Dialog` 一样用 **keyframes 动画**做进场、退场保持瞬时
+ * （`.overlay-sheet` / `.overlay-fade`，原因见 `ui/Dialog.tsx`）：上升 24px + 淡入；
+ * 关闭时 `[data-ending-style]` 直接 `display: none`，原语立即卸载。
  *
  * 下拉期间原语只改 `--drawer-swipe-movement-y`，位移由弹层自己接进 transform，
- * 所以手指拖动时卡片跟着走、松手后由原语决定回弹还是关闭。
+ * 所以手指拖动时卡片跟着走、松手后由原语决定回弹还是关闭。进出场动画改用独立
+ * `translate` 属性，不与下拉的 transform 抢同一个通道。
  */
 
 export function Drawer(props: DrawerPrimitive.Root.Props) {
@@ -41,12 +41,7 @@ export function DrawerBackdrop({ className, ...props }: DrawerPrimitive.Backdrop
   return (
     <DrawerPrimitive.Backdrop
       data-slot="drawer-backdrop"
-      className={cn(
-        "fixed inset-0 z-50 bg-black/45 transition-none",
-        // 关闭瞬间消失，不等原语的退场检查。
-        "data-ending-style:hidden",
-        className
-      )}
+      className={cn("overlay-fade fixed inset-0 z-50 bg-black/45", className)}
       {...props}
     />
   );
@@ -68,9 +63,8 @@ export function DrawerPopup({ className, ...props }: DrawerPrimitive.Popup.Props
     <DrawerPrimitive.Popup
       data-slot="drawer-popup"
       className={cn(
-        "relative flex max-h-[80dvh] w-full touch-none flex-col overflow-hidden rounded-t-lg border-t border-hairline bg-canvas pb-4 text-ink shadow-lift outline-none",
+        "overlay-sheet relative flex max-h-[80dvh] w-full touch-none flex-col overflow-hidden rounded-t-lg border-t border-hairline bg-canvas pb-4 text-ink shadow-lift outline-none",
         "[transform:translateY(var(--drawer-swipe-movement-y))]",
-        "transition-none data-ending-style:hidden",
         className
       )}
       {...props}

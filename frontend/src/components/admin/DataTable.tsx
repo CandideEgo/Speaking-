@@ -72,7 +72,7 @@ export function DataTable<T>({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-hairline">
+        <tbody className="motion-stagger divide-y divide-hairline">
           {rows.length === 0 ? (
             <tr>
               <td colSpan={colSpan} className={cn(!loading && emptyContent && "p-0")}>

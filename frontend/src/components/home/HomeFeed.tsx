@@ -152,7 +152,7 @@ export function HomeFeed({ layoutReady = true }: { layoutReady?: boolean }) {
       {uniqueVideos.length > 0 && (
         <div
           data-testid="home-feed-grid"
-          className="home-feed-grid mt-5"
+          className="home-feed-grid motion-stagger mt-5"
           onClickCapture={() => {
             const container = document.getElementById(SCROLL_CONTAINER_ID);
             if (container)

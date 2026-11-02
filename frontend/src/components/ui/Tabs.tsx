@@ -53,7 +53,9 @@ export function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-panel"
-      className={cn("outline-none", className)}
+      // 切换面板 = 卸旧装新（keepMounted 默认 false），所以这里挂一次性进场；
+      // 旧面板的退场是瞬时的 —— 面板内容通常不透明，留住它会和新的重叠。
+      className={cn("motion-rise-in outline-none", className)}
       {...props}
     />
   );

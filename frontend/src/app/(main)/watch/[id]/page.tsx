@@ -7,6 +7,7 @@ import {
   useRef,
   useCallback,
   useMemo,
+  ViewTransition,
   type CSSProperties,
 } from "react";
 import Link from "next/link";
@@ -781,7 +782,10 @@ export default function WatchPage() {
     </>
   );
 
-  return (
+  // 路由过渡（Phase 2）：首页 ↔ 观看页整块淡出/淡入。包成变量再交给
+  // <ViewTransition>，避免把整页 JSX 缩进改一遍；不支持 View Transitions 的
+  // 浏览器与减少动效用户都自动降级为瞬时切换（CSS 见 globals.css）。
+  const page = (
     <div
       className={cn(
         "watch-page pb-8",
@@ -1569,5 +1573,11 @@ export default function WatchPage() {
         }
       />
     </div>
+  );
+
+  return (
+    <ViewTransition enter="page-in" exit="page-out" default="none">
+      {page}
+    </ViewTransition>
   );
 }

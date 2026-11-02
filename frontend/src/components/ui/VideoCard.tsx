@@ -130,10 +130,7 @@ export function VideoCard({
         href={watchHref(videoId, entry)}
         onClick={() => trackClick(videoId, clickSource())}
         padding={0}
-        className={cn(
-          "video-poster group min-w-0 border-0 bg-transparent transition-none",
-          className
-        )}
+        className={cn("video-poster pressable group min-w-0 border-0 bg-transparent", className)}
       >
         <div className="relative aspect-video overflow-hidden rounded-md bg-surface-card">
           <Image
@@ -223,7 +220,7 @@ export function VideoCard({
       onClick={() => trackClick(videoId, clickSource())}
       padding={0}
       className={cn(
-        "overflow-hidden cursor-pointer",
+        "overflow-hidden cursor-pointer pressable",
         "hover:border-hairline-strong",
         "transition-all duration-200 ease-out group",
         className

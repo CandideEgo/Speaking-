@@ -17,9 +17,8 @@ import {
  * 共享弹窗外壳。对外 API 与旧实现一致，内部换成 Base UI Dialog：
  * 焦点陷阱、滚动锁、背景 inert、嵌套对话框由原语负责，行为不再靠 useModalFocus 手写。
  *
- * 视觉沿用旧值（rounded-lg / p-5 / max-w-md / bg-black/40 遮罩）。进出场过渡
- * 现在没有：带 `data-ending-style:` 过渡时原语等不到 transitionend，弹层会
- * 在关闭后多留约 2.5 秒（见 ui/Dialog.tsx 注释），动效留到 Phase 2 再做。
+ * 视觉沿用旧值（rounded-lg / p-5 / max-w-md / bg-black/40 遮罩）。进场由
+ * `.overlay-pop` / `.overlay-fade` keyframes 提供，关闭仍是瞬时卸载（Phase 2）。
  *
  * 挂载点是 `.user-ui` 壳层而不是 document.body：用户端把品牌变量收在
  * `.user-ui` 作用域里（蓝），管理端才是橙；portal 到 body 会让弹层里的
@@ -65,7 +64,8 @@ export function Modal({
         <DialogPopup
           className={cn(
             // 定位与外观都归 Modal：DialogPopup 只保证 fixed + 最上层。
-            "top-1/2 left-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-hairline bg-canvas text-ink space-y-3 p-5",
+            // 浮层进出场：`.overlay-pop`（独立 scale + opacity，不与居中 transform 打架）。
+            "overlay-pop top-1/2 left-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-hairline bg-canvas text-ink space-y-3 p-5",
             maxWidth
           )}
           finalFocus={returnFocusRef ?? true}

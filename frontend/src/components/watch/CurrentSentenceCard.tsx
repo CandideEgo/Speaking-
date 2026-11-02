@@ -131,6 +131,30 @@ export function CurrentSentenceCard({
   // 都算溢出（`line-clamp` 的 `overflow:hidden` 让 scrollHeight 保留全文高度）。
   const enRef = useRef<HTMLDivElement>(null);
   const zhRef = useRef<HTMLDivElement>(null);
+  // 句子切换的进场动画：用 WAAPI 而不是 CSS keyframes，因为它需要在「同一张卡
+  // 原地换句」时重播，而卡片本身不重挂。只动 opacity + 4px 纵向位移（不改布局）。
+  // 首帧不播（进入观看页时不该像句子切换）；减少动效时直接跳过。
+  const sentenceRef = useRef<HTMLDivElement>(null);
+  const lastSentenceRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${textEn}\u0000${textZh ?? ""}`;
+    if (lastSentenceRef.current === null) {
+      lastSentenceRef.current = key;
+      return;
+    }
+    if (lastSentenceRef.current === key) return;
+    lastSentenceRef.current = key;
+    const el = sentenceRef.current;
+    if (!el || typeof el.animate !== "function") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    el.animate(
+      [
+        { opacity: 0, translate: "0 4px" },
+        { opacity: 1, translate: "0 0" },
+      ],
+      { duration: 120, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
+    );
+  }, [textEn, textZh]);
   const [overflowing, setOverflowing] = useState(false);
   useEffect(() => {
     const over = (el: HTMLElement | null) => !!el && el.scrollHeight - el.clientHeight > 1;
@@ -170,66 +194,69 @@ export function CurrentSentenceCard({
         //   · 中文块恒 1 行
         // 折叠态高度因此是恒定的 2×25.5 + 2 + 21 = 74px，中文永远在。
         <>
-          {showEn && (
-            <div
-              data-testid="current-sentence-en"
-              ref={enRef}
-              // 行高与字号同源（行内 style）：类里的 `leading-*` 会被 utilities 层盖掉，
-              // 写在 `.now-sub-en` 里等于没写，实测踩过。
-              className={cn("now-sub-en", !isExpanded && "line-clamp-2")}
-              style={{
-                fontSize: fontEn,
-                lineHeight: SUBTITLE_LINE_HEIGHT,
-              }}
-            >
-              {textEn.split(" ").map((word, i) => (
-                <Fragment key={i}>
-                  {i > 0 && " "}
-                  <button
-                    type="button"
-                    aria-label={`查看 ${word} 的词义`}
-                    className={cn(
-                      // 热区（§4 当前句卡）：行高 32px，词热区 = 该行整条带再向下扩 4px，
-                      // **行与行不重叠**。做法是 `inline-block` + `-mb-1 pb-1`：盒子高
-                      // 32+4，负外边距抵消多出的 4px，所以行距仍是 32px —— 下一行的热区
-                      // 从再下一行开始，永远不叠到上一行。
-                      // 词间那个真实空格**必须留在 DOM 里**（`{i > 0 && " "}`）：换成
-                      // `mr-1` 看起来一样，但 `innerText`/`textContent` 会把整句拼成
-                      // 「ButIthink…」——复制出来是坏文本，读屏也是。这里踩过一次。
-                      // 可点词的**静止态可发现性**（设计 base.css 的 `.word`：虚线下划线 +
-                      // hover 变橙）。等级/词库自带的 `decoration-*` 会由 tailwind-merge 覆盖
-                      // 这里的颜色与粗细，但虚线样式保留，所以「有下划线 = 可点」始终成立。
-                      "now-sub-word inline-block -mb-1 pb-1 underline decoration-dotted decoration-1 underline-offset-[3px] decoration-hairline-strong",
-                      levelClassFor(word, wordLevels),
-                      isSelected(word) && "now-sub-word-hl"
-                    )}
-                    onClick={(e) => {
-                      // 点词不能顺带把整卡当成「播放/暂停」的面 —— 词自己吞掉这次点击。
-                      e.stopPropagation();
-                      onWordClick(word, e.currentTarget);
-                    }}
-                  >
-                    {word}
-                  </button>
-                </Fragment>
-              ))}
-            </div>
-          )}
-          {showZh && (
-            <div
-              data-testid="current-sentence-zh"
-              ref={zhRef}
-              // 中文行**恒为一行**：这一条不是美观，是高度预算（见上）。代价（已拍板接受）：
-              // 长译文被省略号截断；要看全文走展开。
-              className={cn("now-sub-zh mt-0.5", !isExpanded && "line-clamp-1")}
-              style={{
-                fontSize: fontZh,
-                lineHeight: SUBTITLE_LINE_HEIGHT,
-              }}
-            >
-              {textZh || "本句暂无译文"}
-            </div>
-          )}
+          {/* 英文 + 中文作为一个整体换句：动画只作用在这层，计数/展开开关不跟着动。 */}
+          <div ref={sentenceRef}>
+            {showEn && (
+              <div
+                data-testid="current-sentence-en"
+                ref={enRef}
+                // 行高与字号同源（行内 style）：类里的 `leading-*` 会被 utilities 层盖掉，
+                // 写在 `.now-sub-en` 里等于没写，实测踩过。
+                className={cn("now-sub-en", !isExpanded && "line-clamp-2")}
+                style={{
+                  fontSize: fontEn,
+                  lineHeight: SUBTITLE_LINE_HEIGHT,
+                }}
+              >
+                {textEn.split(" ").map((word, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && " "}
+                    <button
+                      type="button"
+                      aria-label={`查看 ${word} 的词义`}
+                      className={cn(
+                        // 热区（§4 当前句卡）：行高 32px，词热区 = 该行整条带再向下扩 4px，
+                        // **行与行不重叠**。做法是 `inline-block` + `-mb-1 pb-1`：盒子高
+                        // 32+4，负外边距抵消多出的 4px，所以行距仍是 32px —— 下一行的热区
+                        // 从再下一行开始，永远不叠到上一行。
+                        // 词间那个真实空格**必须留在 DOM 里**（`{i > 0 && " "}`）：换成
+                        // `mr-1` 看起来一样，但 `innerText`/`textContent` 会把整句拼成
+                        // 「ButIthink…」——复制出来是坏文本，读屏也是。这里踩过一次。
+                        // 可点词的**静止态可发现性**（设计 base.css 的 `.word`：虚线下划线 +
+                        // hover 变橙）。等级/词库自带的 `decoration-*` 会由 tailwind-merge 覆盖
+                        // 这里的颜色与粗细，但虚线样式保留，所以「有下划线 = 可点」始终成立。
+                        "now-sub-word inline-block -mb-1 pb-1 underline decoration-dotted decoration-1 underline-offset-[3px] decoration-hairline-strong",
+                        levelClassFor(word, wordLevels),
+                        isSelected(word) && "now-sub-word-hl"
+                      )}
+                      onClick={(e) => {
+                        // 点词不能顺带把整卡当成「播放/暂停」的面 —— 词自己吞掉这次点击。
+                        e.stopPropagation();
+                        onWordClick(word, e.currentTarget);
+                      }}
+                    >
+                      {word}
+                    </button>
+                  </Fragment>
+                ))}
+              </div>
+            )}
+            {showZh && (
+              <div
+                data-testid="current-sentence-zh"
+                ref={zhRef}
+                // 中文行**恒为一行**：这一条不是美观，是高度预算（见上）。代价（已拍板接受）：
+                // 长译文被省略号截断；要看全文走展开。
+                className={cn("now-sub-zh mt-0.5", !isExpanded && "line-clamp-1")}
+                style={{
+                  fontSize: fontZh,
+                  lineHeight: SUBTITLE_LINE_HEIGHT,
+                }}
+              >
+                {textZh || "本句暂无译文"}
+              </div>
+            )}
+          </div>
           {/* 「点带下划线的词看释义」不在卡内单独占一行：它作为桌面动作行的行内后缀
               渲染（page.tsx 的 desktopActions），句卡高度回到预算内。 */}
           {/* 计数和展开开关独占一行，不覆盖原句或译文。 */}

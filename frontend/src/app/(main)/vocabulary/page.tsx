@@ -471,7 +471,7 @@ export default function VocabularyPage() {
                     }
                   />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <div className="motion-stagger grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     {list.items.map((w) => (
                       <VocabWordCard
                         key={w.id}
