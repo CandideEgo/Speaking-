@@ -24,7 +24,7 @@ const SIZE: Record<AvatarSize, string> = {
  * load. Color seed is usually the user id; falls back to name/email so the same user always
  * gets the same color.
  *
- * New users without an upload get a line-drawn male/female default avatar, chosen by the
+ * New users without an upload get a blue editorial male/female default avatar, chosen by the
  * user's own gender. Until they fill that in it is derived from the same seed the gradient
  * uses (id, then name/phone) — deterministic, never random, and a provisional placeholder
  * rather than a decision made for them; the profile page lets them set their gender at any
@@ -106,10 +106,6 @@ export function Avatar({
             onLoad={() => setLoadedSrc(resolvedSrc)}
             className={cn(
               "object-cover transition-opacity duration-200",
-              // The default illustrations are line art on a flat cream ground, which
-              // would sit as a bright disc on the dark theme; inverting them is what
-              // makes them follow the theme (INV-017). Uploads are left as uploaded.
-              hasDefault && "dark:invert",
               loaded ? "opacity-100" : "opacity-0"
             )}
           />

@@ -66,6 +66,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **图片直接输出、不走 Next 优化器**：[`next.config.js`](next.config.js) 的 `images.unoptimized: true` 让 `next/image` 原样输出 src（生产 standalone server 上没有 `/media` 路由，优化器的服务端抓取会失败）；`mediaUrl()` 把防盗链的 CDN 经 `/media/proxy` 代理。**新增远程图源要同时加 `next.config.js` 的 `images.remotePatterns`**，否则 `next/image` 会拒。
 
+**品牌素材**：品牌图片与浏览器图标沿用 `/logo.png`、`/logo-large.png`、`/project-icon.svg` 和 `src/app/` 中的图标入口；侧栏与手机顶栏也读取同一标志，不另画字母。默认头像为蓝色插画，深色模式保留原色，不做反相。生成提示词、素材预览与浏览器检查记录见 [`docs/evidence/brand-refresh-2026-10-31/`](../docs/evidence/brand-refresh-2026-10-31/)。
+
 ## e2e
 
 **生产验收独立运行**：`scripts/production-smoke.ps1` 在专用 Compose 项目中创建临时数据库、生成可播放媒体和 localhost 测试证书；用 `playwright.production.config.ts` 验证生产镜像经过 HTTPS nginx 的行为。`PRODUCTION_REGRESSION=1` 复用观看页与移动端回归，`PLAYWRIGHT_BASE_URL` 要与 `PRODUCTION_SMOKE_URL` 同设为该本机地址（旧测试 helper 读取前者）。结束后用脚本的 `-Stop` 清理专用容器与测试卷。该配置拒绝远程主机，不能用于向线上账户写入测试数据。常规 e2e 仍用下面的开发环境配置；两种方式都要保留，因为开发代理不会覆盖生产响应头、媒体访问与静态资源问题。

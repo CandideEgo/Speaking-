@@ -165,22 +165,6 @@
   }
 }
 
-.user-brand-mark {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 8px;
-  background: var(--ink);
-  color: var(--canvas);
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1;
-}
-.dark .user-brand-mark {
-  background: var(--ink);
-  color: var(--canvas);
-}
 .user-nav-label {
   margin: 1.125rem 0 0.5rem;
   padding-inline: 0.75rem;

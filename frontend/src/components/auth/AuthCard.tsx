@@ -38,7 +38,7 @@ export function AuthCard({
           aria-label={`${siteConfig.brandName} 首页`}
           className="flex min-w-0 items-center gap-2 rounded-sm"
         >
-          <Image src="/logo.png" alt="" width={26} height={26} className="rounded-sm" priority />
+          <Image src="/logo.png" alt="" width={26} height={26} priority />
           <span className="font-display text-[17px] font-extrabold tracking-[-0.03em] text-ink">
             {siteConfig.brandName}
           </span>

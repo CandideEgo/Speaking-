@@ -92,7 +92,7 @@ export default function AdminLoginPage() {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <Image src="/logo.png" alt="" width={40} height={40} className="h-10 w-10 rounded-lg" />
+          <Image src="/logo.png" alt="" width={40} height={40} className="h-10 w-10" />
           <div>
             <span className="font-display text-title font-bold text-on-dark tracking-tight block">
               SeeWord
@@ -142,7 +142,7 @@ export default function AdminLoginPage() {
               alt=""
               width={48}
               height={48}
-              className="mx-auto mb-3 h-12 w-12 rounded-lg"
+              className="mx-auto mb-3 h-12 w-12"
             />
             <h1 className="font-display text-title font-bold text-ink">SeeWord 管理后台</h1>
           </div>

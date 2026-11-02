@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { MAIN_NAV, SECONDARY_NAV, navigationActive, type NavItem } from "@/lib/navigation";
@@ -49,9 +50,7 @@ export function Sidebar() {
     <aside className={cn("user-sidebar", collapsed && "is-collapsed")} aria-label="主导航">
       <div className="user-sidebar-header flex min-h-16 items-center justify-between gap-1 px-2 py-4">
         <Link href="/" className="flex items-center gap-2.5" aria-label="SeeWord 首页">
-          <span className="user-brand-mark" aria-hidden="true">
-            S
-          </span>
+          <Image src="/logo.png" alt="" width={28} height={28} className="shrink-0" />
           {!collapsed && (
             <span className="text-[17px] font-semibold tracking-[-0.02em] text-ink">SeeWord</span>
           )}

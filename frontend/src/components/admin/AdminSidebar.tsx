@@ -169,7 +169,7 @@ function Brand({ collapsed }: { collapsed: boolean }) {
     >
       {/* 品牌标与用户端 TopBar 同源（/logo.png），不再自绘橙色方块 + 白字「S」：
           白字压 brand-500 只有 3.12:1，且两套品牌标会让前后台像两个产品。 */}
-      <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-8 rounded-lg" />
+      <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-8" />
       {!collapsed && (
         <div className="leading-tight">
           <div className="text-copy-lg font-display font-bold text-ink">SeeWord</div>
@@ -242,7 +242,7 @@ export function AdminSidebar() {
       >
         <div className="flex h-16 items-center justify-between border-b border-hairline px-5">
           <div className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-8 rounded-lg" />
+            <Image src="/logo.png" alt="" width={32} height={32} className="h-8 w-8" />
             <div className="leading-tight">
               <div className="text-copy-lg font-display font-bold text-ink">SeeWord</div>
               <div className="text-caption uppercase tracking-wider text-muted-soft">管理后台</div>

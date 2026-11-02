@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, Search } from "lucide-react";
 
@@ -77,9 +78,7 @@ export function TopBar() {
           className="flex min-h-11 shrink-0 items-center gap-2 min-[1025px]:hidden"
           aria-label="SeeWord 首页"
         >
-          <span className="user-brand-mark" aria-hidden="true">
-            S
-          </span>
+          <Image src="/logo.png" alt="" width={28} height={28} className="shrink-0" />
           <span className="text-[17px] font-semibold tracking-[-0.02em] text-ink">SeeWord</span>
         </Link>
 
