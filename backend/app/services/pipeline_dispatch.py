@@ -1,17 +1,19 @@
 """Durable dispatch of the pipeline's cross-process task hand-offs (A05/BE-01).
 
-Three hand-offs exist, and each one crosses the DB→broker gap:
+These hand-offs cross the DB→broker gap:
 
 1. head → GPU transcription (``GPU_TRANSCRIBE_TASK`` on ``transcription_gpu``)
 2. head resume → tail (``finalize_video``, subtitles already present)
 3. GPU callback → tail (``finalize_video``, the P1 case the audit reproduced)
+4. admin localization claim → download/transcode (``localize_video``)
 
 ``enqueue`` records "this task must run for this video" **inside the caller's
 transaction**, so a crash after commit cannot lose it. The caller commits, then
 calls ``dispatch_now`` for a best-effort immediate send; whatever is left
 pending is picked up by ``dispatch_pipeline_tasks`` (beat), which also alerts
-when the backlog grows. Re-dispatching is harmless: both tasks are idempotent
-behind the Redis processing lock and the completed-step set.
+when the backlog grows. Delivery may repeat; workers retain their processing
+lock and artifact/state checks. This is not an exactly-once guarantee, nor does
+it fence an old worker after its Redis lock expires.
 
 The task must still make sense when it finally goes out — a video that the
 watchdog moved to ``error`` meanwhile is not worth a GPU slot or a translate
@@ -50,6 +52,7 @@ logger = get_logger(__name__)
 #: the API layer does not pull in ``uvicorn``'s opposite — the task module
 #: imports services, and services are imported by the API.
 FINALIZE_VIDEO_TASK = "app.tasks.video_processing.finalize_video"
+LOCALIZE_VIDEO_TASK = "app.tasks.video_processing.localize_video"
 
 #: Task name → the video status the task is still meaningful in. A video that
 #: left this state is either already past the step (watchdog error, manual
@@ -57,6 +60,7 @@ FINALIZE_VIDEO_TASK = "app.tasks.video_processing.finalize_video"
 _REQUIRED_STATUS: dict[str, frozenset[str]] = {
     GPU_TRANSCRIBE_TASK: frozenset({VideoStatus.processing.value}),
     FINALIZE_VIDEO_TASK: frozenset({VideoStatus.ready_subtitles.value}),
+    LOCALIZE_VIDEO_TASK: frozenset({VideoStatus.processing.value}),
 }
 
 #: Send-failure backoff: 10s doubling, capped at 5 minutes. The beat scan runs

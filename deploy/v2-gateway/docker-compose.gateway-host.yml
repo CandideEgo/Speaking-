@@ -1,0 +1,142 @@
+# Gateway host stack — run on a machine that is NOT the production host.
+#
+# The whole gateway (LiteLLM + usage shim + adapter) with its own ledger DB and
+# coordination Redis. Production reaches the adapter through a reverse SSH
+# tunnel, so the adapter is published on loopback only.
+#
+#   docker compose --env-file backend/.env --env-file ~/.seeword/gateway-host.env \
+#     -f deploy/v2-gateway/docker-compose.gateway-host.yml up -d
+#
+# Reverse tunnel from this host to production (see README.md):
+#
+#   ssh -N -R 172.19.0.1:4400:127.0.0.1:4400 root@<prod-host>
+#
+# No memory limits here: this file targets a dev workstation or the GPU box,
+# not the 1.6 GB production host. See ../evidence/v2-gateway-capacity-2026-11-04/.
+name: seeword-gateway-host
+
+services:
+  gateway-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gw
+      POSTGRES_PASSWORD: ${GATEWAY_DB_PASSWORD:?set GATEWAY_DB_PASSWORD}
+      POSTGRES_DB: gateway
+    volumes:
+      - gateway-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gw -d gateway"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  gateway-db-init:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: ${GATEWAY_DB_PASSWORD:?set GATEWAY_DB_PASSWORD}
+    command:
+      - sh
+      - -c
+      - >-
+        until pg_isready -h gateway-db -U gw; do sleep 1; done;
+        psql -h gateway-db -U gw -d gateway -c 'CREATE SCHEMA IF NOT EXISTS litellm;'
+    depends_on:
+      gateway-db:
+        condition: service_healthy
+    restart: "no"
+
+  gateway-redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_GATEWAY_PASSWORD:?set REDIS_GATEWAY_PASSWORD}"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_GATEWAY_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  gateway:
+    image: ghcr.io/berriai/litellm:v1.106.6@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+    entrypoint: ["/bin/sh", "/spike/entrypoint-gateway.sh"]
+    environment:
+      COMMANDCODE_API_KEY: ${COMMANDCODE_API_KEY:?set COMMANDCODE_API_KEY}
+      COMMANDCODE_MODEL: ${COMMANDCODE_MODEL:?set COMMANDCODE_MODEL}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY}
+      LITELLM_DATABASE_URL: postgresql://gw:${GATEWAY_DB_PASSWORD}@gateway-db:5432/gateway?schema=litellm
+      REDIS_GATEWAY_PASSWORD: ${REDIS_GATEWAY_PASSWORD}
+      GATEWAY_REDIS_HOST: gateway-redis
+      GATEWAY_REDIS_PORT: "6379"
+      GATEWAY_REDIS_DB: "0"
+      GATEWAY_WORKERS: ${GATEWAY_WORKERS:-2}
+      LITELLM_DB_POOL_LIMIT: ${LITELLM_DB_POOL_LIMIT:-10}
+      V2_INPUT_COST_PER_TOKEN: ${V2_INPUT_COST_PER_TOKEN:-0}
+      V2_OUTPUT_COST_PER_TOKEN: ${V2_OUTPUT_COST_PER_TOKEN:-0}
+      V2_MAX_INPUT_TOKENS: ${V2_MAX_INPUT_TOKENS:-4096}
+      V2_MAX_OUTPUT_TOKENS: ${V2_MAX_OUTPUT_TOKENS:-128}
+      LITELLM_TELEMETRY: "False"
+      TZ: UTC
+    volumes:
+      - ./config.prod.template.yaml:/spike/config.prod.template.yaml:ro
+      - ./render_config.py:/spike/render_config.py:ro
+      - ./entrypoint-gateway.sh:/spike/entrypoint-gateway.sh:ro
+    ports:
+      # Admin surface (/key/*, /user/new, /team/*) for bootstrap and probes.
+      - "127.0.0.1:${GATEWAY_ADMIN_PORT:-4001}:4000"
+    depends_on:
+      gateway-db:
+        condition: service_healthy
+      gateway-redis:
+        condition: service_healthy
+      gateway-db-init:
+        condition: service_completed_successfully
+      llm-gateway-shim:
+        condition: service_started
+    restart: unless-stopped
+
+  llm-gateway-shim:
+    image: seeword-v2-gateway-adapter:local
+    build:
+      context: ./adapter
+    entrypoint: ["python", "-m", "uvicorn", "app:shim_app", "--host", "0.0.0.0", "--port", "4100"]
+    working_dir: /adapter
+    environment:
+      UPSTREAM_BASE_URL: ${COMMANDCODE_BASE_URL:-https://api.commandcode.ai/provider/v1}
+      MODEL_MAX_OUTPUT_TOKENS: ${V2_MAX_OUTPUT_TOKENS:-128}
+      ADAPTER_TIMEOUT_SECONDS: "60"
+    volumes:
+      - ./adapter:/adapter:ro
+    restart: unless-stopped
+
+  adapter:
+    image: seeword-v2-gateway-adapter:local
+    build:
+      context: ./adapter
+    entrypoint: ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "4000"]
+    working_dir: /adapter
+    environment:
+      LITELLM_BASE_URL: http://gateway:4000
+      MODEL_MAX_OUTPUT_TOKENS: ${V2_MAX_OUTPUT_TOKENS:-128}
+      ADAPTER_TIMEOUT_SECONDS: "60"
+      CONTENT_RECEIPTS_ENABLED: ${CONTENT_RECEIPTS_ENABLED:-false}
+      CONTENT_RECEIPT_PRIVATE_KEY_FILE: /run/secrets/content-receipt.pem
+      CONTENT_RECEIPT_KEY_ID: ${CONTENT_RECEIPT_KEY_ID:-}
+      CONTENT_RECEIPT_ISSUER: ${CONTENT_RECEIPT_ISSUER:-seeword-content-gateway}
+      CONTENT_RECEIPT_MODEL_FAMILIES: ${CONTENT_RECEIPT_MODEL_FAMILIES:-}
+      CONTENT_RECEIPT_TTL_SECONDS: ${CONTENT_RECEIPT_TTL_SECONDS:-3600}
+    volumes:
+      - ./adapter:/adapter:ro
+    ports:
+      # Reverse-tunnel target; never bound beyond loopback.
+      - "127.0.0.1:${GATEWAY_ADAPTER_PORT:-4400}:4000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:4000/health')\""]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+volumes:
+  gateway-db:

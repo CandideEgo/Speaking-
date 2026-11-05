@@ -114,7 +114,7 @@ class TestLocalizeDownloadFailure:
 
         v = Video(
             title="dl",
-            source_url="https://youtube.com/x",
+            source_url="https://youtube.com/watch?v=abcdefghijk",
             video_source="imported",
             status=VideoStatus.processing,
             video_url_720p=None,
@@ -144,7 +144,7 @@ class TestLocalizeDownloadFailure:
 
         v = Video(
             title="strike",
-            source_url="https://youtube.com/x",
+            source_url="https://youtube.com/watch?v=abcdefghijk",
             video_source="imported",
             status=VideoStatus.ready,
             video_url_720p=None,
@@ -169,7 +169,7 @@ class TestLocalizeDownloadFailure:
 
         v = Video(
             title="force",
-            source_url="https://youtube.com/x",
+            source_url="https://youtube.com/watch?v=abcdefghijk",
             video_source="imported",
             status=VideoStatus.processing,
             video_url_720p=None,

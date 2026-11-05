@@ -1,0 +1,40 @@
+# Synthetic provider only. No real provider credentials or public endpoints.
+model_list:
+  - model_name: synthetic-teaching
+    litellm_params:
+      model: openai/synthetic-teaching
+      # Provider traffic goes through the usage shim so missing usage is charged
+      # at the conservative upper bound inside LiteLLM's own ledger.
+      api_base: http://adapter-shim:4100/v1
+      api_key: synthetic-not-a-provider-key
+    model_info:
+      id: seeword-synthetic-teaching
+      input_cost_per_token: 0.00001
+      output_cost_per_token: 0.0001
+      max_input_tokens: 4096
+      max_output_tokens: 128
+
+router_settings:
+  num_retries: 0
+  timeout: 20
+
+litellm_settings:
+  num_retries: 0
+  request_timeout: 20
+  timezone: UTC
+  budget_reset_time: "00:00"
+  cache: false
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  database_connection_pool_limit: 10
+  # v1.106 shares reservation counters across pods through coordination Redis;
+  # litellm_settings.redis_host is not read by this version.
+  coordination_redis:
+    host: gateway-redis
+    port: 6379
+  store_model_in_db: false
+  store_prompts_in_spend_logs: false
+  disable_budget_reservation: false
+  fail_closed_budget_enforcement: true

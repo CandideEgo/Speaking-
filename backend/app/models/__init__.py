@@ -3,6 +3,7 @@ from app.models.admin_setting import AdminSetting
 from app.models.behavior import BehaviorEvent
 from app.models.catalog import CatalogItem
 from app.models.channel import Channel
+from app.models.content_publication import ContentPublicationOperation, TeachingContentDraft
 from app.models.data_export import DataExportTask
 from app.models.engagement import VideoLike
 from app.models.exam_corpus import ExamSentence, ExamSentenceWord, ExamWordFreq
@@ -20,13 +21,35 @@ from app.models.notification import Notification
 from app.models.order import Order
 from app.models.pipeline_dispatch import PipelineDispatch
 from app.models.preferences import UserPreferences
+from app.models.question_exposure import UserExposureMappingState, UserQuestionExposure
 from app.models.study_session import StudySession, StudySessionItem
 from app.models.subtitle import Subtitle
 from app.models.subtitle_resegment_snapshot import SubtitleResegmentSnapshot
 from app.models.subtitle_revision import SubtitleRevision
+from app.models.teaching import (
+    ExamAnalysisRevision,
+    ExamEvidence,
+    LearningEventOutbox,
+    TeachingAttempt,
+    TeachingFeedback,
+    TeachingItem,
+    TeachingOperation,
+    TeachingSession,
+    UserQuestionDisclosure,
+)
 from app.models.user import User
 from app.models.user_content import ChannelSubscription, SentenceFavorite
 from app.models.user_video_unlock import UserVideoUnlock
+from app.models.v2_runtime import (
+    AgentRun,
+    AgentRunEvent,
+    AgentStep,
+    ExternalConnection,
+    ExternalCredential,
+    GatewayLifecycleIntent,
+    TeachingAccessGrant,
+    TeachingMessage,
+)
 from app.models.video import Video
 from app.models.video_quality_report import VideoQualityReport
 from app.models.video_score import VideoScore

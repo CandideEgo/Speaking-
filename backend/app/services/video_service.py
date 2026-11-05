@@ -16,7 +16,7 @@ from app.core.database import commit_refresh
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.models.learning import LearningRecord
 from app.models.user import User
-from app.models.video import Video, VideoReviewStatus, VideoStatus
+from app.models.video import Video, VideoReviewStatus, VideoSource, VideoStatus
 from app.schemas.pagination import PaginatedResponse, paginated
 from app.schemas.video import (
     SubtitleResponse,
@@ -458,9 +458,10 @@ async def update_video(
         )
         demo_cleared = bool(result.rowcount)
 
-    # Publish guard: only ready videos may be published.
-    if payload.is_published is True and video.status != VideoStatus.ready:
-        raise BadRequestError("只能发布 status=ready 的视频")
+    if payload.is_published is True:
+        from app.services.video_playback import require_publishable
+
+        await require_publishable(video)
 
     publish_changed = payload.is_published is not None and payload.is_published != video.is_published
     # "" clears the assignment, so both sides normalize through `or None`.
@@ -701,9 +702,9 @@ STEP_PROGRESS_DOWNLOADING = _STEP_PROGRESS["downloading"]
 async def localize_video_admin(db: AsyncSession, video_id: str) -> VideoAdminResponse:
     """Kick off local download+transcode for an imported video (admin).
 
-    Clears any existing local URLs and flips the video to ``processing`` so
-    the admin panel can poll progress. Raises ``Conflict`` (409) if the video
-    is already being processed.
+    Keeps previous media until replacement succeeds and flips the video to
+    ``processing`` so the admin panel can poll progress. The same transaction
+    records a dispatch intent; a broker outage cannot strand the request.
 
     The ``processing`` gate is a conditional UPDATE checked by ``rowcount``, not
     a ``read status -> if`` in Python: two concurrent clicks both pass the
@@ -713,11 +714,13 @@ async def localize_video_admin(db: AsyncSession, video_id: str) -> VideoAdminRes
     """
     result = await db.execute(
         update(Video)
-        .where(Video.id == video_id, Video.status != VideoStatus.processing)
+        .where(
+            Video.id == video_id,
+            Video.status.in_([VideoStatus.ready, VideoStatus.error]),
+            Video.video_source == VideoSource.imported,
+            Video.storage_mode != STORAGE_OFFLINE,
+        )
         .values(
-            video_url_480p=None,
-            video_url_720p=None,
-            video_url_1080p=None,
             error_message=None,
             processing_step="downloading",
             processing_progress=STEP_PROGRESS_DOWNLOADING,
@@ -730,14 +733,17 @@ async def localize_video_admin(db: AsyncSession, video_id: str) -> VideoAdminRes
         # already moved it to ``processing``. Roll back before probing so the
         # caller's session stays usable.
         await db.rollback()
-        if await db.get(Video, video_id) is None:
+        existing = await db.get(Video, video_id)
+        if existing is None:
             raise NotFoundError("Video not found")
+        if existing.video_source != VideoSource.imported or existing.storage_mode == STORAGE_OFFLINE:
+            raise BadRequestError("只能本地化未下架的导入视频")
         raise ConflictError("Video is already processing")
 
+    from app.services.pipeline_dispatch import LOCALIZE_VIDEO_TASK, dispatch_now, enqueue
+
+    dispatch_id = await enqueue(db, video_id=video_id, task_name=LOCALIZE_VIDEO_TASK, args=[video_id, True])
     await db.commit()
     video = await _get_video_or_404(db, video_id)
-
-    from app.tasks.video_processing import localize_video
-
-    localize_video.delay(video.id, force=True)
+    await dispatch_now(db, dispatch_id)
     return VideoAdminResponse.model_validate(video)

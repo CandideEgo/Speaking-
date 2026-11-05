@@ -29,8 +29,7 @@ from collections.abc import AsyncGenerator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, select, update
 
 from app.core.database import get_async_session_maker, get_db
 from app.core.security import create_token
@@ -202,19 +201,18 @@ async def test_concurrent_http_submits_return_one_result(pg_client: AsyncClient)
 def _hold_grading_commit_open(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pace the winner so the loser provably reaches its claim attempt.
 
-    Pausing a commit that carries new ``ExamAnswer`` rows targets the grading
-    transaction only — the ``emit_event`` commit and the client's own reads are
-    untouched. Without the pause the two HTTP requests often resolve one after
-    the other on this stack, and the test would pass even against unguarded code.
+    Pause after the conditional UPDATE wins, before grading. Placeholder rows
+    already exist now, so inspecting ``self.new`` would miss the transaction.
     """
-    original_commit = AsyncSession.commit
+    original_claim = exam_service._claim_submit
 
-    async def _paused_commit(self: AsyncSession) -> None:
-        if any(isinstance(obj, ExamAnswer) for obj in self.new):
+    async def _paused_claim(db, session_id, user_id, now) -> bool:
+        won = await original_claim(db, session_id, user_id, now)
+        if won:
             await asyncio.sleep(RACE_WINDOW_S)
-        await original_commit(self)
+        return won
 
-    monkeypatch.setattr(AsyncSession, "commit", _paused_commit)
+    monkeypatch.setattr(exam_service, "_claim_submit", _paused_claim)
 
 
 async def test_racing_submits_with_different_payloads_keep_the_first(
@@ -257,3 +255,40 @@ async def test_racing_submits_with_different_payloads_keep_the_first(
         score = (await db.execute(select(ExamSession.score).where(ExamSession.id == session_id))).scalar()
     assert stored_answers == sorted(r["user_answer"] for r in payload["results"])
     assert score == payload["score"]
+
+
+@pytest.mark.parametrize("mode", ["paper_exam", "daily_check", "wrong_redo"])
+async def test_postgres_deleting_source_paper_preserves_frozen_grading(mode):
+    """Real CASCADE/SET NULL must not remove the grading identity or answers."""
+    user_id, _headers, answers, paper_id = await _seed()
+    maker = get_async_session_maker()
+    if mode == "wrong_redo":
+        previous_id = await _create_attempt(user_id, paper_id)
+        async with maker() as db:
+            previous = await exam_service.get_attempt_detail(db, previous_id, user_id)
+            await exam_service.submit_answers(
+                db, previous, user_id, [{"question_id": a["question_id"], "answer": "Z"} for a in answers]
+            )
+    async with maker() as db:
+        if mode == "paper_exam":
+            paper = await exam_service.get_paper_with_questions(db, paper_id)
+            session = await exam_service.create_paper_session(db, user_id, paper)
+        elif mode == "daily_check":
+            session, _ = await exam_service.create_daily_session(db, user_id, "cet4", 3)
+        else:
+            session, _ = await exam_service.create_wrong_redo_session(db, user_id)
+        session_id = session.id
+        await db.commit()
+    async with maker() as db:
+        await db.execute(update(ExamQuestion).where(ExamQuestion.paper_id == paper_id).values(answer="Z"))
+        await db.execute(delete(ExamPaper).where(ExamPaper.id == paper_id))
+        await db.commit()
+    async with maker() as db:
+        session = await exam_service.get_attempt_detail(db, session_id, user_id)
+        assert session.paper_id is None
+        assert all(a.question_id is None for a in session.answers)
+        result = await exam_service.submit_answers(db, session, user_id, answers)
+        assert result["score"] == 1.0 and result["total"] == 3
+    async with maker() as db:
+        session = await exam_service.get_attempt_detail(db, session_id, user_id)
+        assert await exam_service.submit_answers(db, session, user_id, []) == result

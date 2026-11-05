@@ -15,6 +15,7 @@ from app.core.database import commit_refresh
 from app.models.video import Video, VideoReviewStatus
 from app.schemas.video import SubtitleResponse
 from app.services.video_cache import invalidate_video_detail_cache
+from app.services.video_playback import require_publishable
 
 _SNAPSHOT_VERSION = 1
 
@@ -52,6 +53,7 @@ async def _publish_video(
     This is the single source of truth for publishing a video. Both admin approval
     and auto_publish call this to ensure consistent data.
     """
+    await require_publishable(video)
     video.is_published = True
     video.review_status = VideoReviewStatus.published.value
     video.reviewed_by = reviewed_by

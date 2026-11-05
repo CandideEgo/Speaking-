@@ -8,6 +8,7 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { FullPageSpinner } from "@/components/common/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import ExamRunner, { ExamQuestionPublic, ExamSubmitResponse } from "@/components/exam/ExamRunner";
+import { TeachingWorkspace } from "@/components/teaching/TeachingWorkspace";
 
 interface PaperDetail {
   id: string;
@@ -29,6 +30,11 @@ interface AttemptCreate {
 }
 
 export default function ExamPaperPage() {
+  const search = useSearchParams();
+  return search.get("mode") === "teach" ? <TeachingWorkspace /> : <ExamModePage />;
+}
+
+function ExamModePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();

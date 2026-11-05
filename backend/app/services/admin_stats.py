@@ -23,6 +23,7 @@ from app.models.learning_plan import LearningEvent
 from app.models.order import Order
 from app.models.user import PlanType, User
 from app.models.video import Video, VideoStatus
+from app.services.event_contract import MEANINGFUL_EVENT_TYPES
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -202,7 +203,7 @@ async def _compute_admin_stats(db: AsyncSession, days: int = 30) -> dict:
                 LearningEvent.event_date.label("d"),
                 func.count(func.distinct(LearningEvent.user_id)).label("c"),
             )
-            .where(LearningEvent.event_date >= ago_nd.date())
+            .where(LearningEvent.event_date >= ago_nd.date(), LearningEvent.event_type.in_(MEANINGFUL_EVENT_TYPES))
             .group_by(LearningEvent.event_date)
             .order_by(LearningEvent.event_date)
         )

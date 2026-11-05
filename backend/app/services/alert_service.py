@@ -37,20 +37,23 @@ async def _notify_admins_fallback(title: str, message: str) -> None:
 
     from app.core.database import get_session_maker
     from app.models.user import RoleType, User
-    from app.services.notification_service import create_notification
+    from app.services.notification_service import commit_and_push, create_notification
 
     session_maker = get_session_maker()
     async with session_maker() as db:
         admins = (await db.scalars(select(User).where(User.role == RoleType.admin))).all()
+        notifications = []
         for a in admins:
-            await create_notification(
-                user_id=a.id,
-                type="quality_alert",
-                title=title,
-                message=message,
-                db=db,
+            notifications.append(
+                await create_notification(
+                    user_id=a.id,
+                    type="quality_alert",
+                    title=title,
+                    message=message,
+                    db=db,
+                )
             )
-        await db.commit()
+        await commit_and_push(db, notifications)
 
 
 def _dingtalk_sign(secret: str, timestamp: int) -> str:

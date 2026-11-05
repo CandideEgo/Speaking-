@@ -62,6 +62,7 @@ class ExamSubmitRequest(BaseModel):
 
 
 class ExamQuestionResult(BaseModel):
+    exam_answer_id: str | None = None
     question_id: str
     number: int
     section: str
@@ -172,6 +173,7 @@ class ExamAttemptItem(BaseModel):
 
 
 class ExamAttemptDetailResult(BaseModel):
+    exam_answer_id: str | None = None
     question_id: str
     number: int | None = None
     section: str | None = None

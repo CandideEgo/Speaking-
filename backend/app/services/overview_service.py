@@ -25,6 +25,7 @@ from app.models.learning import LearningRecord
 from app.models.learning_plan import LearningEvent, UserLearningProfile
 from app.models.user_content import SentenceFavorite
 from app.services import exam_service, vocabulary_service
+from app.services.event_contract import MEANINGFUL_EVENT_TYPES
 from app.services.local_time import get_user_local_now, local_zone
 from app.services.study_time_service import watch_seconds_by_local_day
 from app.services.unlock_service import is_active_pro
@@ -61,7 +62,13 @@ async def build_overview(db: AsyncSession, user: User) -> dict:
     # 这个视频」的日子，都不等于「那天学过」。因此历史用户的天数可能变少——
     # 这是真实值，不是回退，也不靠累计时长伪造缺失的日期。
     event_dates = set(
-        (await db.execute(select(LearningEvent.event_date).where(LearningEvent.user_id == user.id).distinct()))
+        (
+            await db.execute(
+                select(LearningEvent.event_date)
+                .where(LearningEvent.user_id == user.id, LearningEvent.event_type.in_(MEANINGFUL_EVENT_TYPES))
+                .distinct()
+            )
+        )
         .scalars()
         .all()
     )

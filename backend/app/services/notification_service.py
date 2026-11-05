@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from fastapi import WebSocketDisconnect
@@ -49,7 +50,7 @@ async def create_notification(
     related_url: str | None = None,
     actor_id: str | None = None,
 ) -> Notification:
-    """Create a notification for a user and push it via WebSocket.
+    """Create/update a notification in the caller's transaction, without pushing.
 
     Deduplication: if an unread notification with the same user_id, type,
     related_url, AND actor_id already exists, update its timestamp and
@@ -63,7 +64,8 @@ async def create_notification(
     If the existing notification is already read, a new one is created so
     the user sees the new activity.
 
-    The caller is responsible for committing the session.
+    The caller commits with ``commit_and_push`` when realtime delivery is
+    needed. A plain commit persists the notification without realtime delivery.
 
     Race condition note: the dedup check-then-insert is not atomic. A rare
     concurrent call could create a duplicate. This is acceptable because:
@@ -111,8 +113,6 @@ async def create_notification(
             existing.created_at = datetime.now(UTC)
             await db.flush()
 
-            # Push update via WebSocket
-            await _push_notification(existing, user_id)
             return existing
 
     # No existing unread notification — create new
@@ -127,16 +127,26 @@ async def create_notification(
     db.add(notification)
     await db.flush()
 
-    # Push to WebSocket connections if any are active
-    await _push_notification(notification, user_id)
-
     return notification
+
+
+async def commit_and_push(db: AsyncSession, notifications: Sequence[Notification]) -> None:
+    """Commit the caller's unit of work, then best-effort push its notifications.
+
+    No network send occurs if commit fails. A crash after commit can lose a
+    realtime update; the durable notification remains available through REST.
+    This explicitly keeps the existing best-effort delivery contract, without
+    introducing an outbox or transaction hooks for non-critical pushes.
+    """
+    await db.commit()
+    for notification in {row.id: row for row in notifications}.values():
+        await _push_notification(notification, notification.user_id)
 
 
 async def _push_notification(notification: Notification, user_id: str) -> None:
     """Attempt to push a notification via WebSocket. Best-effort."""
     try:
-        from app.api.v1.notifications import push_to_user
+        from app.services.notification_transport import push_to_user
 
         await push_to_user(
             user_id,
@@ -184,8 +194,9 @@ async def notify_admins(db: AsyncSession, title: str, message: str, related_url:
 
     try:
         admins = (await db.scalars(select(User).where(User.role == RoleType.admin))).all()
+        notifications = []
         for a in admins:
-            await create_notification(
+            notification = await create_notification(
                 user_id=a.id,
                 type="quality_alert",
                 title=title,
@@ -193,7 +204,8 @@ async def notify_admins(db: AsyncSession, title: str, message: str, related_url:
                 db=db,
                 related_url=related_url,
             )
-        await db.commit()
+            notifications.append(notification)
+        await commit_and_push(db, notifications)
     except Exception:
         logger.warning("notify_admins failed", exc_info=True)
 

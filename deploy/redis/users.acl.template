@@ -26,4 +26,8 @@
 
 user default on >{REDIS_PASSWORD} ~* &* +@all
 user cloud on >{REDIS_PASSWORD} ~* &* +@all
+# V2 LiteLLM gateway: separate identity/password, DB index 2. Reservation
+# counters and key caches use varied names across LiteLLM versions, so this
+# identity keeps full key access (same shape as cloud) but is revocable alone.
+user gateway on >{REDIS_GATEWAY_PASSWORD} ~* &* +@all
 user gpu on >{REDIS_GPU_PASSWORD} resetkeys resetchannels -@all +auth +hello +ping +echo +select +client|setname +client|setinfo +brpop +lpush +rpush +llen +sadd +zadd +zrem +zrange +zrangebyscore +zrevrangebyscore +hset +hget +hdel +watch +multi +exec +discard +unwatch +set +del +eval +evalsha ~transcription_gpu* ~_kombu.binding.transcription_gpu* ~gpu_unacked ~gpu_unacked_index ~gpu_unacked_mutex ~worker:gpu:heartbeat

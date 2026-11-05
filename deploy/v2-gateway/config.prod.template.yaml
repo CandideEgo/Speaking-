@@ -1,0 +1,44 @@
+model_list:
+  - model_name: teaching
+    litellm_params:
+      model: openai/${COMMANDCODE_MODEL}
+      # Provider traffic goes through the usage shim, which injects a
+      # conservative usage block when the provider omits one.
+      api_base: http://llm-gateway-shim:4100/v1
+      api_key: os.environ/COMMANDCODE_API_KEY
+    model_info:
+      id: seeword-teaching
+      # Set from the provider's published rate. A free model must stay at 0;
+      # it then provides no hard cost ceiling and cannot be used as governance
+      # evidence. A paid model needs the verified input/output rates here.
+      input_cost_per_token: ${V2_INPUT_COST_PER_TOKEN}
+      output_cost_per_token: ${V2_OUTPUT_COST_PER_TOKEN}
+      max_input_tokens: ${V2_MAX_INPUT_TOKENS}
+      max_output_tokens: ${V2_MAX_OUTPUT_TOKENS}
+
+router_settings:
+  num_retries: 0
+  timeout: 30
+
+litellm_settings:
+  num_retries: 0
+  request_timeout: 30
+  timezone: UTC
+  budget_reset_time: "00:00"
+  cache: false
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/LITELLM_DATABASE_URL
+  database_connection_pool_limit: ${LITELLM_DB_POOL_LIMIT}
+  # v1.106 shares reservation counters across both workers through
+  # coordination Redis; litellm_settings.redis_host is not read by this version.
+  coordination_redis:
+    host: ${GATEWAY_REDIS_HOST}
+    port: ${GATEWAY_REDIS_PORT}
+    password: os.environ/REDIS_GATEWAY_PASSWORD
+    db: ${GATEWAY_REDIS_DB}
+  store_model_in_db: false
+  store_prompts_in_spend_logs: false
+  disable_budget_reservation: false
+  fail_closed_budget_enforcement: true

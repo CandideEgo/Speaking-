@@ -119,7 +119,11 @@ async def _get_bank_index(db: AsyncSession) -> _BankIndex:
 
 
 def _fingerprint(questions: list[ExamQuestion]) -> str:
-    snapshots = [exam_service._snapshot_question(q) for q in questions]
+    # Preview fingerprints are not attempt snapshots. Preserve the historical
+    # token content shape without requiring lazy-loaded paper relationships.
+    snapshots = [
+        {**exam_service._question_public(q), "answer": q.answer, "explanation": q.explanation} for q in questions
+    ]
     return hashlib.sha256(json.dumps(snapshots, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -307,14 +311,7 @@ async def start(db: AsyncSession, user: User, token: str) -> tuple[ExamSession, 
     )
     db.add(session)
     await db.flush()
-    for question in questions:
-        db.add(
-            ExamAnswer(
-                session_id=session.id,
-                question_id=question.id,
-                question=exam_service._snapshot_question(question),
-                answered_at=None,
-            )
-        )
+    await exam_service._freeze_questions(db, session, questions)
     await db.flush()
-    return session, [exam_service._snapshot_question(q) for q in questions]
+    frozen = (await db.execute(select(ExamAnswer).where(ExamAnswer.session_id == session.id))).scalars()
+    return session, sorted([row.question for row in frozen], key=lambda question: question["number"])

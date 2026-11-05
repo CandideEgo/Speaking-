@@ -18,6 +18,9 @@ from app.services.discovery_service import public_video_filters
 from app.services.unlock_service import get_video_access_info
 from app.services.video_card import video_card_payload
 
+MAX_QUESTIONS = 10
+MAX_ANSWER_LENGTH = 2000
+
 
 def iso_utc(value):
     if value is None:
@@ -80,10 +83,10 @@ async def playable_video(db: AsyncSession, video_id: str, user: User):
     return video
 
 
-async def owned_session(db: AsyncSession, session_id: str, user_id: str, *, lock=False):
+async def owned_session(db: AsyncSession, session_id: str, user_id: str, *, lock: bool = False) -> ListeningSession:
     stmt = select(ListeningSession).where(ListeningSession.id == session_id, ListeningSession.user_id == user_id)
     if lock:
-        stmt = stmt.with_for_update()
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     session = (await db.execute(stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(404, "练习记录不存在")
@@ -91,9 +94,13 @@ async def owned_session(db: AsyncSession, session_id: str, user_id: str, *, lock
 
 
 async def start(db: AsyncSession, user: User, video_id: str, count: int, restart: bool):
+    if not 1 <= count <= MAX_QUESTIONS:
+        raise UnprocessableEntityError(f"每次练习题数须为 1 至 {MAX_QUESTIONS}")
     video = await playable_video(db, video_id, user)
-    # Serialize same-account starts, including two browser tabs.
-    await db.execute(select(User.id).where(User.id == user.id).with_for_update())
+    # Serialize same-account starts without blocking FK key-share locks taken
+    # by a concurrent submission's learning event. PostgreSQL compiles this to
+    # FOR NO KEY UPDATE: the account's primary key is not being changed.
+    await db.execute(select(User.id).where(User.id == user.id).with_for_update(key_share=True))
     pending = (
         (
             await db.execute(
@@ -104,6 +111,9 @@ async def start(db: AsyncSession, user: User, video_id: str, count: int, restart
                     ListeningSession.submitted_at.is_(None),
                 )
                 .order_by(ListeningSession.started_at.desc())
+                .limit(1)
+                .with_for_update()
+                .execution_options(populate_existing=True)
             )
         )
         .scalars()
@@ -198,23 +208,38 @@ def grade(expected: str, actual: str):
     }
 
 
-async def save(db: AsyncSession, session: ListeningSession, answers: dict[str, str], index: int):
+async def save(
+    db: AsyncSession, session_id: str, user_id: str, answers: dict[str, str], index: int
+) -> ListeningSession:
+    """Lock and save an owned draft; caller commits the unit of work."""
+    session = await owned_session(db, session_id, user_id, lock=True)
     if session.submitted_at:
         raise HTTPException(409, "这次练习已经提交，请开始新一轮练习")
     valid = {q["id"] for q in session.questions}
     if not set(answers).issubset(valid):
         raise UnprocessableEntityError("答案包含不属于本次练习的题目")
-    if index >= len(session.questions):
+    if len(answers) > MAX_QUESTIONS:
+        raise UnprocessableEntityError(f"每次最多保存 {MAX_QUESTIONS} 句")
+    if any(len(answer) > MAX_ANSWER_LENGTH for answer in answers.values()):
+        raise UnprocessableEntityError(f"每句答案最多 {MAX_ANSWER_LENGTH} 个字符")
+    if index < 0 or index >= len(session.questions):
         raise UnprocessableEntityError("题目位置超出范围")
     session.answers = {**(session.answers or {}), **answers}
     session.current_index = index
     session.updated_at = datetime.now(UTC)
     await db.flush()
+    return session
 
 
-async def submit(db: AsyncSession, session: ListeningSession):
+async def submit(db: AsyncSession, session_id: str, user_id: str) -> ListeningSession:
+    """Grade the persisted draft once, together with its required learning fact.
+
+    Lock/reload belongs here so every adapter follows the same state machine.
+    A retry returns the committed result; the caller owns commit or rollback.
+    """
+    session = await owned_session(db, session_id, user_id, lock=True)
     if session.submitted_at:
-        return  # Idempotent: a retry cannot double-count learning activity.
+        return session  # A retry cannot double-count learning activity.
     results = []
     for q in session.questions:
         answer = (session.answers or {}).get(q["id"], "")
@@ -222,9 +247,9 @@ async def submit(db: AsyncSession, session: ListeningSession):
     session.results = results
     session.correct_count = sum(r["correct"] for r in results)
     session.submitted_at = session.updated_at = datetime.now(UTC)
-    from app.services.learning_event_service import EVENT_PRACTICED_ITEMS, emit_event
+    from app.services.learning_event_service import EVENT_PRACTICED_ITEMS, record_event
 
-    await emit_event(
+    await record_event(
         db,
         session.user_id,
         EVENT_PRACTICED_ITEMS,
@@ -234,3 +259,4 @@ async def submit(db: AsyncSession, session: ListeningSession):
         source="listening",
     )
     await db.flush()
+    return session

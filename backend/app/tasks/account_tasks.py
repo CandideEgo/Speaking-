@@ -85,6 +85,12 @@ _README = """SeeWord 数据导出包
   video_likes.json / video_unlocks.json  点赞与解锁记录
   listening_sessions.*         听力练习与判分结果
   exam_sessions.json           试卷作答（含逐题快照与你的答案）
+  teaching_sessions.json / teaching_attempts.json  教学状态与作答（按当前内容权限投影）
+  question_exposures.json / question_disclosures.json  提示与答案可见记录
+  exposure_mapping_states.json 历史暴露映射资格
+  teaching_feedbacks.json / teaching_operations.json  未过期教学反馈与动作回执
+  external_connections.json / teaching_runs.json  外部连接与讲解任务安全摘要
+  teaching_messages.json  当前权限允许的任务对话
   videos.json                  你上传的视频元数据
   orders.*                     站内订单
   payments.json                站外收款记录（不含第三方原始表单内容）
@@ -152,9 +158,9 @@ async def _build_export(task_id: str) -> dict:
         task.error = None
         await db.commit()
 
-        from app.services.notification_service import create_notification
+        from app.services.notification_service import commit_and_push, create_notification
 
-        await create_notification(
+        notification = await create_notification(
             user_id=user.id,
             type="system",
             title="数据导出已完成",
@@ -162,7 +168,7 @@ async def _build_export(task_id: str) -> dict:
             db=db,
             related_url="/profile?tab=settings",
         )
-        await db.commit()
+        await commit_and_push(db, [notification])
         logger.info("data_export_ready", export_task_id=task.id, size_bytes=size)
         return {"status": "ready", "size_bytes": size}
 
@@ -181,9 +187,9 @@ async def _mark_export_failure(task_id: str, error: str, *, final: bool) -> None
             task.status = "failed"
         await db.commit()
         if final:
-            from app.services.notification_service import create_notification
+            from app.services.notification_service import commit_and_push, create_notification
 
-            await create_notification(
+            notification = await create_notification(
                 user_id=task.user_id,
                 type="system",
                 title="数据导出失败",
@@ -191,7 +197,7 @@ async def _mark_export_failure(task_id: str, error: str, *, final: bool) -> None
                 db=db,
                 related_url="/profile?tab=settings",
             )
-            await db.commit()
+            await commit_and_push(db, [notification])
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30)
@@ -222,6 +228,8 @@ async def _purge_user(db, user) -> None:
     from app.models.data_export import DataExportTask
     from app.models.user import User as UserModel
     from app.models.video import Video
+
+    await _prepare_v2_removal(db, user.id)
 
     # 1. Disk paths to delete, collected before the rows go away. The rows are
     #    written inside this transaction; if it rolls back, no cleanup happens.
@@ -255,6 +263,8 @@ async def _purge_user(db, user) -> None:
     if user_video_ids:
         await db.execute(sa_delete(Video).where(Video.id.in_(user_video_ids)))
 
+    await _delete_v2_children(db, user.id)
+
     # 5. Every remaining table with a user_id FK to users.id, children before
     #    parents. The excluded ones were handled above; DB-level ON DELETE
     #    CASCADE covers nested rows (exam answers, study items, …).
@@ -281,6 +291,89 @@ async def _purge_user(db, user) -> None:
         media_dirs=len(dirs),
         **result,
     )
+
+
+async def _prepare_v2_removal(db, user_id: str) -> None:
+    """Revoke access, fence execution, and retain a remote lifecycle intent atomically."""
+    from sqlalchemy import select
+
+    from app.models.teaching import TeachingSession
+    from app.models.v2_runtime import AgentRun, ExternalConnection, ExternalCredential, GatewayLifecycleIntent
+
+    now = datetime.now(UTC)
+    connections = (
+        (
+            await db.execute(
+                select(ExternalConnection)
+                .where(ExternalConnection.user_id == user_id)
+                .order_by(ExternalConnection.id)
+                .with_for_update()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for connection in connections:
+        connection.revoked_at = connection.revoked_at or now
+        credentials = (
+            await db.execute(select(ExternalCredential).where(ExternalCredential.connection_id == connection.id))
+        ).scalars()
+        for credential in credentials:
+            credential.revoked_at = credential.revoked_at or now
+    await db.execute(
+        select(TeachingSession.id)
+        .where(TeachingSession.user_id == user_id)
+        .order_by(TeachingSession.id)
+        .with_for_update()
+    )
+    runs = (
+        await db.execute(
+            select(AgentRun)
+            .where(AgentRun.user_id == user_id, AgentRun.status.in_(["queued", "running"]))
+            .order_by(AgentRun.id)
+            .with_for_update()
+        )
+    ).scalars()
+    for run in runs:
+        run.status = "cancelled"
+        run.cancel_requested_at = now
+        run.finished_at = now
+        run.lease_epoch += 1
+    existing = await db.scalar(
+        select(GatewayLifecycleIntent.id)
+        .where(GatewayLifecycleIntent.subject_ref == user_id, GatewayLifecycleIntent.status == "pending")
+        .limit(1)
+    )
+    if existing is None:
+        db.add(GatewayLifecycleIntent(subject_ref=user_id, status="pending"))
+    await db.flush()
+
+
+async def _delete_v2_children(db, user_id: str) -> None:
+    """Explicitly erase nested private records, also on SQLite test databases."""
+    from sqlalchemy import delete, select
+
+    from app.models.teaching import LearningEventOutbox, TeachingAttempt, TeachingItem, TeachingSession
+    from app.models.v2_runtime import (
+        AgentRun,
+        AgentRunEvent,
+        AgentStep,
+        ExternalConnection,
+        ExternalCredential,
+        TeachingMessage,
+    )
+
+    run_ids = select(AgentRun.id).where(AgentRun.user_id == user_id)
+    connection_ids = select(ExternalConnection.id).where(ExternalConnection.user_id == user_id)
+    session_ids = select(TeachingSession.id).where(TeachingSession.user_id == user_id)
+    item_ids = select(TeachingItem.id).where(TeachingItem.session_id.in_(session_ids))
+    await db.execute(delete(TeachingMessage).where(TeachingMessage.user_id == user_id))
+    await db.execute(delete(AgentRunEvent).where(AgentRunEvent.run_id.in_(run_ids)))
+    await db.execute(delete(AgentStep).where(AgentStep.run_id.in_(run_ids)))
+    await db.execute(delete(ExternalCredential).where(ExternalCredential.connection_id.in_(connection_ids)))
+    await db.execute(delete(LearningEventOutbox).where(LearningEventOutbox.user_id == user_id))
+    await db.execute(delete(TeachingAttempt).where(TeachingAttempt.item_id.in_(item_ids)))
+    await db.execute(delete(TeachingItem).where(TeachingItem.session_id.in_(session_ids)))
 
 
 async def _purge_due(now: datetime | None = None) -> int:

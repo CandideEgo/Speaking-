@@ -131,7 +131,7 @@ async def _progress_counts(db: AsyncSession, set_id: str) -> tuple[int, int, int
 
 
 async def _emit_closure_event(db: AsyncSession, user_id: str, vocab_set: VocabSet, total: int) -> None:
-    """Emit the single learned_words event that closes a set (non-blocking).
+    """Emit the single learned_words event that closes a set (caller-owned transaction).
 
     Fired at most once per set: ``unmark_learned`` can reopen a closed set and
     a later verdict/learned mark closes it again — but the event feeds
@@ -141,40 +141,33 @@ async def _emit_closure_event(db: AsyncSession, user_id: str, vocab_set: VocabSe
     ``FOR UPDATE`` first so two concurrent closes serialize: the second
     transaction re-reads prior events after the first commits and skips.
     """
-    try:
-        from app.services.learning_event_service import EVENT_LEARNED_WORDS, emit_event
+    from app.services.learning_event_service import EVENT_LEARNED_WORDS, record_event
 
-        await db.execute(select(VocabSet.id).where(VocabSet.id == vocab_set.id).with_for_update())
-
-        prior = (
-            (
-                await db.execute(
-                    select(LearningEvent.event_metadata).where(
-                        LearningEvent.user_id == user_id,
-                        LearningEvent.event_type == EVENT_LEARNED_WORDS,
-                        # 实践事件 metadata 为 NULL，排除在 SQL 端，避免随历史无界载入。
-                        LearningEvent.event_metadata.isnot(None),
-                    )
-                )
-            )
-            .scalars()
-            .all()
+    # Mutating callers already hold the set lock. Check this set in SQL rather
+    # than loading every historical set event; metadata also covers pre-flow_id
+    # records, so reopening an old set cannot count it again.
+    prior = await db.scalar(
+        select(LearningEvent.id)
+        .where(
+            LearningEvent.user_id == user_id,
+            LearningEvent.event_type == EVENT_LEARNED_WORDS,
+            LearningEvent.event_metadata["set_id"].as_string() == vocab_set.id,
         )
-        if any((meta or {}).get("set_id") == vocab_set.id for meta in prior):
-            return
+        .limit(1)
+    )
+    if prior is not None:
+        return
 
-        await emit_event(
-            db,
-            user_id,
-            EVENT_LEARNED_WORDS,
-            event_value=total,
-            video_id=vocab_set.video_id,
-            metadata={"source": "vocab_set", "set_id": vocab_set.id},
-            flow_id=vocab_set.id,
-            source="vocabulary",
-        )
-    except Exception:
-        logger.exception("Failed to emit learned_words event for set %s", vocab_set.id)
+    await record_event(
+        db,
+        user_id,
+        EVENT_LEARNED_WORDS,
+        event_value=total,
+        video_id=vocab_set.video_id,
+        metadata={"source": "vocab_set", "set_id": vocab_set.id},
+        flow_id=vocab_set.id,
+        source="vocabulary",
+    )
 
 
 async def _find_or_create_vocab(
@@ -362,12 +355,13 @@ async def list_sets(db: AsyncSession, user: User) -> list[dict]:
     return items
 
 
-async def _get_owned_set(db: AsyncSession, user: User, set_id: str) -> VocabSet | None:
+async def _get_owned_set(db: AsyncSession, user: User, set_id: str, *, for_update: bool = False) -> VocabSet | None:
     """The set only if it belongs to the user — None otherwise (caller 404s,
     so existence is never leaked across users)."""
-    return (
-        await db.execute(select(VocabSet).where(VocabSet.id == set_id, VocabSet.user_id == user.id))
-    ).scalar_one_or_none()
+    stmt = select(VocabSet).where(VocabSet.id == set_id, VocabSet.user_id == user.id)
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    return (await db.execute(stmt)).scalar_one_or_none()
 
 
 def _scope_filter(scope: str):
@@ -503,20 +497,19 @@ async def sieve_judge(db: AsyncSession, user: User, set_id: str, set_word_id: st
 
     Returns None when the set/word doesn't exist or isn't the user's.
     """
-    vocab_set = await _get_owned_set(db, user, set_id)
+    vocab_set = await _get_owned_set(db, user, set_id, for_update=True)
     if vocab_set is None:
         return None
     sw = (
         await db.execute(
-            select(VocabSetWord).where(
-                VocabSetWord.id == set_word_id,
-                VocabSetWord.set_id == vocab_set.id,
-            )
+            select(VocabSetWord)
+            .where(VocabSetWord.id == set_word_id, VocabSetWord.set_id == vocab_set.id)
+            .execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
     if sw is None:
         return None
-    vocab = await db.get(Vocabulary, sw.vocabulary_id)
+    vocab = await db.get(Vocabulary, sw.vocabulary_id, with_for_update=True, populate_existing=True)
 
     was_completed = (await _progress_counts(db, vocab_set.id))[2:] == (0, 0)
 
@@ -559,15 +552,14 @@ async def mark_learned(db: AsyncSession, user: User, set_id: str, set_word_id: s
 
     Returns None when the set/word doesn't exist or isn't the user's.
     """
-    vocab_set = await _get_owned_set(db, user, set_id)
+    vocab_set = await _get_owned_set(db, user, set_id, for_update=True)
     if vocab_set is None:
         return None
     sw = (
         await db.execute(
-            select(VocabSetWord).where(
-                VocabSetWord.id == set_word_id,
-                VocabSetWord.set_id == vocab_set.id,
-            )
+            select(VocabSetWord)
+            .where(VocabSetWord.id == set_word_id, VocabSetWord.set_id == vocab_set.id)
+            .execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
     if sw is None:
@@ -580,7 +572,7 @@ async def mark_learned(db: AsyncSession, user: User, set_id: str, set_word_id: s
     sw.learned_at = now
     if sw.sieved_at is None:
         sw.sieved_at = now
-    vocab = await db.get(Vocabulary, sw.vocabulary_id)
+    vocab = await db.get(Vocabulary, sw.vocabulary_id, with_for_update=True, populate_existing=True)
     if vocab is not None:
         vocab.mastery_level = MASTERY_MASTERED
         if vocab.first_seen_at is None:
@@ -622,15 +614,14 @@ async def unmark_learned(db: AsyncSession, user: User, set_id: str, set_word_id:
     idempotent no-op that still returns the set's current counters. Returns
     None when the set/word doesn't exist or isn't the user's.
     """
-    vocab_set = await _get_owned_set(db, user, set_id)
+    vocab_set = await _get_owned_set(db, user, set_id, for_update=True)
     if vocab_set is None:
         return None
     sw = (
         await db.execute(
-            select(VocabSetWord).where(
-                VocabSetWord.id == set_word_id,
-                VocabSetWord.set_id == vocab_set.id,
-            )
+            select(VocabSetWord)
+            .where(VocabSetWord.id == set_word_id, VocabSetWord.set_id == vocab_set.id)
+            .execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
     if sw is None:
@@ -640,7 +631,7 @@ async def unmark_learned(db: AsyncSession, user: User, set_id: str, set_word_id:
         now = _now()
         sw.status = STATUS_UNKNOWN
         sw.learned_at = None
-        vocab = await db.get(Vocabulary, sw.vocabulary_id)
+        vocab = await db.get(Vocabulary, sw.vocabulary_id, with_for_update=True, populate_existing=True)
         if vocab is not None:
             vocab.mastery_level = MASTERY_LEARNING
             vocab.interval_days = UNMARK_INTERVAL_DAYS

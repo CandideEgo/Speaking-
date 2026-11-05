@@ -409,3 +409,24 @@ class TestCutFeaturesStayCut:
     def test_removed_plan_routes_stay_removed(self, fragment):
         offenders = [path for path in _route_paths() if fragment in path]
         assert not offenders, f"已删的 '{fragment}' 路由又出现了：{offenders}"
+
+
+def test_services_and_tasks_do_not_import_http_adapters():
+    """Business transactions and worker entry points must not depend on routes."""
+    app_dir = API_DIR.parent
+    files = [path for layer in ("services", "tasks") for path in (app_dir / layer).rglob("*.py")]
+    assert files, "architecture scan found no application services/tasks"
+    offenders = []
+    for path in files:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            modules = []
+            if isinstance(node, ast.ImportFrom):
+                modules = [node.module or ""]
+                if node.module == "app":
+                    modules.extend(f"app.{name.name}" for name in node.names)
+            elif isinstance(node, ast.Import):
+                modules = [name.name for name in node.names]
+            if any(name == "app.api" or name.startswith("app.api.") for name in modules):
+                offenders.append(f"{path.relative_to(app_dir)}:{node.lineno}")
+    assert not offenders, f"services/tasks import HTTP adapters: {offenders}"

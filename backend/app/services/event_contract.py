@@ -17,8 +17,8 @@
 
 from __future__ import annotations
 
-#: 服务端学习事件（``learning_events``）的契约版本。v2 = 带 flow_id/source。
-LEARNING_EVENT_SCHEMA_VERSION = 2
+#: v2 = flow_id/source；v3 = 独立教学事实（不进入有效学习日与旧计数）。
+LEARNING_EVENT_SCHEMA_VERSION = 3
 
 #: 客户端行为事件（``behavior_events``）的契约版本。
 #: v2 = 带 flow_id；v3 = 词卡会话事件 ``gloss_open`` / ``replay``（A14 预注册指标）。
@@ -38,7 +38,7 @@ MEANINGFUL_EVENT_TYPES: frozenset[str] = frozenset(
 )
 
 #: 学习流程路径（``learning_events.source`` 与客户端 ``flow_result`` 的 path 同值）。
-FLOW_SOURCES: frozenset[str] = frozenset({"listening", "exam", "practice", "vocabulary", "video"})
+FLOW_SOURCES: frozenset[str] = frozenset({"listening", "exam", "practice", "vocabulary", "video", "teaching"})
 
 #: 客户端上报的意图事件名：流程开始 / 流程提交结果。
 #: 只用于路径分析，**不是**学习事实；事实以 ``learning_events`` 为准。

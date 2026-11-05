@@ -333,8 +333,8 @@ async def test_daily_submit_foreign_question_rejected(client, auth_headers, db_s
     assert "抽题" in resp.json()["message"]
 
 
-async def test_daily_submit_partial_rejected(client, auth_headers, db_session):
-    """Submitting only part of the drawn set is rejected (exact set required)."""
+async def test_daily_submit_partial_counts_missing_as_unanswered(client, auth_headers, db_session):
+    """A subset of the frozen draw leaves every omitted question unanswered."""
     await _seed_paper(db_session)
     payload = await _start_daily(client, auth_headers)
     sid = payload["session_id"]
@@ -342,7 +342,9 @@ async def test_daily_submit_partial_rejected(client, auth_headers, db_session):
 
     answers = [{"question_id": q["id"], "answer": "A"} for q in qs[:1]]
     resp = await client.post(f"/api/v1/exams/attempts/{sid}/submit", json={"answers": answers}, headers=auth_headers)
-    assert resp.status_code == 409
+    assert resp.status_code == 200
+    assert resp.json()["total"] == len(qs)
+    assert sum(r["user_answer"] is None for r in resp.json()["results"]) == len(qs) - 1
 
 
 async def test_daily_submit_mixed_set_rejected(client, auth_headers, db_session):

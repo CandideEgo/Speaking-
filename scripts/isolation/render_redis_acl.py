@@ -6,6 +6,7 @@ Passwords never live in git: the template has ``{REDIS_PASSWORD}`` and
 the environment into a git-ignored output file.
 
     ISOLATION_REDIS_PASSWORD=... ISOLATION_REDIS_GPU_PASSWORD=... \
+    ISOLATION_REDIS_GATEWAY_PASSWORD=... \
         python scripts/isolation/render_redis_acl.py --out deploy/redis/users.acl.generated
 
 Production rollout uses the same script (see D6 §5.2); only the variable values
@@ -27,6 +28,7 @@ TEMPLATE = REPO_ROOT / "deploy" / "redis" / "users.acl.template"
 PLACEHOLDERS = {
     "{REDIS_PASSWORD}": "REDIS_PASSWORD",
     "{REDIS_GPU_PASSWORD}": "REDIS_GPU_PASSWORD",
+    "{REDIS_GATEWAY_PASSWORD}": "REDIS_GATEWAY_PASSWORD",
 }
 
 # Redis ACL rules are whitespace-separated; a password containing whitespace,

@@ -9,6 +9,7 @@ import { LinkButton } from "@/components/ui/LinkButton";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/common/SkeletonCard";
 import { ErrorState } from "@/components/common/ErrorState";
+import { TeachingCatalog } from "@/components/teaching/TeachingCatalog";
 
 interface Summary {
   types: Record<string, { group_count: number; question_count: number }>;
@@ -171,6 +172,7 @@ export default function PracticePage() {
         }
       />
 
+      <TeachingCatalog />
       <section
         className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-hairline bg-surface-soft p-4 sm:p-5"
         aria-label="听力练习"

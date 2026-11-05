@@ -211,6 +211,44 @@ class TestCallbackAmount:
         assert me.json()["plan"] == "pro"
 
 
+@pytest.mark.parametrize("gateway", ["alipay", "wechat"])
+@pytest.mark.parametrize("amount_ok", [True, False])
+async def test_late_callback_recovers_expired_order_only_for_matching_amount(
+    client, auth_headers, enable_payments, bypass_signature, gateway, amount_ok
+):
+    from sqlalchemy import select
+
+    from app.models.order import Order, OrderStatus
+    from tests.conftest import TestSessionLocal
+
+    created = await client.post("/api/v1/payments/create-order", headers=auth_headers)
+    number = created.json()["order_id"]
+    async with TestSessionLocal() as db:
+        order = (await db.execute(select(Order).where(Order.order_number == number))).scalar_one()
+        order.status = OrderStatus.expired
+        await db.commit()
+    body = (
+        {
+            "data": {
+                "out_trade_no": number,
+                "trade_status": "TRADE_SUCCESS",
+                "total_amount": "39.00" if amount_ok else "0.01",
+            }
+        }
+        if gateway == "alipay"
+        else {"json": {"out_trade_no": number, "trade_state": "SUCCESS", "amount": {"total": 3900 if amount_ok else 1}}}
+    )
+    for _ in range(2):
+        response = await client.post(f"/api/v1/payments/callback/{gateway}", **body)
+        assert response.status_code == 200
+        assert (response.json().get("status") == "success" or response.json().get("code") == "SUCCESS") == amount_ok
+    async with TestSessionLocal() as db:
+        order = (await db.execute(select(Order).where(Order.order_number == number))).scalar_one()
+        assert order.status == (OrderStatus.paid if amount_ok else OrderStatus.expired)
+    me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+    assert me["plan"] == ("pro" if amount_ok else "free")
+
+
 class TestPaymentStatus:
     async def test_status_free_user(self, client: AsyncClient, auth_headers: dict):
         resp = await client.get("/api/v1/payments/status", headers=auth_headers)

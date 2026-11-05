@@ -1,0 +1,103 @@
+# Isolated, synthetic E3a spike. Never add real upstream credentials here.
+name: seeword-v2-gateway-spike
+
+x-litellm-image: &litellm-image ghcr.io/berriai/litellm:v1.106.6@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+
+services:
+  gateway-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gateway_spike
+      POSTGRES_PASSWORD: synthetic_only
+      POSTGRES_DB: gateway_spike
+    networks: [synthetic]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway_spike -d gateway_spike"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  gateway-redis:
+    image: redis:7-alpine
+    networks: [synthetic]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  synthetic-provider:
+    image: *litellm-image
+    entrypoint: ["python"]
+    command: ["/spike/provider_stub.py"]
+    volumes:
+      - ./deploy/v2-gateway/provider_stub.py:/spike/provider_stub.py:ro
+    networks: [synthetic]
+
+  gateway:
+    image: *litellm-image
+    command: ["--config", "/spike/config.yaml", "--port", "4000", "--num_workers", "2", "--timeout_worker_healthcheck", "60"]
+    environment:
+      # Public test-only values, not reusable application/provider secrets.
+      LITELLM_MASTER_KEY: sk-seeword-v2-synthetic-only
+      DATABASE_URL: postgresql://gateway_spike:synthetic_only@gateway-db:5432/gateway_spike
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      LITELLM_TELEMETRY: "False"
+      TZ: UTC
+    volumes:
+      - ./deploy/v2-gateway/config.synthetic.yaml:/spike/config.yaml:ro
+    depends_on:
+      gateway-db: {condition: service_healthy}
+      gateway-redis: {condition: service_healthy}
+    networks: [synthetic]
+
+  # Inbound thin adapter: cap enforcement + drain-on-disconnect. Callers use
+  # this in place of the gateway; admin paths are proxied unchanged.
+  adapter:
+    image: seeword-v2-gateway-adapter:local
+    build:
+      context: ./deploy/v2-gateway/adapter
+    entrypoint: ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "4000"]
+    working_dir: /adapter
+    environment:
+      LITELLM_BASE_URL: http://gateway:4000
+      MODEL_MAX_OUTPUT_TOKENS: "128"
+      ADAPTER_TIMEOUT_SECONDS: "60"
+    volumes:
+      - ./deploy/v2-gateway/adapter:/adapter:ro
+    ports:
+      - "127.0.0.1:14000:4000"
+    depends_on:
+      - gateway
+    networks: [synthetic]
+
+  # Outbound provider shim: injects conservative usage when the provider omits it.
+  adapter-shim:
+    image: seeword-v2-gateway-adapter:local
+    build:
+      context: ./deploy/v2-gateway/adapter
+    entrypoint: ["python", "-m", "uvicorn", "app:shim_app", "--host", "0.0.0.0", "--port", "4100"]
+    working_dir: /adapter
+    environment:
+      UPSTREAM_BASE_URL: http://synthetic-provider:4010/v1
+      MODEL_MAX_OUTPUT_TOKENS: "128"
+      ADAPTER_TIMEOUT_SECONDS: "60"
+    volumes:
+      - ./deploy/v2-gateway/adapter:/adapter:ro
+    depends_on:
+      - synthetic-provider
+    networks: [synthetic]
+
+  probe:
+    image: *litellm-image
+    profiles: [check]
+    entrypoint: ["python"]
+    command: ["/spike/check_v2_gateway.py", "--container-network", "--output", "/evidence/results.json"]
+    volumes:
+      - ./backend/scripts/check_v2_gateway.py:/spike/check_v2_gateway.py:ro
+      - ./docs/evidence/v2-gateway-spike-2026-11-03:/evidence
+    networks: [synthetic]
+
+networks:
+  synthetic:
+    internal: true

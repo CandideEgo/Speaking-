@@ -1,13 +1,22 @@
 # SeeWord V2 技术设计方案
 
 日期：2026-10-31  
-状态：待实施设计，供拆分 PR 与技术评审；不是已交付能力或上线证明。  
+状态：2026-11-02 开始实施，代码与验收记录分开记；默认关闭、白名单私测，未部署生产。
+方向更新（2026-11-02）：模型调用改为**独立网关**，路线分 V2.0 可信内核 / V2.1 AI 教学面与个人记忆 / V2.2 外部生态。本文 §1 的「不引入独立模型网关」与 D.7 的选型倾向已被[方向对齐文档](v2-direction-alignment-2026-11-02.md)取代；其余教学事务、内容内核与 MCP 边界仍有效。
 代码基线：`master 2e92255b`。配套事实与风险见 [V2 方案评审](v2-plan-review-2026-10-31.md)；产品输入为该评审引用的 V2.0 与交接稿。  
-范围：可信单题教学、网页与一个外部 MCP 宿主继续同一学习流程、模型计量、授权和可恢复执行。本次只新增本文档。
+范围：可信单题教学、网页与外部 MCP 宿主继续同一学习流程、模型计量、授权和可恢复执行。首轮验证 Codex / Claude，随后 DeepSeek Harness / WorkBuddy；豆包 App / 网页先探测接入能力，不以扣子或 TRAE 代替。
+
+### 2026-11-02 本轮实施决定
+
+- 内容采用自动核验发布门，正式状态为 `auto_verified`，不冒充人工审核。首批限仔细阅读四选一；缺来源、许可、证据、完整选项解释或分层提示时拒绝发布。合成题只作合成回归，不冒充真题。
+- V2 教学模型调用全站每天最多 1 美元，旧翻译任务不计入此额度；unknown usage 不得当零。独立网关是用量与成本事实源，业务侧只留调用引用与生命周期意图，不建设第二套计价账本。
+- run 输入、安全步骤、事件与学习反馈保留 24 小时；脱敏调用账本保留 7 日；教学 attempt 随账号保留。教学事件使用独立统计口径，不计入旧练习完成数、mastery 或有效学习日。
+- HTTP 教学入口可先完成不依赖模型的初答、提示、复答、揭晓与恢复；每个切片按本身前置放行，不用未完成的宿主/网关研究阻塞考试快照。
+- 运行边界是本地实施与验证；生产发布、公开放量、宿主实测及网关容量结论都需要独立证据。
 
 ## 1. 设计结论与首版边界
 
-采用 **现有 Python 单后端 + 关系数据库 Learning Core + 有限教学 Loop + 官方 MCP Python SDK 适配层**。继续使用现有 Next.js、PostgreSQL、Redis、Celery，不引入独立模型网关、通用工作流引擎或向量数据库。
+采用 **现有 Python 单后端 + 关系数据库 Learning Core + 独立模型网关 + 有限教学 Loop + 官方 MCP Python SDK 适配层**。继续使用现有 Next.js、PostgreSQL、Redis、Celery，不引入通用工作流引擎或向量数据库。
 
 首版必须完成这一条真实链路：
 
@@ -20,11 +29,11 @@
 | 考试与教学 | 正式整卷考试继续一次交卷；单题教学另有 session/item/attempt | MCP 单题提交不调用旧整卷 submit，不给未答题批量判错 |
 | 谁提交用户答案 | 网页按钮确定性提交；内置模型无提交/揭晓权限 | 聊天“选 C”可形成草稿建议，不能直接生成用户成绩 |
 | 外部作答 | 允许有 scope 的宿主直接追加辅助教学 attempt | 标记外部转述/独立性未知，不改变整卷成绩、掌握度或有效学习日 |
-| 内容权威 | 标准答案、分级提示、证据、逐项解析先审核并版本化 | 未核验不能靠模型补成权威；不以字段非空作为核验 |
+| 内容权威 | 标准答案、分级提示、证据、逐项解析通过自动核验并版本化 | 不标人工审核；不以字段非空作为核验 |
 | Agent 的作用 | 查询允许的上下文、诊断为假设、组织已获准内容和下一动作 | 作答前不开放自由生成解析；不能修改答案或自填评分 |
 | 执行托管 | Runtime 仍是 backend 模块，长回合交专用 `teaching` Celery worker | 与现有 `celery`、`transcription_gpu` 消费者隔离；不随 SSE 连接执行 |
-| 强一致状态 | PG 管理会话、幂等、run、账本与预算 | Redis 只作现有 broker/通知，不能成为成绩或撤权的唯一事实源 |
-| 对外协议 | 一个宿主、一组锁定 SDK/协议配置 | 只读通过不等于 BYOA 交卷闭环通过；不承诺多宿主与语音 |
+| 强一致状态 | 业务 PG 管理会话、幂等与 run；网关管理预算与用量 | Redis 只作 broker/通知；一个成本事实源 |
+| 对外协议 | 通用 MCP 服务、逐宿主锁版兼容矩阵 | 先 Codex / Claude，再 DSH / WorkBuddy；只读连通不等于交卷闭环 |
 
 完整个人记忆 CRUD、词汇多语境、逐次复习日志和调度切换后置。线上继续 S6；FSRS 与既有 B04 自研影子的分歧仍需产品决策。Pi 为对照候选，不能因提供工具循环就直接替换现有 Python 服务；其 SDK 面向 Node.js/Bun/TypeScript，集成还涉及桥接与计量边界，依据见配套评审 D.7。
 
@@ -35,7 +44,7 @@
 | `backend/app/services/exam_service.py` | 修复所有考试模式开考快照；抽出可复用纯判分规则，保留旧 submit 的响应/幂等语义 |
 | `backend/app/models/exam_test.py` | 保留 `ExamAnswer(session_id, question_id)` 唯一约束；补快照集完成标记/版本，不塞多次教学答案 |
 | `backend/app/services/home_content_service.py` | 借鉴不可变版本、来源指纹、生成占位的现有模式；不复用首页内容表 |
-| `backend/app/services/ai_service.py` 与 `translation/__init__.py` | 三类 SDK 调用共同进入计量包装；保留 SDK import 的现有允许位置 |
+| `backend/app/services/ai_service.py` 与 `translation/__init__.py` | 教学经独立网关，旧三出口按单任务验证后迁移；旧翻译不混入 V2 日预算 |
 | `learning_event_service.py` / `event_contract.py` | 新流程用严格投影与可靠投递；现有宽容 `emit_event` 不作为唯一事实存储 |
 | `backend/app/tasks/celery_app.py` | 注册教学队列/任务、run 巡检与事件投递；原视频管线任务不改队列 |
 | `backend/app/api/dependencies.py` | 提炼共同账号有效性检查；站内 JWT 和外部 opaque 凭据分别解析 |
@@ -46,7 +55,7 @@
 ```mermaid
 flowchart LR
     W[Next.js 题目页与固定卡片] --> A[受保护 teaching HTTP API]
-    H[一个外部 Agent 宿主] --> M[MCP SDK 适配层]
+    H[Codex / Claude / DSH / WorkBuddy] --> M[MCP SDK 适配层]
     A --> C[Learning Core 服务]
     M --> C
     C --> P[(PostgreSQL)]
@@ -54,18 +63,18 @@ flowchart LR
     R --> L[Python 有限 Loop]
     L --> T[只读/受控教学工具]
     T --> C
-    L --> G[现有 AI 服务 + 统一计量]
+    L --> G[独立模型网关<br/>唯一用量与预算事实源]
     G --> U[模型供应商]
-    G --> P
+    G --> GD[(网关数据库)]
     P --> E[学习事件可靠投递]
     E --> F[现有 LearningEvent 与聚合]
     W --> S[只读 run events SSE]
     S --> P
 ```
 
-拟新增目录按业务组织：`models/teaching.py`、`models/model_call.py`、`models/agent_run.py`、`models/external_connection.py`、`models/learning_event_outbox.py`；`services/teaching/`、`services/model_metering.py`、`services/external_connection_service.py`、`services/learning_event_delivery.py`；`api/v1/teaching.py`、`api/v1/external_connections.py`、`integrations/mcp/`、`tasks/teaching_tasks.py`。这是落点建议，非要求先批量创建空模块。
+目录按业务组织：教学内容/事务、run、外部连接与 outbox 分模块；网关内部账本由选型实现，不在业务库预建另一份完整成本账本。这是落点建议，非要求先批量创建空模块。
 
-新计量模块接收“执行一次 SDK 请求”的异步闭包，不直接 import `openai`。这样无需放宽 `pyproject.toml` 的 INV-005/TID251 白名单。模型调用与教学规则仍由原 service 层承载。
+业务侧通过内部网关地址与受控凭据请求任务别名，不直接调用教学模型 provider。不得为新增调用放宽 INV-005/TID251；教学规则与 prompt 仍属于业务 service。
 
 ## 3. 身份、版本与可信度契约
 
@@ -265,42 +274,26 @@ data: {"schema_version":1,"run_id":"run-1","sequence":18,"session_revision":4,"t
 
 ## 8. 模型计量、预算与并发硬闸
 
-### 8.1 封装与账本
+### 8.1 事实源与职责
 
-统一包装三个现有出口：`AIService._chat`、备用 client 的 `_generate_word_notes_one_batch`、翻译 `_call_engine`。SDK 客户端显式关闭隐藏自动重试（`max_retries=0`），由受控层决定重试、次数、deadline；业务翻译重试每次都重新准入和记账。先结算响应 usage，再解析 JSON，格式错误不等于没花 token。
+**usage / cost / 预算的单一事实源是独立网关。** 使用成熟网关实现协议、路由、网络重试与计量；LiteLLM 仅是首选 spike，exact version、镜像 digest、许可及异常路径通过实测后才能锁定。业务库不另建一套 `model_call_ledger/model_budget_buckets/model_concurrency_limits`。
 
-`CallContext` 包含 `logical_call_id/provider_attempt_id/request_id/task/provider_account_id/engine/model/user_id?/run_id?/step_id?/flow_id?/source/price_version/input_ceiling/output_cap/deadline_at`，全部由服务端形成。后台无用户调用也记入 system/global 桶。工具返回、提示与记忆只传最小必要范围，日志不存完整 prompt 或模型思维过程。
+后端传递服务端形成的 `logical_call_id/run_id/step_id/task` 与可匿名化调用方引用；保留运行状态和网关尝试引用，不复制 token/cost。网关提供 global / user / run 预算映射、共享并发、attempt 追踪、unknown usage 与 late settle、导出/匿名化。无法满足的语义在网关侧加薄适配，不退回无硬闸直连。
 
-| 实体 | 字段与约束 |
-| --- | --- |
-| `model_call_ledger` | 每次供应商尝试一行：logical_call_id、attempt_no、上下文关联、请求/响应 model、provider_request_id、execution_status、dispatch_started_at、deadline、usage_status、输入/输出/缓存/推理 token、reserved/charged token 与 cost、price_version、slot_status、错误/取消、时间；唯一 `(logical_call_id, attempt_no)`；user/run 关联可空并 SET NULL，不能随 run CASCADE 丢账 |
-| `model_budget_buckets` | 不可变 UUID 主键、scope=`global/user/run`、scope_key、window_start、token/cost limit、used、reserved；唯一 `(scope,scope_key,window_start)`。global/user 按 UTC 日，run 使用固定生命周期窗口 |
-| `model_concurrency_limits` | 不可变 UUID 主键、scope、scope_key、max_inflight、held_slots；唯一 `(scope,scope_key)`，**没有日窗口**；held 包含 quarantine，跨午夜仍占槽 |
+V2 教学全站 UTC 日预算初值 **1 美元**，旧翻译/词注不占此桶；每 T 一个 active run、每用户一个模型在途、全站四个、teaching worker 并发二。私测限额是配置起点，不等于性能结论。模型的输入上界、输出 cap、缓存/推理用量及计价版本必须验证，免费名称不能代替可信上界。
 
-金额用整数微美元或固定精度 Decimal；unknown 保留空 usage，不能填 0。attempt 保存原预占 bucket/并发行 UUID，午夜后结算仍回到原窗口，不能扣进另一日或让新日并发归零。scope_key 与账号/run 关联可脱敏，**UUID 主键始终不变**；late settle 按 attempt_id 重读 PG 引用，不能由旧 CallContext 的 user/run id 推导桶。reserve/settle/sweep/purge 都按固定顺序锁并发行、预算桶、attempt；不引入 Redis 配额与 PG 账本双写。
+### 8.2 准入与故障验收
 
-### 8.2 准入、调用、结算
+- 网关在发包前预占可信上界；双进程争最后预算不超额；午夜后的结算归原调用窗口，在途并发不能归零。
+- 每次上游尝试独立追踪；可靠 usage 先结算再解析业务 JSON，格式错也计费。unknown 保留未知状态并保守消耗，不能填 0。
+- 超时/取消/断线及可能已发出的失联调用不自动退款，不盲目重发同一 step；旧 lease 的响应可结算但不能推进 run。quarantine 在核实前仍占槽。
+- 后续可靠用量幂等对账；超出已验证上界时如实记账并熔断该模型，不能截断账单以假装未超额。
+- 网络重试/fallback 归网关；应用 JSON 有限重生成共享 logical_call_id、总次数与 deadline，SDK `max_retries=0`，不叠加无关联重试。
+- 网关不可用、预算服务不可用或无可信计价时教学 fail closed；预算/并发不足映射 429，上游失败 502 `AI_SERVICE_UNAVAILABLE`，网关或入口不可用 503 `SERVICE_UNAVAILABLE`。
 
-1. **reserve 短事务**：锁预算桶，校验 `used + reserved + 本次上界 <= limit`、共享并发与 run 剩余次数；写 reserved 账本与额度/槽位后提交。
-2. **dispatch 标记**：先持久化 dispatch_started，再发网络请求。该标记与实际发包之间无法原子化，崩溃恢复保守认定“可能发出”。
-3. **调用**：不持有业务/预算行锁；供应商请求 timeout 不超过 run 剩余期限。每次重试/备用引擎都申请独立 attempt。
-4. **settle 短事务**：锁同桶与该 attempt；终态条件保证仅结算一次。释放预占，转入实际或保守消耗，释放/隔离并发槽位，记录结果。
-5. **业务处理**：校验结构与内容再推进教学状态；业务回滚不能抹掉独立事务中的模型消耗。
+旧 `AIService`、备用词注和翻译按单任务冒烟→三出口迁移；翻译每个应用重生成与竞速分支都可追溯，本地取消 loser 仍可能收费。移走的凭据包括 `COMMANDCODE/OPENAI` 及各翻译引擎 key，不只改两个环境变量。正常回滚关闭 AI 新入口或回到已验证网关配置，不以应急直连绕过硬闸。
 
-| 结果 | 预算与恢复 |
-| --- | --- |
-| 确定未发送 | 记录 not_sent，释放预占和槽位 |
-| 有可靠 usage | 按实际结算，含后来 JSON/内容校验失败 |
-| 完整响应无 usage | 预占上界转保守消耗，usage=unknown |
-| 超时/取消/断线/进程丢失且可能已发出 | 保守消耗，不自动退款，不自动重发该 step；run 可进入 needs_retry |
-| 后续取得可靠供应商用量 | 幂等 reconciliation 调整差额，保留原值与调整来源 |
-| 实际高于可信上界 | 如实记账、报警并熔断该模型的硬预算准入，不能把实际值截回额度内 |
-
-租约过期不证明供应商停止执行。uncertain 槽位进入 quarantine；无法核实完成时私测采用熔断/人工确认恢复，不能自动释放后继续宣称控制了供应商端实际并发。取消也不追溯撤销已发生费用。翻译竞速两路各自预占/结算，本地取消 loser 仍可能收费；新 Agent 首版不竞速模型。
-
-**上界的前提**：模型能力/计价配置有版本，已验证其输入上界、输出 cap 与实际计费语义。仅有 `:free` 名称或本地估算 tokenizer 不足以保证费用上界；缺可信上界的模型不进入公开硬预算模式，私测只在明确额度和风险限额下启用。DB 无法预占时 fail closed；供应商账单本身仍需对账，不能把本系统准入限制说成供应商账单保证。
-
-私测先选一个支持所需工具/结构化输出的模型，记录实际能力测试；不能从“OpenAI 兼容”推断所有工具参数、缓存/推理用量或 usage 行为相同。备用模型通过相同金标题回归才能启用；不在本文写死当前免费目录、价格或许可结论。
+真实模型能力、供应商对账、网关预算异常路径与资源压测尚需运行证据；实现代码或 mock 测试不能冒充这些检查通过。
 
 ## 9. 学习事件的可靠投递与统计兼容
 
@@ -409,11 +402,11 @@ Host/Origin 精确白名单与 CORS 一致；没有 Origin 的服务器宿主请
 
 教学输入可能包含作答、自述和个人目标，超出现隐私页“仅字幕 AI 处理”的范围。白名单私测前更新用途、供应商、出站字段与保留期，用户明确知道外部宿主会拿到什么。默认不收集第三方完整私聊/音频，不记录模型思维过程；ZDR 配置不能替代供应商实际能力/条款核验。
 
-建议保留期作为待确认配置：run 操作输入/安全 step 结果与事件 7 日，脱敏调用账本 30 日；教学 attempt 随账号保留，用户可按产品政策删除。过期事件游标返回 410 但会话/attempt 仍可恢复；输入/结果清理后不能靠旧 step 自动重跑。长期个人记忆本期不建，反馈到期后不检索。
+已确认保留期：run 操作输入/安全 step 结果与事件及反馈 24 小时，脱敏调用账本 7 日；教学 attempt 随账号保留，用户可按产品政策删除。过期事件游标返回 410 但会话/attempt 仍可恢复；输入/结果清理后不能靠旧 step 自动重跑。长期个人记忆本期不建，反馈到期后不检索。
 
 新用户表与子表进入导出/注销测试，导出只含用户可读事实、来源/核验/帮助信息及本人费用摘要；不含凭据明文/hash、内部输入快照或安全参数。注销先撤连接、取消 run，再删除教学与运行数据。
 
-正在结算的模型调用不能随 run 删除而丢失全局预算：账本先去除 user/session/run/request 等可识别关联，保留供应商尝试 id、原 bucket UUID 与纯用量直至结算/保留期结束；用量最终留在无用户标识的 global 日桶。user/run bucket 与并发行的 scope_key 脱敏，UUID 主键不变，结清后删除。`_purge_user` 的 FK 动态删除前按 settle 同锁序完成这一步；late settle 仅按 attempt_id 和 PG 中的 UUID 引用完成。held/quarantine 未处理前不得按保留期裁剪；不新增笼统的“永远保留个人账本”豁免。
+正在结算的模型调用不能随 run 删除而丢失全局预算。注销先停止新调用并撤销连接/短时 key，在业务事务中登记网关删除或匿名化意图，提交后幂等执行、重试并保存确认收据；业务长事务不等待远端 HTTP。网关按供应商尝试引用完成 late settle，保留结算所需的最少脱敏信息；held/quarantine 未处理前不得按保留期裁剪。业务库不复制 usage/cost。
 
 ### 11.3 独立开关
 

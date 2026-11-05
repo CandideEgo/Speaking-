@@ -15,6 +15,7 @@ from app.core.exam_levels import max_level
 from app.models.learning import Vocabulary
 from app.models.preferences import UserPreferences
 from app.schemas.vocabulary import VocabularyResponse
+from app.services import learning_event_service
 from app.services.ai_service import get_ai_service
 from app.services.local_time import resolve_user_timezone
 from app.services.sr_service import calculate_review_interval
@@ -71,6 +72,50 @@ QUALITY_WRONG = 2
 # round can produce a wrong inside 24h. A same-day re-review of a word that
 # was wrong earlier today gets the same treatment — "错的还热乎，明天再见".
 WRONG_RECENT_WINDOW = timedelta(hours=24)
+
+
+async def _get_owned_word_for_update(db: AsyncSession, user_id: str, word_id: str) -> Vocabulary | None:
+    return (
+        await db.execute(
+            select(Vocabulary)
+            .where(Vocabulary.id == word_id, Vocabulary.user_id == user_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+
+
+async def record_review(
+    db: AsyncSession, user_id: str, word_id: str, quality: int
+) -> tuple[Vocabulary, int, datetime] | None:
+    """Mutate one review and record its required fact; caller commits both."""
+    if not 0 <= quality <= 5:
+        raise ValueError("Review quality must be between 0 and 5")
+    vocab = await _get_owned_word_for_update(db, user_id, word_id)
+    if vocab is None:
+        return None
+    interval, next_review = apply_review(vocab, quality)
+    await learning_event_service.record_event(
+        db, user_id, learning_event_service.EVENT_REVIEWED_WORDS, source="vocabulary"
+    )
+    return vocab, interval, next_review
+
+
+async def mark_mastered(db: AsyncSession, user_id: str, word_id: str) -> Vocabulary | None:
+    """Exit the review queue and count the first mastery transition atomically."""
+    vocab = await _get_owned_word_for_update(db, user_id, word_id)
+    if vocab is None:
+        return None
+    already_mastered = vocab.mastery_level == MASTERY_MASTERED
+    vocab.mastery_level = MASTERY_MASTERED
+    vocab.next_review_at = None
+    vocab.last_reviewed_at = datetime.now(UTC)
+    if not already_mastered:
+        await learning_event_service.record_event(
+            db, user_id, learning_event_service.EVENT_LEARNED_WORDS, source="vocabulary"
+        )
+    await db.flush()
+    return vocab
 
 
 def _mastery_from_review_count(review_count: int) -> str:

@@ -9,6 +9,7 @@ import { PASSWORD_RULE_MESSAGE, isPasswordAcceptable } from "@/lib/password";
 import { api } from "@/lib/api";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
 import { AccountLifecycleSettings } from "@/components/profile/AccountLifecycleSettings";
+import { ExternalConnections } from "@/components/profile/ExternalConnections";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -329,6 +330,7 @@ export default function SettingsTab({
             <h2 className="user-sec-title">账户</h2>
             <PasswordChangeForm />
             <NotificationPreferences />
+            <ExternalConnections />
             {/* P1-7：数据导出 + 30 天可撤回注销 */}
             <div className="border-t border-hairline pt-4">
               <AccountLifecycleSettings />

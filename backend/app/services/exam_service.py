@@ -20,23 +20,22 @@ Grading rule: user choice must exactly match the stored answer letter
 
 from __future__ import annotations
 
-import logging
 import random
 import re
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import selectinload
 
-from app.core.errors import ConflictError, ForbiddenError, NotFoundError
+from app.core.errors import AppError, ConflictError, ErrorCode, ForbiddenError, NotFoundError
 from app.models.exam_test import ExamAnswer, ExamPaper, ExamQuestion, ExamSession
 from app.models.preferences import UserPreferences
+from app.services import question_exposure_service
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-
-logger = logging.getLogger(__name__)
 
 MODE_PAPER = "paper_exam"
 MODE_DAILY = "daily_check"
@@ -49,6 +48,7 @@ MODE_WRONG = "wrong_redo"
 SECTION_ORDER = ("use_of_english", "reading_A", "reading_B", "reading_C", "new_type")
 
 DAILY_QUESTION_COUNT = 10
+SNAPSHOT_SCHEMA_VERSION = 1
 
 
 def _now() -> datetime:
@@ -87,19 +87,45 @@ def _question_public(q: ExamQuestion) -> dict:
     }
 
 
-def _snapshot_question(q: ExamQuestion) -> dict:
+def _snapshot_question(q: ExamQuestion, paper: ExamPaper) -> dict:
     """Frozen question snapshot stored on exam_answers (includes answer)."""
     return {
         "id": q.id,
+        "question_key": question_exposure_service.question_key_from_identity(
+            paper.level, paper.year, paper.month, paper.set_no, q.number
+        ),
+        "paper": {
+            "id": paper.id,
+            "level": paper.level,
+            "year": paper.year,
+            "month": paper.month,
+            "set_no": paper.set_no,
+        },
         "number": q.number,
         "section": q.section,
         "question_type": q.question_type,
         "passage": q.passage,
         "question": q.question,
-        "options": q.options,
+        "options": deepcopy(q.options),
         "answer": q.answer,
         "explanation": q.explanation,
     }
+
+
+async def _freeze_questions(db: AsyncSession, session: ExamSession, questions: list[ExamQuestion]) -> None:
+    """The placeholder set and its completion marker commit with the attempt."""
+    papers = {
+        paper.id: paper
+        for paper in (
+            await db.execute(select(ExamPaper).where(ExamPaper.id.in_({q.paper_id for q in questions})))
+        ).scalars()
+    }
+    for q in questions:
+        db.add(ExamAnswer(session_id=session.id, question_id=q.id, question=_snapshot_question(q, papers[q.paper_id])))
+    session.snapshot_schema_version = SNAPSHOT_SCHEMA_VERSION
+    session.snapshot_completed_at = _now()
+    await question_exposure_service.ensure_exposure_mapping_state(db, session.user_id)
+    await db.flush()
 
 
 # Mirror of the frontend option-derivation rules (ExamRunner.deriveOptions).
@@ -150,6 +176,7 @@ async def create_paper_session(db: AsyncSession, user_id: str, paper: ExamPaper)
     )
     db.add(session)
     await db.flush()
+    await _freeze_questions(db, session, _answerable_questions(list(paper.questions)))
     return session
 
 
@@ -199,15 +226,7 @@ async def create_daily_session(
     # required — otherwise a client could submit arbitrary question ids and
     # read the correct answers back from the grading response (answer
     # enumeration / score manipulation).
-    for q in picked:
-        db.add(
-            ExamAnswer(
-                session_id=session.id,
-                question_id=q.id,
-                question=_snapshot_question(q),
-                answered_at=None,
-            )
-        )
+    await _freeze_questions(db, session, picked)
     return session, picked
 
 
@@ -367,15 +386,7 @@ async def create_wrong_redo_session(
     )
     db.add(session)
     await db.flush()
-    for q in questions:
-        db.add(
-            ExamAnswer(
-                session_id=session.id,
-                question_id=q.id,
-                question=_snapshot_question(q),
-                answered_at=None,
-            )
-        )
+    await _freeze_questions(db, session, questions)
     return session, questions
 
 
@@ -460,10 +471,10 @@ async def _claim_submit(db: AsyncSession, session_id: str, user_id: str, now: da
     return bool(result.rowcount)
 
 
-def _submitted_payload(settled: ExamSession) -> dict:
+def _submitted_payload(settled: ExamSession, answer_rows: list[ExamAnswer] | None = None) -> dict:
     """Grading payload rebuilt from a submitted attempt's frozen answer rows."""
     rows = sorted(
-        (a for a in settled.answers if a.answered_at is not None),
+        (a for a in (settled.answers if answer_rows is None else answer_rows) if a.answered_at is not None),
         key=lambda a: (a.question or {}).get("number") or 0,
     )
     results = []
@@ -471,6 +482,7 @@ def _submitted_payload(settled: ExamSession) -> dict:
         snap = a.question or {}
         results.append(
             {
+                "exam_answer_id": a.id,
                 # Legacy snapshot-only rows predate the question bank link and
                 # only carry the id inside the frozen snapshot.
                 "question_id": a.question_id or snap.get("id"),
@@ -537,122 +549,115 @@ async def submit_answers(
     # touching an expired attribute here would attempt sync IO (MissingGreenlet).
     session_id = session.id
     now = _now()
-    if not await _claim_submit(db, session_id, user_id, now):
-        # Already submitted — by an earlier request, or by the concurrent one
-        # this call just waited for. Roll back first so the replay cannot read
-        # this request's pre-claim snapshot out of the identity map.
+    try:
+        if not await _claim_submit(db, session_id, user_id, now):
+            # Already submitted — by an earlier request, or by the concurrent
+            # one this call waited for. Clear the pre-claim identity map before
+            # replaying the winner's stored result.
+            await db.rollback()
+            return await _settled_submit_payload(db, session_id, user_id)
+        return await _grade_frozen_answers(db, session, user_id, answers, now)
+    except Exception:
+        # Claim, grades, exposure and the required learning fact are one unit.
         await db.rollback()
-        return await _settled_submit_payload(db, session_id, user_id)
+        raise
 
-    # Load the questions for this session (paper questions or daily picks).
-    if session.paper_id is not None:
-        paper = await get_paper_with_questions(db, session.paper_id)
-        questions: list[ExamQuestion] = sorted(paper.questions, key=lambda q: q.number) if paper else []
-        # Keep grading aligned with the answerable set served to the client —
-        # excluded rows must not silently count as wrong.
-        questions = _answerable_questions(questions)
-    else:
-        # Daily check: the question set was fixed at session creation via
-        # placeholder ExamAnswer rows (answered_at=None). Recovering it from
-        # the submitted payload instead would let a client submit arbitrary
-        # question ids — extracting answers from the grading response and
-        # manipulating scores. Require an exact match on the placeholder set.
-        placeholders = {a.question_id: a for a in session.answers if a.question_id}
-        submitted_ids = [a.get("question_id") for a in answers]
-        if set(submitted_ids) != set(placeholders) or len(submitted_ids) != len(placeholders):
-            raise ConflictError("作答题目与本次抽题不一致，请重新开始")
-        questions = list((await db.execute(select(ExamQuestion).where(ExamQuestion.id.in_(submitted_ids)))).scalars())
-        questions.sort(key=lambda q: q.number)
 
-    if not questions:
-        raise ConflictError("作答题目不存在")
-
-    ans_map: dict[str, str] = {}
-    for a in answers:
-        qid = a.get("question_id") or ""
-        val = str(a.get("answer") or "").strip().upper()
-        if qid:
-            ans_map[qid] = val
-
-    results: list[dict] = []
+async def _grade_frozen_answers(
+    db: AsyncSession, session: ExamSession, user_id: str, answers: list[dict], now: datetime
+) -> dict:
+    rows = list(
+        (
+            await db.execute(
+                select(ExamAnswer).where(ExamAnswer.session_id == session.id).execution_options(populate_existing=True)
+            )
+        ).scalars()
+    )
+    placeholders = _validated_snapshots(session, rows)
+    submitted_ids = [a.get("question_id") for a in answers]
+    if len(submitted_ids) != len(set(submitted_ids)) or not set(submitted_ids).issubset(placeholders):
+        raise ConflictError("作答题目与本次抽题不一致，请重新开始")
+    ans_map = {a["question_id"]: str(a.get("answer") or "").strip().upper() for a in answers}
     part: dict[str, dict[str, int]] = {}
     correct_count = 0
-
-    for q in questions:
-        user_answer = ans_map.get(q.id, "")
-        is_correct = bool(user_answer) and user_answer == q.answer.upper()
-        if is_correct:
-            correct_count += 1
-        part.setdefault(q.section, {"correct": 0, "total": 0})
-        part[q.section]["total"] += 1
-        if is_correct:
-            part[q.section]["correct"] += 1
-
-        if session.paper_id is not None:
-            db.add(
-                ExamAnswer(
-                    session_id=session.id,
-                    question_id=q.id,
-                    question=_snapshot_question(q),
-                    user_answer=user_answer or None,
-                    correct=is_correct,
-                    answered_at=now,
-                )
-            )
-        else:
-            # Daily check: fill in the pre-inserted placeholder row instead
-            # of adding a new one (the placeholder IS the question-set lock).
-            row = placeholders[q.id]
-            row.user_answer = user_answer or None
-            row.correct = is_correct
-            row.answered_at = now
-        results.append(
-            {
-                "question_id": q.id,
-                "number": q.number,
-                "section": q.section,
-                "question_type": q.question_type,
-                "question": q.question,
-                "options": q.options,
-                "passage": q.passage,
-                "user_answer": user_answer or None,
-                "correct": is_correct,
-                "correct_answer": q.answer,
-                "explanation": q.explanation,
-            }
-        )
-
-    total = len(questions)
-    score = round(correct_count / total, 4) if total else 0.0
+    for qid, row in placeholders.items():
+        snap = row.question
+        choice = ans_map.get(qid, "")
+        row.user_answer = choice or None
+        row.correct = grade_choice(choice, snap["answer"])
+        row.answered_at = now
+        correct_count += int(row.correct)
+        section = part.setdefault(snap["section"], {"correct": 0, "total": 0})
+        section["correct"] += int(row.correct)
+        section["total"] += 1
     session.submitted_at = now
-    session.score = score
-    session.part_scores = {
-        sec: {"correct": part[sec]["correct"], "total": part[sec]["total"]} for sec in SECTION_ORDER if sec in part
-    }
-    await db.flush()
+    session.score = round(correct_count / len(rows), 4)
+    session.part_scores = {sec: part[sec] for sec in SECTION_ORDER if sec in part}
+    await question_exposure_service.ensure_exposure_mapping_state(db, user_id)
+    await question_exposure_service.record_answer_available(
+        db,
+        user_id,
+        [row.question["question_key"] for row in rows if row.question.get("question_key")],
+        origin="legacy_exam",
+        occurred_at=now,
+    )
+    from app.services.learning_event_service import EVENT_PRACTICED_ITEMS, record_event
 
-    # Same transaction as the grading: the attempt and its practiced_items
-    # event land together, so a committed submit can never be missing its
-    # event, and a replay (which returns further up) can never emit a second
-    # one. ``emit_event`` is itself non-blocking — it swallows its own failures
-    # inside a savepoint — so the try/except is belt-and-braces.
-    try:
-        from app.services.learning_event_service import EVENT_PRACTICED_ITEMS, emit_event
-
-        await emit_event(db, user_id, EVENT_PRACTICED_ITEMS, total, video_id=None, flow_id=session.id, source="exam")
-    except Exception:
-        logger.exception("Failed to emit learning event for exam session %s", session.id)
+    await record_event(db, user_id, EVENT_PRACTICED_ITEMS, len(rows), video_id=None, flow_id=session.id, source="exam")
+    payload = _submitted_payload(session, rows)
     await db.commit()
+    return payload
 
-    return {
-        "session_id": session.id,
-        "mode": session.mode,
-        "score": score,
-        "correct_count": correct_count,
-        "total": total,
-        "part_scores": session.part_scores or {},
-        "results": results,
-    }
+
+def grade_choice(choice: str, correct_answer: str) -> bool:
+    """Pure legacy exact-letter grading, reusable without a live question bank."""
+    return bool(choice) and choice.strip().upper() == correct_answer.upper()
+
+
+def _validated_snapshots(session: ExamSession, rows: list[ExamAnswer]) -> dict[str, ExamAnswer]:
+    """Accept complete old placeholders, never synthesize missing historical facts."""
+    required = {"id", "number", "section", "question_type", "passage", "question", "options", "answer", "explanation"}
+    valid = bool(rows) and len(rows) == session.question_count
+    versioned = session.snapshot_schema_version == SNAPSHOT_SCHEMA_VERSION and session.snapshot_completed_at is not None
+    if (session.snapshot_schema_version is not None or session.snapshot_completed_at is not None) and not versioned:
+        valid = False
+    by_id: dict[str, ExamAnswer] = {}
+    for row in rows:
+        snap = row.question
+        if not isinstance(snap, dict) or not required.issubset(snap):
+            valid = False
+            continue
+        qid = snap["id"]
+        if (
+            not isinstance(qid, str)
+            or not qid
+            or qid in by_id
+            or (row.question_id is not None and row.question_id != qid)
+            or not isinstance(snap["answer"], str)
+            or not snap["answer"]
+            or not isinstance(snap["number"], int)
+            or not isinstance(snap["section"], str)
+            or not isinstance(snap["question_type"], str)
+            or row.answered_at is not None
+        ):
+            valid = False
+        if versioned and not _snapshot_key(snap):
+            valid = False
+        if isinstance(qid, str):
+            by_id[qid] = row
+    if not valid:
+        raise AppError(409, ErrorCode.EXAM_SNAPSHOT_UNAVAILABLE, "本次作答缺少可靠的开考快照，请重新开始")
+    return by_id
+
+
+def _snapshot_key(snap: dict) -> str | None:
+    paper = snap.get("paper")
+    if not isinstance(paper, dict) or not {"level", "year", "month", "set_no"}.issubset(paper):
+        return None
+    key = question_exposure_service.question_key_from_identity(
+        paper["level"], paper["year"], paper["month"], paper["set_no"], snap["number"]
+    )
+    return key if key == snap.get("question_key") else None
 
 
 async def list_papers(

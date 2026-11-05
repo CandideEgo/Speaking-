@@ -2,7 +2,7 @@
 
 Pure mapping from a yt-dlp ``extract_info(download=False)`` dict onto the
 Video external-metadata columns + the ``external_meta`` JSON blob. Shared by
-the pipeline's extracting step (``video_processing._extract_video_info``) and
+the pipeline's extracting step (``video_media.extract_video_info``) and
 ``scripts/backfill_external_meta.py`` so both write identical shapes.
 
 ``ext_view_count`` / ``ext_like_count`` are the YouTube-side counts — strictly

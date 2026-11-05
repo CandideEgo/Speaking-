@@ -1,7 +1,7 @@
 """Celery beat tasks for study reminders (产品设计规划-2026-08 §4-D6).
 
 Three reminder families, all delivered as in-app notifications via
-``notification_service.create_notification`` (WebSocket push included):
+``notification_service.create_notification`` + ``commit_and_push``:
 
 - ``send_hourly_reminders``: hourly sweep. Sends the vocabulary-review
   reminder when the user's local clock hits their ``vocabulary_reminder_time``
@@ -100,7 +100,7 @@ def send_hourly_reminders(now: datetime | None = None):
 
         from app.models.preferences import UserPreferences
         from app.models.user import User
-        from app.services.notification_service import create_notification
+        from app.services.notification_service import commit_and_push, create_notification
 
         now_utc = now or datetime.now(UTC)
         sent = {"vocabulary_reminder": 0, "streak_warning": 0}
@@ -113,6 +113,7 @@ def send_hourly_reminders(now: datetime | None = None):
                 )
             ).all()
 
+            notifications = []
             for user, prefs in rows:
                 nprefs = _merged_prefs(prefs)
                 local_now = _to_local(now_utc, prefs.reminder_timezone if prefs else None)
@@ -131,18 +132,20 @@ def send_hourly_reminders(now: datetime | None = None):
                         if due > 0:
                             key = f"reminder:vocabulary_reminder:{user.id}:{local_now.date().isoformat()}"
                             if await _claim_daily_slot(key):
-                                await create_notification(
-                                    user_id=user.id,
-                                    type="vocabulary_reminder",
-                                    title="词汇复习提醒",
-                                    message=f"你有 {due} 个单词待复习，2 分钟搞定",
-                                    db=db,
-                                    related_url="/vocabulary",
+                                notifications.append(
+                                    await create_notification(
+                                        user_id=user.id,
+                                        type="vocabulary_reminder",
+                                        title="词汇复习提醒",
+                                        message=f"你有 {due} 个单词待复习，2 分钟搞定",
+                                        db=db,
+                                        related_url="/vocabulary",
+                                    )
                                 )
                                 sent["vocabulary_reminder"] += 1
 
             if sent["vocabulary_reminder"] or sent["streak_warning"] or streak_resets:
-                await db.commit()
+                await commit_and_push(db, notifications)
             logger.info("hourly_reminders_sent", streak_resets=streak_resets, **sent)
             return sent
 
@@ -168,7 +171,7 @@ def send_pro_expiring_reminders(now: datetime | None = None):
 
         from app.models.preferences import UserPreferences
         from app.models.user import PlanType, User
-        from app.services.notification_service import create_notification
+        from app.services.notification_service import commit_and_push, create_notification
 
         now_utc = now or datetime.now(UTC)
         sent = 0
@@ -182,6 +185,7 @@ def send_pro_expiring_reminders(now: datetime | None = None):
                 )
             ).all()
 
+            notifications = []
             for user, prefs in rows:
                 nprefs = _merged_prefs(prefs)
                 if not nprefs.get("pro_expiring", True):
@@ -202,18 +206,20 @@ def send_pro_expiring_reminders(now: datetime | None = None):
                 )
                 key = f"reminder:pro_expiring:{user.id}:{local_now.date().isoformat()}:{days_left}"
                 if await _claim_daily_slot(key):
-                    await create_notification(
-                        user_id=user.id,
-                        type="pro_expiring",
-                        title="Pro 会员即将到期",
-                        message=message,
-                        db=db,
-                        related_url="/upgrade",
+                    notifications.append(
+                        await create_notification(
+                            user_id=user.id,
+                            type="pro_expiring",
+                            title="Pro 会员即将到期",
+                            message=message,
+                            db=db,
+                            related_url="/upgrade",
+                        )
                     )
                     sent += 1
 
             if sent:
-                await db.commit()
+                await commit_and_push(db, notifications)
             logger.info("pro_expiring_reminders_sent", count=sent)
             return sent
 

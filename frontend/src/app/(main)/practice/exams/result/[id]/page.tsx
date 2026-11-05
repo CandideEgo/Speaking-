@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/ToggleGroup";
 import { LinkButton } from "@/components/ui/LinkButton";
 import { cn } from "@/lib/utils";
+import type { TeachingContent } from "@/types/teaching";
 
 interface AttemptDetail {
   id: string;
@@ -39,6 +40,7 @@ export default function ExamResultPage() {
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [filter, setFilter] = useState<"all" | "wrong" | null>(null);
+  const [teachingQuestions, setTeachingQuestions] = useState<string[]>([]);
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
     let cancelled = false;
@@ -56,6 +58,20 @@ export default function ExamResultPage() {
       cancelled = true;
     };
   }, [params.id, isAuthenticated, isLoading, retry]);
+  useEffect(() => {
+    if (!attempt?.submitted) return;
+    const controller = new AbortController();
+    void api<{ items: TeachingContent[] }>("/api/v1/teaching/content", {
+      signal: controller.signal,
+    })
+      .then((data) =>
+        setTeachingQuestions(
+          data.items.flatMap((item) => (item.question_id ? [item.question_id] : []))
+        )
+      )
+      .catch(() => setTeachingQuestions([]));
+    return () => controller.abort();
+  }, [attempt?.id, attempt?.submitted]);
   const results = useMemo(() => attempt?.results ?? [], [attempt]);
   const wrong = results.filter((r) => r.correct === false);
   const correct = results.filter((r) => r.correct === true).length;
@@ -203,6 +219,16 @@ export default function ExamResultPage() {
                     <span className="font-semibold text-ink">解析：</span>
                     {r.explanation}
                   </p>
+                )}
+                {r.exam_answer_id && teachingQuestions.includes(r.question_id) && (
+                  <LinkButton
+                    href={`/practice/exams/${encodeURIComponent(attempt.paper_id ?? "teaching")}?mode=teach&source_exam_answer_id=${encodeURIComponent(r.exam_answer_id)}`}
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                  >
+                    继续这道题的教学
+                  </LinkButton>
                 )}
                 {r.passage && (
                   <details className="mt-4">

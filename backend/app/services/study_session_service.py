@@ -25,7 +25,6 @@ scheduled job — a periodic task for a table that only grows when a user
 studies is more moving parts than the problem needs.
 """
 
-import logging
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import delete, func, select, text
@@ -34,7 +33,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import BadRequestError, ConflictError, NotFoundError
 from app.models.learning import Vocabulary
 from app.models.study_session import StudySession, StudySessionItem
-from app.services.learning_event_service import EVENT_LEARNED_WORDS, emit_event, get_user_local_date
+from app.services import learning_event_service
+from app.services.learning_event_service import get_user_local_date
 from app.services.profile_service import get_or_create_profile
 from app.services.vocabulary_service import (
     MASTERY_NEW,
@@ -42,8 +42,6 @@ from app.services.vocabulary_service import (
     QUALITY_WRONG,
     apply_review,
 )
-
-logger = logging.getLogger(__name__)
 
 # 每日配额（设计方案 §3.2）：全局一个设置，范围 5~100，新词默认 10。
 QUOTA_MIN = 5
@@ -169,12 +167,16 @@ async def get_active_session(db: AsyncSession, user_id: str) -> StudySession | N
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-async def get_owned_session(db: AsyncSession, user_id: str, session_id: str) -> StudySession | None:
+async def get_owned_session(
+    db: AsyncSession, user_id: str, session_id: str, *, for_update: bool = False
+) -> StudySession | None:
     """Fetch a round by id, scoped to its owner."""
     stmt = select(StudySession).where(
         StudySession.id == session_id,
         StudySession.user_id == user_id,
     )
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
@@ -330,7 +332,7 @@ async def submit_answer(
     write the drill already did per tap (it POSTed a review per 认识/不认识);
     the difference is that the round's own state now lands somewhere durable.
     """
-    session = await get_owned_session(db, user_id, session_id)
+    session = await get_owned_session(db, user_id, session_id, for_update=True)
     if session is None:
         raise NotFoundError("Round not found")
     if session.status != SESSION_ACTIVE:
@@ -338,10 +340,9 @@ async def submit_answer(
 
     item = (
         await db.execute(
-            select(StudySessionItem).where(
-                StudySessionItem.session_id == session_id,
-                StudySessionItem.vocabulary_id == vocabulary_id,
-            )
+            select(StudySessionItem)
+            .where(StudySessionItem.session_id == session_id, StudySessionItem.vocabulary_id == vocabulary_id)
+            .execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
     if item is None:
@@ -349,10 +350,10 @@ async def submit_answer(
 
     vocab = (
         await db.execute(
-            select(Vocabulary).where(
-                Vocabulary.id == vocabulary_id,
-                Vocabulary.user_id == user_id,
-            )
+            select(Vocabulary)
+            .where(Vocabulary.id == vocabulary_id, Vocabulary.user_id == user_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
     if vocab is None:
@@ -374,18 +375,14 @@ async def submit_answer(
     if correct:
         session.correct_count = (session.correct_count or 0) + 1
 
-    await db.commit()
-
     # Emit once per word, not once per answer: ``today_words_learned`` counts
-    # words met today, and a word answered twice is still one word. Non-blocking
-    # (INV-014) — a failed event must not fail the answer that produced it.
+    # words met today, and a word answered twice is still one word. The round
+    # lock serializes first-answer claims; fact and answer commit together.
     if was_pending:
-        try:
-            await emit_event(db, user_id, EVENT_LEARNED_WORDS, 1, flow_id=session_id, source="vocabulary")
-            await db.commit()
-        except Exception:
-            logger.exception("Failed to emit learned_words for session %s", session_id)
-            await db.rollback()
+        await learning_event_service.record_event(
+            db, user_id, learning_event_service.EVENT_LEARNED_WORDS, flow_id=session_id, source="vocabulary"
+        )
+    await db.commit()
 
     return {
         "item": item,
@@ -405,7 +402,7 @@ async def finish_session(
     if status not in {SESSION_FINISHED, SESSION_ABANDONED}:
         raise BadRequestError("Invalid round status")
 
-    session = await get_owned_session(db, user_id, session_id)
+    session = await get_owned_session(db, user_id, session_id, for_update=True)
     if session is None:
         raise NotFoundError("Round not found")
 

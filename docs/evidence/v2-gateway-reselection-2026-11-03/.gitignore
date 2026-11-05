@@ -1,0 +1,2 @@
+bifrost-data/*
+!bifrost-data/config.json

@@ -36,7 +36,7 @@ import paramiko
 
 from app.core.config import Settings
 from app.services.thumbnail_service import extract_frame_thumbnail, local_thumbnail_stems
-from app.tasks.video_processing import _download_video
+from app.services.video_media import download_video
 
 # === prod connection (override with SW_HOST / SW_USER / SW_PW) ===
 PROD_HOST = os.environ.get("SW_HOST", "47.122.109.52")
@@ -187,7 +187,7 @@ async def process_one(video_id: str, source_url: str, db_duration: float, dry_ru
             return result
 
     # 1. Download at the new (fixed) quality.
-    #    _download_video writes to {video_id}_raw.mp4; move any existing aside.
+    #    download_video writes to {video_id}_raw.mp4; move any existing aside.
     backup = media_dir / f"{video_id}_raw.mp4.360p.bak"
     if raw.exists():
         backup.unlink(missing_ok=True)
@@ -198,7 +198,7 @@ async def process_one(video_id: str, source_url: str, db_duration: float, dry_ru
     # not block the rest of the queue.
     download_timeout = max(300, int(db_duration * 1.5))
     try:
-        new_path_str = await asyncio.wait_for(_download_video(source_url, video_id), timeout=download_timeout)
+        new_path_str = await asyncio.wait_for(download_video(source_url, video_id), timeout=download_timeout)
     except TimeoutError:
         if backup.exists():
             backup.rename(raw)
@@ -265,7 +265,7 @@ async def process_one(video_id: str, source_url: str, db_duration: float, dry_ru
         result["reason"] = f"dry-run {result['old_height']}p→{new_height}p {size_mb:.0f}MB"
         return result
 
-    # 5. Remux (the new file IS the target; _download_video already produced a
+    # 5. Remux (the new file IS the target; download_video already produced a
     #    clean mp4, so we just add faststart via a copy pass).
     remuxed = media_dir / f"{video_id}_720p.mp4"
     proc = await asyncio.create_subprocess_exec(

@@ -1,8 +1,6 @@
 """Subtitle editing service — CRUD for subtitle rows and word-level annotations."""
 
 import uuid
-from dataclasses import dataclass
-from dataclasses import field as dc_field
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, select, update
@@ -17,6 +15,36 @@ from app.schemas.video import (
     SubtitleResponse,
     SubtitleUpdate,
     WordLevelsUpdate,
+)
+from app.services.subtitle_resegment_rules import (
+    RemapPlan as _RemapPlan,
+)
+from app.services.subtitle_resegment_rules import (
+    UserDataCapture as _UserDataCapture,
+)
+from app.services.subtitle_resegment_rules import (
+    build_remap_plan as _build_remap_plan,
+)
+from app.services.subtitle_resegment_rules import (
+    map_interval_to_segment as _map_interval_to_segment,
+)
+from app.services.subtitle_resegment_rules import (
+    parse_snapshot_dt as _parse_snapshot_dt,
+)
+from app.services.subtitle_resegment_rules import (
+    parse_snapshot_payload as _parse_snapshot_payload,
+)
+from app.services.subtitle_resegment_rules import (
+    remap_counts as _remap_counts,
+)
+from app.services.subtitle_resegment_rules import (
+    resegment_segments as _resegment_segments,
+)
+from app.services.subtitle_resegment_rules import (
+    snapshot_payload as _snapshot_payload,
+)
+from app.services.subtitle_resegment_rules import (
+    subtitle_snapshot_dict as _subtitle_snapshot_dict,
 )
 from app.services.video_cache import invalidate_video_detail_cache
 
@@ -807,75 +835,6 @@ async def list_subtitle_revisions(
 # ---------------------------------------------------------------------------
 
 
-def _resegment_segments(subs: list) -> list[dict]:
-    """Re-cut a video's subtitles into proper sentences.
-
-    Builds one word stream from all subtitles (real timestamps when present,
-    else fabricated proportional timestamps from the concatenated text) and
-    splits on sentence-end punctuation — regardless of duration, since the
-    point of re-segmentation is to break up multi-sentence segments that the
-    ingest pipeline emitted as one row. ``split_long_segments`` then catches
-    any run-on sentence still over ~12s (by clause/count) and
-    ``merge_short_segments`` folds single-word fragments back in.
-    """
-    from app.services.subtitle_segmentation import (
-        _SENTENCE_END,
-        _build_subsegment,
-        _split_words_by_boundary,
-        merge_short_segments,
-        split_long_segments,
-    )
-
-    all_words: list[dict] = []
-    for s in subs:
-        if s.words:
-            all_words.extend(s.words)
-
-    if all_words:
-        mega_start = all_words[0]["start"]
-        mega_end = all_words[-1]["end"]
-        preserve_words = True
-    else:
-        # No word timestamps — fabricate proportional ones from the text so the
-        # sentence/clause split logic (which keys off word-level punctuation)
-        # still works on legacy rows.
-        mega_start = subs[0].start_time
-        mega_end = subs[-1].end_time
-        total_duration = max(0.1, mega_end - mega_start)
-        full_text = " ".join(s.text_en for s in subs).strip()
-        tokens = full_text.split()
-        if not tokens:
-            return []
-        n = len(tokens)
-        all_words = [
-            {
-                "word": tok,
-                "start": mega_start + total_duration * (i / n),
-                "end": mega_start + total_duration * ((i + 1) / n),
-            }
-            for i, tok in enumerate(tokens)
-        ]
-        preserve_words = False
-
-    # 1) split on sentence-end punctuation → sentence-level segments
-    groups = _split_words_by_boundary(all_words, _SENTENCE_END)
-    segs = [g for g in (_build_subsegment(grp, mega_start, mega_end) for grp in groups) if g]
-    # 2) split any run-on sentence still over ~12s (by clause, then word count)
-    segs = split_long_segments(segs, max_duration=12.0)
-    # 3) fold single-word / sub-second fragments into the prior segment
-    segs = merge_short_segments(segs)
-
-    return [
-        {
-            "start": s["start"],
-            "end": s["end"],
-            "text": s["text"],
-            "words": s.get("words") if preserve_words else None,
-        }
-        for s in segs
-    ]
-
-
 # ---------------------------------------------------------------------------
 # User-data preservation across wholesale subtitle replacement (ADM-01)
 # ---------------------------------------------------------------------------
@@ -893,86 +852,6 @@ def _resegment_segments(subs: list) -> list[dict]:
 # not be mapped (so the behaviour is the same on Postgres and on the SQLite
 # test DB). Rows that cannot be mapped are also serialised into the snapshot
 # JSON (``user_data.lost``) so a rollback can restore them.
-
-
-def _subtitle_snapshot_dict(sub) -> dict:
-    """Serialisable copy of one subtitle row for the re-segment snapshot."""
-    return {
-        "id": sub.id,
-        "start_time": sub.start_time,
-        "end_time": sub.end_time,
-        "text_en": sub.text_en,
-        "text_zh": sub.text_zh,
-        "sentence_index": sub.sentence_index,
-        "words": sub.words,
-        "grammar_note": sub.grammar_note,
-        "speaker": sub.speaker,
-        "word_levels": sub.word_levels,
-    }
-
-
-def _segment_bounds(seg: dict) -> tuple[float, float]:
-    """``(start, end)`` of a segment.
-
-    Accepts the re-cut segments (``start`` / ``end``) and the snapshot rows
-    (``start_time`` / ``end_time``) so the same mapper serves both directions.
-    """
-    if "start" in seg:
-        return float(seg["start"]), float(seg["end"])
-    return float(seg["start_time"]), float(seg["end_time"])
-
-
-def _map_interval_to_segment(start: float, end: float, segments: list[dict]) -> int | None:
-    """Index of the segment that best preserves the interval ``[start, end)``.
-
-    Resolution order (the audit's suggested mapping):
-
-    1. the segment whose ``[seg_start, seg_end)`` contains the old start time —
-       when several do (nested/boundary cases), the shortest wins;
-    2. otherwise the segment with the largest positive time overlap;
-    3. ``None`` when nothing overlaps — the caller keeps the row in the snapshot
-       payload instead of deleting it silently.
-    """
-    containing: list[tuple[int, float]] = []
-    best_index: int | None = None
-    best_overlap = 0.0
-    for index, seg in enumerate(segments):
-        seg_start, seg_end = _segment_bounds(seg)
-        if seg_start <= start < seg_end:
-            containing.append((index, seg_end - seg_start))
-        overlap = min(end, seg_end) - max(start, seg_start)
-        if overlap > best_overlap + 1e-9:
-            best_overlap = overlap
-            best_index = index
-    if containing:
-        return min(containing, key=lambda item: item[1])[0]
-    return best_index
-
-
-@dataclass
-class _UserDataCapture:
-    """Rows tied to subtitle ids that are about to be replaced (as plain dicts)."""
-
-    favorites: list[dict] = dc_field(default_factory=list)
-    revisions: list[dict] = dc_field(default_factory=list)
-    vocabulary: list[dict] = dc_field(default_factory=list)
-
-
-@dataclass
-class _RemapPlan:
-    """How captured rows will be re-attached to the new subtitle ids."""
-
-    # new_subtitle_id -> [row ids to UPDATE]
-    favorites_move: dict[str, list[str]] = dc_field(default_factory=dict)
-    revisions_move: dict[str, list[str]] = dc_field(default_factory=dict)
-    vocabulary_move: dict[str, list[str]] = dc_field(default_factory=dict)
-    # Rows that could not be attached to any new segment (kept in the snapshot).
-    favorites_unmatched: list[dict] = dc_field(default_factory=list)
-    revisions_unmatched: list[dict] = dc_field(default_factory=list)
-    vocabulary_unmatched: list[dict] = dc_field(default_factory=list)
-    # Favorites collapsed by the ``(user, subtitle)`` uniqueness rule (they are
-    # not lost — only the duplicate row is; it is kept in the snapshot too).
-    favorites_merged: list[dict] = dc_field(default_factory=list)
 
 
 async def _capture_subtitle_user_data(db: AsyncSession, video_id: str, subtitle_ids: list[str]) -> _UserDataCapture:
@@ -1023,52 +902,6 @@ async def _capture_subtitle_user_data(db: AsyncSession, video_id: str, subtitle_
     return capture
 
 
-def _build_remap_plan(capture: _UserDataCapture, id_by_old: dict[str, str | None]) -> _RemapPlan:
-    """Decide the new owner of every captured row (pure: no DB access)."""
-    plan = _RemapPlan()
-
-    seen_favorites: set[tuple[str, str]] = set()
-    for row in capture.favorites:
-        new_id = id_by_old.get(row["subtitle_id"])
-        if new_id is None:
-            plan.favorites_unmatched.append(row)
-            continue
-        key = (row["user_id"], new_id)
-        if key in seen_favorites:
-            plan.favorites_merged.append(row)
-            continue
-        seen_favorites.add(key)
-        plan.favorites_move.setdefault(new_id, []).append(row["id"])
-
-    for row in capture.revisions:
-        new_id = id_by_old.get(row["subtitle_id"])
-        if new_id is None:
-            plan.revisions_unmatched.append(row)
-        else:
-            plan.revisions_move.setdefault(new_id, []).append(row["id"])
-
-    for row in capture.vocabulary:
-        new_id = id_by_old.get(row["subtitle_id"])
-        if new_id is None:
-            plan.vocabulary_unmatched.append(row)
-        else:
-            plan.vocabulary_move.setdefault(new_id, []).append(row["id"])
-
-    return plan
-
-
-def _remap_counts(plan: _RemapPlan) -> dict[str, int]:
-    return {
-        "favorites_remapped": sum(len(ids) for ids in plan.favorites_move.values()),
-        "favorites_merged": len(plan.favorites_merged),
-        "favorites_unmatched": len(plan.favorites_unmatched),
-        "revisions_preserved": sum(len(ids) for ids in plan.revisions_move.values()),
-        "revisions_unmatched": len(plan.revisions_unmatched),
-        "vocabulary_relinked": sum(len(ids) for ids in plan.vocabulary_move.values()),
-        "vocabulary_unmatched": len(plan.vocabulary_unmatched),
-    }
-
-
 async def _apply_remap_plan(db: AsyncSession, plan: _RemapPlan) -> None:
     """Point the captured rows at their new subtitle ids (before old rows die)."""
     from app.models.learning import Vocabulary
@@ -1099,49 +932,6 @@ async def _drop_user_data_for_removed_subtitles(db: AsyncSession, subtitle_ids: 
     await db.execute(delete(SentenceFavorite).where(SentenceFavorite.subtitle_id.in_(subtitle_ids)))
     await db.execute(delete(SubtitleRevision).where(SubtitleRevision.subtitle_id.in_(subtitle_ids)))
     await db.execute(update(Vocabulary).where(Vocabulary.subtitle_id.in_(subtitle_ids)).values(subtitle_id=None))
-
-
-def _snapshot_payload(
-    segments: list[dict],
-    id_by_old: dict[str, str | None],
-    capture: _UserDataCapture,
-    plan: _RemapPlan,
-) -> dict:
-    """Snapshot JSON: restorable segments + mapping + the user rows involved.
-
-    v2 shape (dict). v1 snapshots are plain lists; ``_parse_snapshot_payload``
-    accepts both so existing rows stay rollback-able. ``user_data.lost`` keeps
-    every row that could not be remapped (unmatched + collapsed duplicates), so
-    a rollback can put it back on the restored subtitle.
-    """
-    return {
-        "version": 2,
-        "segments": segments,
-        "mapping": {old_id: new_id for old_id, new_id in id_by_old.items()},
-        "user_data": {
-            "captured": {
-                "favorites": capture.favorites,
-                "revisions": capture.revisions,
-                "vocabulary": capture.vocabulary,
-            },
-            "lost": {
-                "favorites": plan.favorites_unmatched + plan.favorites_merged,
-                "revisions": plan.revisions_unmatched,
-                "vocabulary": plan.vocabulary_unmatched,
-            },
-        },
-    }
-
-
-def _parse_snapshot_payload(raw) -> tuple[list[dict], dict]:
-    """Normalise a snapshot's ``segments_json`` into ``(segments, metadata)``.
-
-    Handles both the v2 dict shape written above and the v1 plain-list shape
-    written before ADM-01; the latter simply has no preservation metadata.
-    """
-    if isinstance(raw, dict) and "segments" in raw:
-        return list(raw.get("segments") or []), raw
-    return list(raw or []), {}
 
 
 async def _restore_lost_user_data(db: AsyncSession, lost: dict, restored_id_by_old: dict[str, str]) -> dict[str, int]:
@@ -1226,16 +1016,6 @@ async def _restore_lost_user_data(db: AsyncSession, lost: dict, restored_id_by_o
         restored["vocabulary"] += max(0, int(getattr(result, "rowcount", 0) or 0))
 
     return restored
-
-
-def _parse_snapshot_dt(value: str | None) -> datetime:
-    """Parse an ISO timestamp stored in the snapshot (falls back to now)."""
-    if value:
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError:
-            pass
-    return datetime.now(UTC)
 
 
 async def resegment_video(

@@ -112,6 +112,7 @@ async def gather_user_data(db: Any, user: Any) -> dict[str, Any]:
     from app.models.notification import Notification
     from app.models.order import Order
     from app.models.preferences import UserPreferences
+    from app.models.question_exposure import UserExposureMappingState, UserQuestionExposure
     from app.models.study_session import StudySession, StudySessionItem
     from app.models.user_content import ChannelSubscription, SentenceFavorite
     from app.models.user_video_unlock import UserVideoUnlock
@@ -131,6 +132,8 @@ async def gather_user_data(db: Any, user: Any) -> dict[str, Any]:
         ("study_sessions", StudySession, StudySession.started_at),
         ("listening_sessions", ListeningSession, ListeningSession.started_at),
         ("exam_sessions", ExamSession, ExamSession.started_at),
+        ("question_exposures", UserQuestionExposure, UserQuestionExposure.updated_at),
+        ("exposure_mapping_states", UserExposureMappingState, UserExposureMappingState.user_id),
         ("orders", Order, Order.created_at),
         ("notifications", Notification, Notification.created_at),
         ("feedbacks", Feedback, Feedback.created_at),
@@ -191,6 +194,11 @@ async def gather_user_data(db: Any, user: Any) -> dict[str, Any]:
             by_exam[answer.session_id].append(row_to_dict(answer))
         for row in data["exam_sessions"]:
             row["answers"] = by_exam.get(row["id"], [])
+            if row["submitted_at"] is None:
+                for answer in row["answers"]:
+                    answer["question"] = {
+                        key: value for key, value in answer["question"].items() if key not in {"answer", "explanation"}
+                    }
 
     # ---- singleton rows ----
     prefs = (await db.execute(select(UserPreferences).where(UserPreferences.user_id == user.id))).scalar_one_or_none()
@@ -213,7 +221,114 @@ async def gather_user_data(db: Any, user: Any) -> dict[str, Any]:
         .all()
     )
     data["payments"] = [row_to_dict(payment, exclude=frozenset({"raw_json"})) for payment in payments]
+    data.update(await _gather_teaching_data(db, user.id))
     return data
+
+
+async def _gather_teaching_data(db: Any, user_id: str) -> dict[str, Any]:
+    """Export current user-readable teaching views, never internal content snapshots."""
+    from app.models.teaching import TeachingFeedback, TeachingOperation, TeachingSession, UserQuestionDisclosure
+    from app.models.v2_runtime import AgentRun, ExternalConnection, ExternalCredential
+    from app.services.external_connection_service import view as connection_view
+    from app.services.teaching.principal import Principal
+    from app.services.teaching.service import get_session
+    from app.services.teaching_runs import summary as run_summary
+
+    sessions = (
+        await db.execute(
+            select(TeachingSession).where(TeachingSession.user_id == user_id).order_by(TeachingSession.created_at)
+        )
+    ).scalars()
+    projected = [await get_session(db, Principal(user_id), session.id) for session in sessions]
+    from app.services.teaching.dialogue import export_messages
+
+    conversations = await export_messages(db, Principal(user_id), projected)
+    feedbacks = (
+        await db.execute(
+            select(TeachingFeedback)
+            .where(TeachingFeedback.user_id == user_id, TeachingFeedback.expires_at > datetime.now(UTC))
+            .order_by(TeachingFeedback.occurred_at)
+        )
+    ).scalars()
+    operations = (
+        await db.execute(
+            select(TeachingOperation).where(TeachingOperation.user_id == user_id).order_by(TeachingOperation.created_at)
+        )
+    ).scalars()
+    receipts = []
+    for row in operations:
+        receipts.append(
+            {
+                "id": row.id,
+                "operation_id": row.operation_id,
+                "operation_type": row.operation_type,
+                "status": row.status,
+                "created_at": scalar(row.created_at),
+                "result_refs": {
+                    key: value
+                    for key, value in row.result_refs.items()
+                    if key in {"session_id", "item_id", "attempt_id", "feedback_id"} and isinstance(value, str)
+                },
+            }
+        )
+    connections = (
+        await db.execute(
+            select(ExternalConnection)
+            .where(ExternalConnection.user_id == user_id)
+            .order_by(ExternalConnection.created_at)
+        )
+    ).scalars()
+    connection_summaries = []
+    for row in connections:
+        credentials = (
+            await db.execute(
+                select(ExternalCredential)
+                .where(ExternalCredential.connection_id == row.id)
+                .order_by(ExternalCredential.issued_at)
+            )
+        ).scalars()
+        connection_summaries.append(
+            {
+                **scalar(connection_view(row)),
+                "credentials": [
+                    {
+                        "id": credential.id,
+                        "issued_at": scalar(credential.issued_at),
+                        "revoked_at": scalar(credential.revoked_at),
+                    }
+                    for credential in credentials
+                ],
+            }
+        )
+    runs = (
+        await db.execute(select(AgentRun).where(AgentRun.user_id == user_id).order_by(AgentRun.created_at))
+    ).scalars()
+    return {
+        "teaching_sessions": projected,
+        "teaching_messages": conversations,
+        "teaching_attempts": [attempt for session in projected for attempt in session["attempts"]],
+        "question_disclosures": await _rows_for_user(
+            db, UserQuestionDisclosure, user_id, UserQuestionDisclosure.content_revision_id
+        ),
+        "teaching_feedbacks": [
+            {
+                "id": row.id,
+                "session_id": row.session_id,
+                "content": row.content,
+                "verification": row.verification,
+                "source_kind": row.source_kind,
+                "occurred_at": scalar(row.occurred_at),
+                "expires_at": scalar(row.expires_at),
+            }
+            for row in feedbacks
+        ],
+        "teaching_operations": receipts,
+        "external_connections": connection_summaries,
+        "teaching_runs": [
+            {**run_summary(row), "created_at": scalar(row.created_at), "finished_at": scalar(row.finished_at)}
+            for row in runs
+        ],
+    }
 
 
 def profile_dict(user: Any) -> dict[str, Any]:
@@ -276,6 +391,16 @@ EXPORT_ORDER = (
     "video_unlocks",
     "listening_sessions",
     "exam_sessions",
+    "question_exposures",
+    "exposure_mapping_states",
+    "teaching_sessions",
+    "teaching_messages",
+    "teaching_attempts",
+    "question_disclosures",
+    "teaching_feedbacks",
+    "teaching_operations",
+    "external_connections",
+    "teaching_runs",
     "videos",
     "orders",
     "payments",

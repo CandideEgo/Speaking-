@@ -1,4 +1,3 @@
-import asyncio
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -7,6 +6,39 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.media_probe import get_video_duration
 from app.services import ecdict
+from app.services.video_cache import invalidate_video_playback_cache
+
+# Compatibility imports keep task helpers and maintenance consumers callable;
+# media I/O has one owner in services.video_media.
+from app.services.video_media import (
+    TRANSCODE_PROFILES as TRANSCODE_PROFILES,
+)
+from app.services.video_media import (
+    cleanup_oss_raw as _cleanup_oss_raw,
+)
+from app.services.video_media import (
+    download_video as _download_video,
+)
+from app.services.video_media import (
+    extract_video_info as _extract_video_info,
+)
+from app.services.video_media import (
+    find_local_raw as _find_local_raw,
+)
+from app.services.video_media import (
+    stage_local_upload as _stage_local_upload,
+)
+from app.services.video_media import (
+    transcode_video as _transcode_video,
+)
+from app.services.video_playback import (
+    PlaybackUnavailableError,
+    accept_local_renditions,
+    has_playback,
+    has_renditions,
+    record_localization_failure,
+    require_playback,
+)
 from app.tasks.celery_app import GPU_TRANSCRIBE_TASK, celery_app
 from app.tasks.pipeline_helpers import (
     STEP_PROGRESS,
@@ -17,7 +49,6 @@ from app.tasks.pipeline_helpers import (
     StepBody,
     acquire_lock,
     commit_error_state,
-    is_step_done,
     release_lock,
     release_lock_and_steps,
     run_pipeline_task,
@@ -32,25 +63,6 @@ if TYPE_CHECKING:
     from app.services.translation.quality import TranslationQualityReport
 
 logger = get_logger(__name__)
-
-# Resolutions to produce from a downloaded source. The source is already a
-# YouTube-encoded H.264 stream, so when source height <= target height we remux
-# (stream-copy + faststart) instead of re-encoding: zero quality loss, no CPU
-# burn on the 2-core prod VPS. Only a genuinely-higher source gets scaled.
-TRANSCODE_PROFILES = {
-    "720p": {"height": 720},
-}
-
-
-def _find_local_raw(video_id: str) -> str | None:
-    """Locate the staged raw file ``{video_id}_raw.*`` in the media directory."""
-    media_dir = Path(get_settings().local_media_path).resolve()
-    if not media_dir.exists():
-        return None
-    for f in media_dir.iterdir():
-        if f.stem == f"{video_id}_raw":
-            return str(f)
-    return None
 
 
 async def _translate_subtitles(
@@ -164,50 +176,6 @@ async def _effective_quality_gate(db) -> tuple[bool, float, float]:
         float(row.quality_block_threshold),
         float(row.quality_warn_threshold),
     )
-
-
-async def _stage_local_upload(video) -> tuple[str, str]:
-    """Rename a local upload to the canonical raw path and stage it on OSS.
-
-    Returns ``(gpu_source, remote_key)`` where ``gpu_source`` is a signed URL
-    (private bucket) or CDN URL (public bucket) the GPU worker can fetch
-    without OSS credentials. When OSS is not configured (dev, GPU worker on the
-    same host), falls back to the local raw file path so the worker reads it
-    directly — ``remote_key`` is empty in that case.
-    """
-    from app.services import oss_service
-
-    settings = get_settings()
-    src = Path(video.source_url)
-    if not src.exists():
-        raise Exception(f"Local upload file not found: {video.source_url}")
-
-    ext = src.suffix or ".mp4"
-    media_dir = Path(settings.local_media_path).resolve()
-    media_dir.mkdir(parents=True, exist_ok=True)
-    raw_path = media_dir / f"{video.id}_raw{ext}"
-    if src.resolve() != raw_path.resolve():
-        src.rename(raw_path)
-    # Keep source_url consistent with the rest of the pipeline (delete/resume
-    # glob on {id}_raw.*).
-    video.source_url = str(raw_path)
-
-    remote_key = f"{settings.oss_raw_prefix}/{video.id}{ext}"
-    cdn_url = await oss_service.upload_file(str(raw_path), remote_key)
-    if cdn_url:
-        if settings.oss_raw_bucket_public:
-            gpu_source = cdn_url
-        else:
-            gpu_source = oss_service.get_signed_url(remote_key, expires=settings.oss_signed_url_expiry)
-            if not gpu_source:
-                raise Exception("OSS signed URL generation failed")
-        return gpu_source, remote_key
-
-    # OSS not configured (dev): when the GPU worker runs on the same host as
-    # the cloud backend, it can read the local raw file directly — skip the
-    # OSS round-trip. Production has OSS enabled and never hits this branch.
-    logger.info("OSS not configured; GPU worker will read local raw file", video_id=video.id)
-    return str(raw_path), ""
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -660,6 +628,7 @@ async def _run_downloading(ctx: PipelineCtx) -> None:
                 "Video %s: download failed — continuing without local file (embed playback)",
                 video_id,
             )
+            await require_playback(video)
     else:
         # Local upload: raw file already staged by the head.
         ctx.video_path = _find_local_raw(video.id)
@@ -669,42 +638,51 @@ async def _run_downloading(ctx: PipelineCtx) -> None:
     touch_step_started_at(video)
     video.processing_progress = STEP_PROGRESS["downloading"]
     await db.commit()
-    await update_progress(video_id, "downloading")
+    if ctx.video_path:
+        await update_progress(video_id, "downloading")
 
 
 async def _skip_downloading(ctx: PipelineCtx) -> None:
     """A resumed run still owes ``transcoding`` the path (``Step.skip_run``).
 
-    The download itself already happened, but a local upload's raw file has to
-    be re-found or the transcode that follows runs on ``None``. Imported sources
-    have nothing to re-find: their path only ever came from the download.
+    Re-find the staged/downloaded raw file for both local and imported videos.
+    A Redis completion marker alone cannot restore an in-memory path.
     """
-    from app.models.video import VideoSource
-
-    if ctx.video.video_source != VideoSource.imported:
-        ctx.video_path = _find_local_raw(ctx.video_id)
+    ctx.video_path = _find_local_raw(ctx.video_id)
+    if not ctx.video_path and not await has_renditions(ctx.video):
+        await _run_downloading(ctx)
 
 
 async def _run_transcoding(ctx: PipelineCtx) -> None:
     """Produce the playable renditions from whatever ``downloading`` left.
 
-    A run that arrives without a local path (a failed imported download) still
-    records the step done: there is nothing to transcode, but the video stays
-    playable through its original/embed URL.
+    Only verified outputs complete the local-media step. A supported YouTube
+    source may finish via embed, with a recorded, bounded localization retry.
     """
     db, video, video_id = ctx.db, ctx.video, ctx.video_id
-    if ctx.video_path:
-        urls = await _transcode_video(ctx.video_path, video.id)
-        video.video_url_480p = urls.get("480p")
-        video.video_url_720p = urls.get("720p", f"/media/{video.id}_raw.mp4")
-        video.video_url_1080p = urls.get("1080p")
-    else:
-        logger.warning("No video file to transcode for %s", video_id)
+    urls = await _transcode_video(ctx.video_path, video.id) if ctx.video_path else {}
+    converted = await accept_local_renditions(video, urls)
+    if not converted:
+        reason = (
+            "Local video conversion produced no usable rendition"
+            if ctx.video_path
+            else "Local video download unavailable"
+        )
+        record_localization_failure(video, reason)
+        await require_playback(video)
+        logger.warning("video_local_media_fallback", video_id=video_id, reason=reason)
     video.processing_step = "transcoding"
     touch_step_started_at(video)
     video.processing_progress = STEP_PROGRESS["transcoding"]
     await db.commit()
-    await update_progress(video_id, "transcoding")
+    if converted:
+        await update_progress(video_id, "transcoding")
+
+
+async def _skip_transcoding(ctx: PipelineCtx) -> None:
+    """A completed Redis step cannot stand in for a missing media artifact."""
+    if not await has_renditions(ctx.video):
+        await _run_transcoding(ctx)
 
 
 async def _run_done(ctx: PipelineCtx) -> None:
@@ -729,6 +707,7 @@ async def _run_done(ctx: PipelineCtx) -> None:
     from app.models.video import VideoSource, VideoStatus
 
     db, video, video_id = ctx.db, ctx.video, ctx.video_id
+    await require_playback(video)
 
     # --- Cover localization retry ---
     # The first attempt ran at extraction (needs CDN egress). After
@@ -746,6 +725,7 @@ async def _run_done(ctx: PipelineCtx) -> None:
     video.step_started_at = None
     video.processing_progress = 100
     await db.commit()
+    await invalidate_video_playback_cache(video_id)
     await update_progress(video_id, "done")
     release_lock_and_steps(video_id)
     logger.info("Video %s finalized", video_id)
@@ -822,6 +802,7 @@ _TAIL_BODIES: dict[str, StepBody] = {
 #: because the step left something behind the later steps still need.
 _TAIL_SKIP_BODIES: dict[str, StepBody] = {
     "downloading": _skip_downloading,
+    "transcoding": _skip_transcoding,
 }
 
 
@@ -882,15 +863,6 @@ def finalize_video(self, video_id: str, engine: str | None = None):
                 raise self.retry(exc=e) from e
 
     run_pipeline_task(_process())
-
-
-async def _cleanup_oss_raw(video_id: str, source_url: str) -> None:
-    """Best-effort deletion of the staged raw upload from OSS."""
-    from app.services import oss_service
-
-    ext = Path(source_url).suffix or ".mp4"
-    remote_key = f"{get_settings().oss_raw_prefix}/{video_id}{ext}"
-    await oss_service.delete_file(remote_key)
 
 
 # ---------------------------------------------------------------------------
@@ -1064,296 +1036,6 @@ def watchdog_stale_pipeline():
 
 
 # ---------------------------------------------------------------------------
-# yt-dlp / ffmpeg helpers (cloud-side)
-# ---------------------------------------------------------------------------
-
-# YouTube anti-bot 重试参数（2026-09-08 batch 教训：拦截是概率性的，退避重试可救回）
-_EXTRACT_MAX_ATTEMPTS = 5
-_EXTRACT_RETRY_BASE_DELAY = 8  # 秒；第 n 次重试等 n * base
-
-
-def _youtube_extractor_args(settings) -> dict:
-    """yt-dlp ``extractor_args`` for YouTube: client choice + POT provider.
-
-    - ``player_client``: web_safari first, then web+android as fallback.
-      web_safari is required to unlock the adaptive high-res ladder:
-      with only web/android, YouTube withholds all adaptive formats and
-      returns just format 18 (360p), which was the root cause of the
-      46×640x360 blurry videos (2026-09-16 实测). ``tv`` answers
-      UNPLAYABLE / "The page needs to be reloaded" for many videos.
-    - ``youtubepot-bgutilhttp.base_url``: the bgutil POT provider address. It has
-      to be spelled out — otherwise the plugin's request to its own default
-      (127.0.0.1:4416) is routed through ``http_proxy``, which cannot reach the
-      host loopback, and every POT fetch dies on a 20s read timeout.
-    """
-    args: dict = {"youtube": {"player_client": ["web_safari", "web", "android"]}}
-    if settings.youtube_pot_base_url:
-        args["youtubepot-bgutilhttp"] = {"base_url": [settings.youtube_pot_base_url]}
-    return args
-
-
-async def _extract_video_info(url: str) -> dict | None:
-    """Extract video metadata via yt-dlp without downloading.
-
-    Returns title/thumbnail/duration plus an ``external`` key carrying the
-    parsed external-metadata fields (see ``services/external_meta.py``).
-    """
-    import yt_dlp
-
-    settings = get_settings()
-    loop = asyncio.get_event_loop()
-
-    def _sync_extract():
-        opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "skip_download": True,
-            "remote_components": "ejs:github",
-            # node 运行时：解 YouTube n-challenge 签名（无 JS 运行时只能拿到图片格式）
-            "js_runtimes": {"node": {}},
-        }
-        if settings.http_proxy:
-            opts["proxy"] = settings.http_proxy
-        if settings.youtube_cookies_path:
-            # 副本：yt-dlp 退出时会把 cookie jar 写回 cookiefile，YouTube 的 anti-bot
-            # 响应里带清 auth 的 Set-Cookie，直接传原文件会把 LOGIN_INFO 洗掉
-            from app.services.youtube_cookies_service import disposable_cookiefile
-
-            ck = disposable_cookiefile(settings.youtube_cookies_path)
-            if ck:
-                opts["cookiefile"] = ck
-        # tv/web/android client：默认 web client 常触发 anti-bot（"Sign in to confirm"），
-        # 即便 cookies 有效；tv+android 通常放行（2026-09-08 batch 教训）
-        opts["extractor_args"] = _youtube_extractor_args(settings)
-        opts["socket_timeout"] = 30
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-
-                from app.services.external_meta import parse_external_meta, pick_best_thumbnail
-
-                # 从 thumbnails 列表选原视频作者设置的封面（而非自动截帧）
-                best_thumb = pick_best_thumbnail(info)
-                # 构造 fallback URLs：当最佳封面下载失败时尝试其他分辨率
-                thumb_fallbacks = []
-                yt_id = info.get("id")
-                if yt_id and ("youtube.com" in url or "youtu.be" in url):
-                    for qual in ("maxresdefault", "hqdefault", "sddefault", "default"):
-                        fb = f"https://i.ytimg.com/vi/{yt_id}/{qual}.jpg"
-                        if fb != best_thumb:
-                            thumb_fallbacks.append(fb)
-
-                return {
-                    "title": info.get("title"),
-                    "thumbnail": best_thumb,
-                    "thumbnail_fallbacks": thumb_fallbacks,
-                    "duration": info.get("duration"),
-                    "youtube_video_id": yt_id,
-                    "external": parse_external_meta(info),
-                }
-        except Exception:
-            logger.exception("Failed to extract video info")
-            return None
-
-    # YouTube 的 anti-bot 是概率性的：同一 URL 同一 cookies 连续请求会有部分被
-    # "Sign in to confirm you're not a bot" 拦下（实测 5 次里过 1 次）。这里退避重试，
-    # 而不是让整条 pipeline 因一次拦截就 error。
-    for attempt in range(_EXTRACT_MAX_ATTEMPTS):
-        info = await loop.run_in_executor(None, _sync_extract)
-        if info is not None:
-            return info
-        if attempt < _EXTRACT_MAX_ATTEMPTS - 1:
-            delay = _EXTRACT_RETRY_BASE_DELAY * (attempt + 1)
-            logger.info(
-                "extract_video_info_retry",
-                url=url,
-                attempt=attempt + 1,
-                max_attempts=_EXTRACT_MAX_ATTEMPTS,
-                delay=delay,
-            )
-            await asyncio.sleep(delay)
-    return None
-
-
-async def _download_video(url: str, video_id: str) -> str | None:
-    """Download video from YouTube/Bilibili to local media storage.
-
-    Returns the file path if successful, None otherwise.
-    """
-    import yt_dlp
-
-    settings = get_settings()
-    media_dir = Path(settings.local_media_path).resolve()
-    media_dir.mkdir(parents=True, exist_ok=True)
-    output = str(media_dir / f"{video_id}_raw.%(ext)s")
-
-    loop = asyncio.get_event_loop()
-
-    def _sync_download():
-        opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "format": f"bestvideo[height<={settings.video_max_height}]+bestaudio/best[height<={settings.video_max_height}]/best",
-            "outtmpl": output,
-            "merge_output_format": "mp4",
-            "remote_components": "ejs:github",
-            # node 运行时：解 YouTube n-challenge 签名
-            "js_runtimes": {"node": {}},
-        }
-        if settings.http_proxy:
-            opts["proxy"] = settings.http_proxy
-        if settings.youtube_cookies_path:
-            # 副本：yt-dlp 退出时会把 cookie jar 写回 cookiefile，YouTube 的 anti-bot
-            # 响应里带清 auth 的 Set-Cookie，直接传原文件会把 LOGIN_INFO 洗掉
-            from app.services.youtube_cookies_service import disposable_cookiefile
-
-            ck = disposable_cookiefile(settings.youtube_cookies_path)
-            if ck:
-                opts["cookiefile"] = ck
-        # tv/web/android client：默认 web client 常触发 anti-bot（"Sign in to confirm"），
-        # 即便 cookies 有效；tv+android 通常放行（2026-09-08 batch 教训）
-        opts["extractor_args"] = _youtube_extractor_args(settings)
-        opts["socket_timeout"] = 30
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
-
-            raw_mp4 = media_dir / f"{video_id}_raw.mp4"
-            if raw_mp4.exists():
-                return str(raw_mp4)
-
-            # yt-dlp may have used a different extension
-            for f in media_dir.iterdir():
-                if f.stem == f"{video_id}_raw" and f.suffix != ".mp4":
-                    # Try renaming to mp4 if it's a supported format
-                    return str(f)
-            return None
-        except Exception:
-            logger.exception("Video download failed")
-            return None
-
-    return await loop.run_in_executor(None, _sync_download)
-
-
-async def _transcode_video(source_path: str, video_id: str) -> dict[str, str]:
-    """Produce the target-resolution variant of a downloaded source.
-
-    The source is already a YouTube-encoded H.264 stream. When its height is
-    at or below the target (TRANSCODE_PROFILES) we remux — stream-copy video
-    and audio, add +faststart — instead of re-encoding. This is zero quality
-    loss and near-zero CPU, which matters on the 2-core prod VPS (re-encoding
-    1080p with libx264 there takes minutes per video and only adds loss).
-    A genuinely-higher source (e.g. a 1080p download targeting 720p) gets
-    scaled with libx264 at CRF 20.
-
-    Returns a dict mapping resolution key to URL path.
-    """
-    settings = get_settings()
-    media_dir = Path(settings.local_media_path).resolve()
-    source = Path(source_path)
-
-    if not source.exists():
-        logger.error(f"Source video not found for transcoding: {source_path}")
-        return {}
-
-    urls: dict[str, str] = {}
-    source_res = await _get_video_height(source_path)
-
-    for label, profile in TRANSCODE_PROFILES.items():
-        # Remux when the source is at or below the target height. Re-encoding
-        # a 720p source to 720p is pure generation loss (same pixels, new loss).
-        needs_scale = bool(source_res and source_res > profile["height"])
-
-        out_name = f"{video_id}_{label}.mp4"
-        out_path = media_dir / out_name
-
-        if needs_scale:
-            cmd = [
-                "ffmpeg",
-                "-y",
-                "-i",
-                str(source),
-                "-vf",
-                f"scale=-2:{profile['height']}",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "fast",
-                "-crf",
-                "20",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "128k",
-                "-movflags",
-                "+faststart",
-                str(out_path),
-            ]
-        else:
-            # Stream copy both video and audio: no decode, no re-encode.
-            cmd = [
-                "ffmpeg",
-                "-y",
-                "-i",
-                str(source),
-                "-c",
-                "copy",
-                "-movflags",
-                "+faststart",
-                str(out_path),
-            ]
-
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            _, stderr = await proc.communicate()
-
-            if proc.returncode == 0 and out_path.exists():
-                urls[label] = f"/media/{out_name}"
-                mode = "scaled" if needs_scale else "remuxed"
-                logger.info(f"{mode.capitalize()} {label}: {out_name}")
-            else:
-                logger.error(f"FFmpeg {label} failed: {stderr.decode()[:200]}")
-        except FileNotFoundError:
-            logger.warning("FFmpeg not installed - skipping video transcoding")
-            return {}
-        except Exception:
-            logger.exception(f"Transcoding {label} failed")
-
-    return urls
-
-
-async def _get_video_height(path: str) -> int | None:
-    """Get video height using ffprobe."""
-    cmd = [
-        "ffprobe",
-        "-v",
-        "quiet",
-        "-select_streams",
-        "v:0",
-        "-show_entries",
-        "stream=height",
-        "-of",
-        "csv=p=0",
-        path,
-    ]
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, _ = await proc.communicate()
-        height = stdout.decode().strip()
-        return int(height) if height.isdigit() else None
-    except Exception:
-        return None
-
-
-# ---------------------------------------------------------------------------
 # Admin "搬运到本地" (download + transcode only; no transcription)
 # ---------------------------------------------------------------------------
 
@@ -1384,6 +1066,13 @@ async def _run_localize(self, video_id: str, force: bool = False) -> None:
             logger.error("Video %s not found for localize", video_id)
             release_lock_and_steps(video_id)
             return
+        if (
+            video.storage_mode == "offline"
+            or video.video_source != "imported"
+            or video.status not in (VideoStatus.ready, VideoStatus.processing, VideoStatus.error)
+        ):
+            release_lock_and_steps(video_id)
+            return
 
         # Strike limit: skip if this video has failed download too many
         # times (permanent failure - region block / video removed). force
@@ -1402,55 +1091,48 @@ async def _run_localize(self, video_id: str, force: bool = False) -> None:
                 return
 
         try:
-            # --- Step: downloading ---
+            # Reuse a real raw file on retry, regardless of a stale Redis marker.
             current_step = "downloading"
-            if not await is_step_done(video_id, "downloading"):
-                await update_progress(video_id, "downloading")
+            video_path = _find_local_raw(video.id)
+            if not video_path:
                 video_path = await _download_video(video.source_url, video.id)
-                if not video_path:
-                    # Download failed - record for beat retry, keep the video
-                    # ready (embed playback still works). Don't raise: a
-                    # transient download failure shouldn't error an otherwise
-                    # playable video, and retrying with the same url/cookies is
-                    # pointless. The beat task re-attempts later with refreshed
-                    # cookies.
-                    from datetime import UTC, datetime
+            if not video_path:
+                raise PlaybackUnavailableError("Local video download unavailable")
+            await update_progress(video_id, "downloading")
 
-                    video.download_failed_at = datetime.now(UTC)
-                    video.download_fail_count = (video.download_fail_count or 0) + 1
-                    video.status = VideoStatus.ready
-                    video.processing_step = None
-                    await db.commit()
-                    release_lock_and_steps(video_id)
-                    logger.warning(
-                        "Video %s: localize download failed (fail_count %d)",
-                        video_id,
-                        video.download_fail_count,
-                    )
-                    return
-            else:
-                video_path = _find_local_raw(video.id)
-
-            # --- Step: transcoding ---
             current_step = "transcoding"
-            if not await is_step_done(video_id, "transcoding"):
-                if video_path:
-                    urls = await _transcode_video(video_path, video.id)
-                    video.video_url_480p = urls.get("480p")
-                    video.video_url_720p = urls.get("720p", f"/media/{video.id}.mp4")
-                    video.video_url_1080p = urls.get("1080p")
-                    await db.commit()
-                else:
-                    logger.warning("No video file to transcode for %s", video_id)
-                await update_progress(video_id, "transcoding")
-
-            # --- Step: done ---
+            urls = await _transcode_video(video_path, video.id)
+            if not await accept_local_renditions(video, urls):
+                raise PlaybackUnavailableError("Local video conversion produced no usable rendition")
+            await require_playback(video)
+            await update_progress(video_id, "transcoding")
             video.status = VideoStatus.ready
             video.processing_step = None
+            video.step_started_at = None
+            video.processing_progress = 100
             await db.commit()
+            await invalidate_video_playback_cache(video_id)
             await update_progress(video_id, "done")
             release_lock_and_steps(video_id)
             logger.info("Video %s localized to local storage", video_id)
+
+        except PlaybackUnavailableError as e:
+            record_localization_failure(video, str(e))
+            if await has_playback(video):
+                # A conversion failure must not remove a valid previous file
+                # or supported embed. Keep the failure visible to admins/beat.
+                video.status = VideoStatus.ready
+                video.processing_step = None
+                video.step_started_at = None
+                video.processing_progress = 100
+                await db.commit()
+                await invalidate_video_playback_cache(video_id)
+                release_lock_and_steps(video_id)
+                logger.warning("video_localization_failed_playback_preserved", video_id=video_id, step=current_step)
+                return
+            await commit_error_state(video, db, e, step=current_step)
+            release_lock(video_id)
+            raise self.retry(exc=e) from e
 
         except Exception as e:
             logger.exception("Video %s localize failed", video_id)

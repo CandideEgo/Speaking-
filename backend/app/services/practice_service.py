@@ -554,9 +554,15 @@ async def submit_practice_results(
     now = datetime.now(UTC)
     updated = 0
     auto_added = 0
-    # apply_review already bumps correct_count for these; the learning-event
-    # sweep below must not count them a second time.
-    review_line_words: set[str] = set()
+    # Lock existing words in a stable order before mutating the batch. A
+    # concurrent batch submitted in reverse order must not invert row locks.
+    await db.execute(
+        select(Vocabulary)
+        .where(Vocabulary.user_id == user_id, Vocabulary.word.in_([r["word"] for r in results]))
+        .order_by(Vocabulary.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
 
     for r in results:
         word = r["word"]
@@ -599,7 +605,6 @@ async def submit_practice_results(
             # 到期复习词：错误次数分档（DEC-057）。wrong_count / last_wrong_at
             # 由 apply_review 统一落库；caller owns the commit（循环尾统一 commit）。
             apply_review(vocab, quality, now=now)
-            review_line_words.add(word)
             updated += 1
             continue
 
@@ -629,38 +634,21 @@ async def submit_practice_results(
         # answer must not re-derive (and demote) their level.
         if vocab.mastery_level != "mastered":
             vocab.mastery_level = _mastery_from_review_count(new_review_count)
+        if correct:
+            vocab.correct_count = (vocab.correct_count or 0) + 1
         updated += 1
 
-    await db.commit()
+    from app.services.learning_event_service import EVENT_LEARNED_WORDS, EVENT_PRACTICED_ITEMS, record_event
 
-    # Emit learning events (ADR-0012 learning plan integration)
-    try:
-        from app.services.learning_event_service import EVENT_LEARNED_WORDS, EVENT_PRACTICED_ITEMS, emit_event
-
-        correct_count = sum(1 for r in results if r.get("correct"))
-        await emit_event(
-            db, user_id, EVENT_PRACTICED_ITEMS, len(results), video_id=video_id, flow_id=flow_id, source="practice"
+    correct_count = sum(1 for r in results if r.get("correct"))
+    await record_event(
+        db, user_id, EVENT_PRACTICED_ITEMS, len(results), video_id=video_id, flow_id=flow_id, source="practice"
+    )
+    if correct_count > 0:
+        await record_event(
+            db, user_id, EVENT_LEARNED_WORDS, correct_count, video_id=video_id, flow_id=flow_id, source="practice"
         )
-        if correct_count > 0:
-            await emit_event(
-                db, user_id, EVENT_LEARNED_WORDS, correct_count, video_id=video_id, flow_id=flow_id, source="practice"
-            )
-        # Update Vocabulary.correct_count for each correct answer (review-line
-        # words were already counted inside apply_review)
-        for r in results:
-            if r.get("correct") and r["word"] not in review_line_words:
-                v_result = await db.execute(
-                    select(Vocabulary).where(
-                        Vocabulary.user_id == user_id,
-                        Vocabulary.word == r["word"],
-                    )
-                )
-                v = v_result.scalar_one_or_none()
-                if v:
-                    v.correct_count = (v.correct_count or 0) + 1
-        await db.commit()
-    except Exception:
-        logger.exception("Failed to emit learning events for practice results")
+    await db.commit()
 
     return {"updated": updated, "auto_added": auto_added}
 

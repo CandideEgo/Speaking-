@@ -39,11 +39,16 @@ celery_app.conf.update(
     # off the default queue — everything else (video pipeline head/tail,
     # localize, order expiry) runs on the cloud.
     task_default_queue="celery",
-    task_queues=(Queue("celery"), Queue(settings.transcription_gpu_queue_name)),
+    task_queues=(Queue("celery"), Queue(settings.transcription_gpu_queue_name), Queue("teaching")),
     task_routes={
         GPU_TRANSCRIBE_TASK: {"queue": settings.transcription_gpu_queue_name},
+        "app.tasks.teaching_tasks.execute_teaching_run": {"queue": "teaching"},
     },
     beat_schedule={
+        "sweep-teaching-runs": {
+            "task": "app.tasks.teaching_tasks.sweep_teaching_runs",
+            "schedule": 10,
+        },
         "expire-pending-orders": {
             "task": "app.tasks.order_tasks.expire_pending_orders",
             "schedule": 300,  # every 5 minutes
@@ -143,4 +148,5 @@ import app.tasks.pipeline_dispatch_tasks  # A05: beat re-dispatches pending pipe
 import app.tasks.ranking_tasks
 import app.tasks.reminder_tasks
 import app.tasks.scoring_tasks
+import app.tasks.teaching_tasks
 import app.tasks.video_processing  # noqa: F401  (import registers the tasks with this app)

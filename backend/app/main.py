@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +16,7 @@ from sqlalchemy import text
 from app.api.v1 import (
     admin,
     admin_home_content,
+    admin_teaching_content,
     auth,
     behavior,
     browse,
@@ -24,6 +25,7 @@ from app.api.v1 import (
     discovery,
     exam_pdfs,
     exams,
+    external_connections,
     favorites,
     feedback,
     home_editorial,
@@ -37,6 +39,8 @@ from app.api.v1 import (
     presence,
     recommendations,
     shadowing,
+    teaching,
+    teaching_runs,
     users,
     videos,
     vocab_sets,
@@ -227,7 +231,7 @@ async def lifespan(app: FastAPI):
     # Cross-worker notification fan-out. Tests drive the subscriber directly
     # with a fake pubsub instead of starting a real connection.
     if settings.env != "testing":
-        from app.api.v1.notifications import start_notification_subscriber
+        from app.services.notification_transport import start_notification_subscriber
 
         start_notification_subscriber()
     # A09/OPS-05: worker/beat/queue/disk/pipeline-failure watchdog that alerts
@@ -236,7 +240,11 @@ async def lifespan(app: FastAPI):
     from app.services.health_monitor import start_health_monitor
 
     health_monitor_task = start_health_monitor()
-    yield
+    async with AsyncExitStack() as stack:
+        mcp_app = getattr(app.state, "mcp_app", None)
+        if mcp_app is not None:
+            await stack.enter_async_context(mcp_app.router.lifespan_context(mcp_app))
+        yield
     # --- Shutdown ---
     if health_monitor_task is not None:
         health_monitor_task.cancel()
@@ -247,7 +255,7 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.warning("health monitor shutdown failed", exc_info=True)
     if settings.env != "testing":
-        from app.api.v1.notifications import stop_notification_subscriber
+        from app.services.notification_transport import stop_notification_subscriber
 
         await stop_notification_subscriber()
 
@@ -363,6 +371,7 @@ def create_app() -> FastAPI:
     app.include_router(channels.router, prefix="/api/v1")
     app.include_router(discovery.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
+    app.include_router(admin_teaching_content.router, prefix="/api/v1")
     # 管理员首页编辑内容（草稿/生成/发布/布局）；鉴权在路由内用 get_admin_user。
     app.include_router(admin_home_content.router, prefix="/api/v1")
     app.include_router(catalog.router, prefix="/api/v1")
@@ -378,6 +387,21 @@ def create_app() -> FastAPI:
 
     app.include_router(listening.router, prefix="/api/v1")
     app.include_router(exams.router, prefix="/api/v1")
+    app.include_router(teaching.router, prefix="/api/v1")
+    app.include_router(teaching_runs.router, prefix="/api/v1")
+    app.include_router(external_connections.router, prefix="/api/v1")
+    if settings.mcp_sdk_enabled:
+        from app.integrations.mcp.server import create_mcp_app
+
+        mcp_app = create_mcp_app()
+        app.state.mcp_app = mcp_app
+        app.mount("/api/v1/mcp", mcp_app)
+    else:
+
+        @app.api_route("/api/v1/mcp/", methods=["GET", "POST", "DELETE"], include_in_schema=False)
+        async def unavailable_mcp():
+            raise AppError(503, ErrorCode.SERVICE_UNAVAILABLE, "MCP 接入尚未通过运行环境与宿主验收")
+
     # 原卷 PDF 单独一个 router：exams 的末尾 catch-all GET /{paper_id} 会把
     # /exams/pdfs 当 paper_id 吃掉。
     app.include_router(exam_pdfs.router, prefix="/api/v1")

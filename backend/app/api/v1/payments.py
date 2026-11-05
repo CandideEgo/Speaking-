@@ -7,7 +7,7 @@ via the ``default_payment_provider`` setting.
 
 import hmac
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -33,7 +33,8 @@ from app.schemas.payment import (
     PaymentStatusResponse,
     WechatCallbackResponse,
 )
-from app.services.payment_provider import PLAN_DEFINITIONS, PLAN_DURATIONS, get_payment_provider
+from app.services.order_service import PAYABLE_STATUSES, settle_paid_order
+from app.services.payment_provider import PLAN_DEFINITIONS, get_payment_provider
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -60,41 +61,6 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 
 def _generate_order_number() -> str:
     return f"spk_{uuid.uuid4().hex[:16]}"
-
-
-async def _process_successful_payment(db: AsyncSession, order: Order) -> None:
-    """Shared logic for processing a successful payment.
-
-    - Upgrades the user to Pro
-    - Extends plan_expires_at by the plan's duration (even for active Pro users)
-    - Marks the order as paid
-
-    Must be called within a transaction where the order row is locked
-    (with_for_update).
-    """
-    user_result = await db.execute(select(User).where(User.id == order.user_id).with_for_update())
-    user = user_result.scalar_one_or_none()
-    if user:
-        user.plan = PlanType.pro
-        # Always extend plan_expires_at by the plan duration.
-        # If the current subscription is still active, extend from its expiry;
-        # otherwise, start from now.
-        duration_days = PLAN_DURATIONS.get(order.plan, 30)
-        now = datetime.now(UTC)
-        current_expires = to_aware_utc(user.plan_expires_at) if user.plan_expires_at else now
-        base = max(current_expires, now)
-        user.plan_expires_at = base + timedelta(days=duration_days)
-        logger.info(
-            "user_upgraded_to_pro",
-            user_id=user.id,
-            plan=order.plan,
-            duration_days=duration_days,
-            expires_at=user.plan_expires_at.isoformat(),
-        )
-
-    order.status = OrderStatus.paid
-    order.paid_at = _utcnow()
-    await db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +149,12 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
         logger.warning("alipay callback: invalid signature or missing order number")
         return {"status": "error", "message": "Invalid signature"}
 
-    result = await db.execute(select(Order).where(Order.order_number == order_number).with_for_update())
+    result = await db.execute(
+        select(Order)
+        .where(Order.order_number == order_number)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     order = result.scalar_one_or_none()
     if not order:
         logger.warning("alipay callback: order not found", order_number=order_number)
@@ -192,7 +163,7 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
     if order.status == OrderStatus.paid:
         return {"status": "success", "message": "Already processed"}
 
-    if order.status != OrderStatus.pending:
+    if order.status not in PAYABLE_STATUSES:
         logger.warning("alipay callback: order not pending", order_number=order_number, status=order.status)
         return {"status": "error", "message": f"Order is {order.status.value}, cannot process"}
 
@@ -205,7 +176,8 @@ async def alipay_callback(request: Request, db: AsyncSession = Depends(get_db)):
         )
         return {"status": "error", "message": "Amount mismatch"}
 
-    await _process_successful_payment(db, order)
+    await settle_paid_order(db, order.id)
+    await db.commit()
     return {"status": "success", "message": "OK"}
 
 
@@ -225,7 +197,12 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
         logger.warning("wechat callback: invalid signature or missing order number")
         return {"code": "FAIL", "message": "Invalid signature"}
 
-    result = await db.execute(select(Order).where(Order.order_number == order_number).with_for_update())
+    result = await db.execute(
+        select(Order)
+        .where(Order.order_number == order_number)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     order = result.scalar_one_or_none()
     if not order:
         logger.warning("wechat callback: order not found", order_number=order_number)
@@ -234,7 +211,7 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
     if order.status == OrderStatus.paid:
         return {"code": "SUCCESS", "message": "Already processed"}
 
-    if order.status != OrderStatus.pending:
+    if order.status not in PAYABLE_STATUSES:
         logger.warning("wechat callback: order not pending", order_number=order_number, status=order.status)
         return {"code": "FAIL", "message": f"Order is {order.status.value}, cannot process"}
 
@@ -247,7 +224,8 @@ async def wechat_callback(request: Request, db: AsyncSession = Depends(get_db)):
         )
         return {"code": "FAIL", "message": "Amount mismatch"}
 
-    await _process_successful_payment(db, order)
+    await settle_paid_order(db, order.id)
+    await db.commit()
     return {"code": "SUCCESS", "message": "OK"}
 
 

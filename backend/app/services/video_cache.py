@@ -29,6 +29,12 @@ async def invalidate_video_detail_cache(video_id: str) -> None:
         pass
 
 
+async def invalidate_video_playback_cache(video_id: str) -> None:
+    """After media URLs/state commit, refresh detail and public card surfaces."""
+    await invalidate_video_detail_cache(video_id)
+    await invalidate_browse_cache()
+
+
 async def invalidate_like_caches(video_id: str) -> None:
     """Invalidate the surfaces a like count can change.
 

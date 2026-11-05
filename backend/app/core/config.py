@@ -1,5 +1,7 @@
+import re
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The environments the app knows how to behave under. A value outside this set
@@ -95,6 +97,33 @@ class Settings(BaseSettings):
     llm_model_editorial: str = ""
     # Hard timeout (seconds) for a single LLM chat call (AIService).
     llm_call_timeout: int = 90
+
+    # V2 is opt-in. A blank allowlist authorizes nobody, including in development.
+    teaching_enabled: bool = False
+    teaching_runs_enabled: bool = False
+    teaching_dialogue_enabled: bool = False
+    teaching_allowed_user_ids: str = ""
+    mcp_read_enabled: bool = False
+    mcp_write_enabled: bool = False
+    mcp_sdk_enabled: bool = False
+    mcp_allowed_hosts: str = "localhost,127.0.0.1,testserver"
+    mcp_allowed_origins: str = ""
+    llm_gateway_base_url: str = ""
+    llm_gateway_api_key: str = ""
+    llm_gateway_admin_key: str = ""
+    llm_gateway_governance_verified: bool = False
+    llm_gateway_model: str = "teaching"
+    llm_gateway_v2_team_id: str = ""
+    content_receipts_enabled: bool = False
+    content_verification_api_key: str = Field(default="", repr=False)
+    content_receipt_public_keys: dict[str, str] = Field(default_factory=dict, repr=False)
+    content_receipt_issuer: str = "seeword-content-gateway"
+    content_receipt_max_age_seconds: int = Field(default=86400, ge=60, le=86400)
+    v2_daily_budget_usd: float = Field(default=1.0, gt=0, le=1.0)
+    v2_user_daily_budget_usd: float = Field(default=0.10, gt=0, le=0.10)
+    v2_run_budget_usd: float = Field(default=0.02, gt=0, le=0.02)
+    teaching_run_retention_hours: int = 24
+    teaching_usage_retention_days: int = 7
 
     local_media_path: str = "./media"
 
@@ -380,6 +409,37 @@ class Settings(BaseSettings):
         # comparison (logging, HSTS/CSP, CORS, limiter) sees the same string.
         object.__setattr__(self, "env", env)
 
+        if self.content_receipts_enabled:
+            from app.services.teaching.content_receipts import public_key
+
+            if not self.content_receipt_public_keys or not self.content_receipt_issuer.strip():
+                raise RuntimeError("Content receipt verification requires public keys and an issuer")
+            if len(self.content_receipt_public_keys) > 5:
+                raise RuntimeError("At most five content receipt public keys may be active")
+            for kid, pem in self.content_receipt_public_keys.items():
+                try:
+                    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", kid):
+                        raise ValueError("invalid key ID")
+                    public_key(pem)
+                except (ValueError, TypeError) as exc:
+                    raise RuntimeError("Invalid content receipt Ed25519 public key configuration") from exc
+
+        if self.mcp_write_enabled and not self.mcp_read_enabled:
+            raise RuntimeError("MCP_WRITE_ENABLED requires MCP_READ_ENABLED")
+        if self.teaching_runs_enabled and not self.llm_gateway_governance_verified:
+            raise RuntimeError("TEACHING_RUNS_ENABLED requires verified gateway governance")
+        if self.teaching_dialogue_enabled and not self.teaching_runs_enabled:
+            raise RuntimeError("TEACHING_DIALOGUE_ENABLED requires TEACHING_RUNS_ENABLED")
+        if self.llm_gateway_governance_verified and not all(
+            (
+                self.llm_gateway_base_url,
+                self.llm_gateway_api_key,
+                self.llm_gateway_admin_key,
+                self.llm_gateway_v2_team_id,
+            )
+        ):
+            raise RuntimeError("Verified gateway requires base URL, service/admin keys and V2 team ID")
+
         # The signing algorithm is an attack surface, not a preference: a typo
         # or an injected value must fail at boot, not at the first token check.
         algorithm = self.jwt_algorithm.strip().upper()
@@ -434,8 +494,14 @@ class Settings(BaseSettings):
             # The guard is "an LLM key must exist", not "the OpenAI key must
             # exist": production may run entirely on the Command Code provider.
             # An empty pair is still fatal — features would fail at call time.
-            if not (self.openai_api_key.strip() or self.commandcode_api_key.strip()):
-                raise RuntimeError("OPENAI_API_KEY or COMMANDCODE_API_KEY must be set in production")
+            if not (
+                self.openai_api_key.strip()
+                or self.commandcode_api_key.strip()
+                or (self.llm_gateway_base_url.strip() and self.llm_gateway_api_key.strip())
+            ):
+                raise RuntimeError(
+                    "OPENAI_API_KEY or COMMANDCODE_API_KEY or an internal LLM gateway must be set in production"
+                )
             # ``redis_url`` carries a working localhost default (Celery broker,
             # rate-limit storage, cache client), so a forgotten REDIS_URL reaches
             # here as a non-empty string; require it to have been provided.

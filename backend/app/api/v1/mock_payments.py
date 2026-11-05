@@ -10,13 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
-from app.api.v1.payments import _process_successful_payment
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models.order import Order, OrderStatus
 from app.models.user import User
 from app.schemas.payment import MockPaymentResponse
+from app.services.order_service import settle_paid_order
 
 logger = structlog.get_logger()
 
@@ -45,6 +45,7 @@ async def mock_payment(
     if order.status != OrderStatus.pending:
         raise HTTPException(status_code=400, detail="Order already processed")
 
-    await _process_successful_payment(db, order)
+    await settle_paid_order(db, order.id)
+    await db.commit()
 
     return {"success": True, "message": "Payment successful — upgraded to Pro", "redirect": "/dashboard"}

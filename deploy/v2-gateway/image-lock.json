@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "gateway": "LiteLLM Proxy",
+  "version": "1.106.6",
+  "image": "ghcr.io/berriai/litellm:v1.106.6@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06",
+  "image_index_digest": "sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06",
+  "linux_amd64_manifest_digest": "sha256:c09a77d998058dd78835a45a985eae747d257f2b183db06852fba536f3d1113c",
+  "image_source_revision": "61c6ab78393ef45683dd7d963d2a315bd845e20b",
+  "budget_reservation_source_sha256": "d15f40187d1f272e1960b4a9e7cc4134332889fb84f4981b100cc0397d1bd20f",
+  "license": "MIT outside enterprise/; enterprise/ is governed by enterprise/LICENSE",
+  "license_source": "https://github.com/BerriAI/litellm/blob/v1.106.6/LICENSE",
+  "source_tag": "https://github.com/BerriAI/litellm/tree/v1.106.6",
+  "llm_gateway_governance_verified": false
+}

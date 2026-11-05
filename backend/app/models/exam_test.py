@@ -106,6 +106,9 @@ class ExamSession(Base):
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Per-section score map {"reading_A": {"correct": 8, "total": 10}, ...}.
     part_scores: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Null on legacy attempts; never backfilled from the current question bank.
+    snapshot_schema_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    snapshot_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     answers = relationship("ExamAnswer", back_populates="session", cascade="all, delete-orphan")
 

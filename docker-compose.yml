@@ -26,6 +26,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       COMMANDCODE_API_KEY: ${COMMANDCODE_API_KEY:-}
+      TEACHING_ENABLED: ${TEACHING_ENABLED:-false}
+      TEACHING_RUNS_ENABLED: ${TEACHING_RUNS_ENABLED:-false}
+      TEACHING_ALLOWED_USER_IDS: ${TEACHING_ALLOWED_USER_IDS:-}
+      MCP_READ_ENABLED: ${MCP_READ_ENABLED:-false}
+      MCP_WRITE_ENABLED: ${MCP_WRITE_ENABLED:-false}
     depends_on:
       - db
       - redis
@@ -34,7 +39,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.cloud
-    command: celery -A app.tasks.celery_app worker --loglevel=info
+    command: celery -A app.tasks.celery_app worker -Q celery --loglevel=info
     volumes:
       - ./backend:/app
     environment:
@@ -56,6 +61,31 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+
+  teaching:
+    profiles: [teaching]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.cloud
+    command: celery -A app.tasks.celery_app worker -Q teaching --concurrency=2 --loglevel=warning
+    volumes:
+      - ./backend:/app
+    environment:
+      RUN_MIGRATIONS: "0"
+      DATABASE_URL: postgresql+asyncpg://seeword:seeword_dev@db:5432/seeword
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      TEACHING_ENABLED: ${TEACHING_ENABLED:-false}
+      TEACHING_RUNS_ENABLED: ${TEACHING_RUNS_ENABLED:-false}
+      TEACHING_ALLOWED_USER_IDS: ${TEACHING_ALLOWED_USER_IDS:-}
+      LLM_GATEWAY_BASE_URL: ${LLM_GATEWAY_BASE_URL:-}
+      LLM_GATEWAY_API_KEY: ${LLM_GATEWAY_API_KEY:-}
+      LLM_GATEWAY_ADMIN_KEY: ${LLM_GATEWAY_ADMIN_KEY:-}
+      LLM_GATEWAY_V2_TEAM_ID: ${LLM_GATEWAY_V2_TEAM_ID:-}
+      LLM_GATEWAY_GOVERNANCE_VERIFIED: ${LLM_GATEWAY_GOVERNANCE_VERIFIED:-false}
+    depends_on:
+      - db
+      - redis
 
 volumes:
   pgdata:

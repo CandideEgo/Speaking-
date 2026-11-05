@@ -185,9 +185,9 @@ class Video(Base):
     # engine via POST /admin/{id}/retranslate). See finalize_video.
     quality_flag: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
-    # Download retry tracking (阶段 3). Set when a YouTube/imported download
-    # fails so the retry-failed-downloads beat task can re-attempt later (the
-    # video stays ready via embed playback). After ``download_fail_count``
+    # Local-media retry tracking (legacy download_* names). Records download
+    # or conversion failure so beat can re-attempt a supported embed video's
+    # localization later. After ``download_fail_count``
     # reaches the max the beat task stops retrying (permanent failure - region
     # block / video removed); admin can still force via localize with force=True.
     download_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

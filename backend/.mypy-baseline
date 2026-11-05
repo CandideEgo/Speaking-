@@ -35,5 +35,4 @@ app/services/video_service.py:return-value
 app/services/video_url_guard.py:misc
 app/services/word_notes.py:assignment
 app/tasks/pipeline_helpers.py:no-any-return
-app/tasks/video_processing.py:no-any-return
 scripts/get_youtube_cookies.py:no-any-return

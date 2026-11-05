@@ -6,9 +6,9 @@ daily counters, streak, and goal tracking. Distinct from raw BehaviorEvent
 (completed_video, learned_words, practiced_items, reviewed_words) that
 feed the learning profile, daily goal tracking, and recommendation system.
 
-Event emission is non-blocking: failures are logged but never raise, so
-existing service flows (practice submission, video completion) are not
-disrupted by event emission issues.
+Required facts use record_event in the caller's business transaction. The
+legacy emit_event entry point retains best-effort savepoint isolation for
+existing activity producers; neither entry point commits.
 """
 
 import logging
@@ -34,6 +34,7 @@ EVENT_MET_DAILY_GOAL = "met_daily_goal"
 # 也没看完」的用户放上学习日历。由 behavior_service 每天去重一次，不参与任何
 # 每日计数器（_update_daily_progress 里没有它的列），只提供「这天学过」这个事实。
 EVENT_WATCHED_VIDEO = "watched_video"
+EVENT_TEACHING_ATTEMPT = "teaching_attempt"
 
 VALID_EVENT_TYPES = {
     EVENT_COMPLETED_VIDEO,
@@ -42,6 +43,7 @@ VALID_EVENT_TYPES = {
     EVENT_REVIEWED_WORDS,
     EVENT_WATCHED_VIDEO,
     EVENT_MET_DAILY_GOAL,
+    EVENT_TEACHING_ATTEMPT,
 }
 
 # Event type → which daily counter to increment
@@ -62,88 +64,106 @@ async def emit_event(
     flow_id: str | None = None,
     source: str | None = None,
 ) -> None:
-    """Emit a structured learning event and update daily goal tracking.
+    """Best-effort compatibility entry point for existing activity producers.
 
-    ``flow_id`` / ``source`` 是 A12 的 flow 关联：调用方有服务端会话 id 时传进来，
-    客户端同一 id 的 ``flow_result`` 意图事件才能与服务端事实对账（丢失率/重复
-    率）。``source`` 只接受 ``event_contract.FLOW_SOURCES`` 里的路径，未知值折成
-    None（避免拼写漂移污染统计）。
-
-    Non-blocking: wraps all work in try/except so callers are never disrupted.
-    Does NOT commit — the caller commits.
-    Side effects:
-    - Insert LearningEvent row
-    - Update UserLearningProfile.today_* counters
-    - Check if daily goal is met → emit "met_daily_goal" event
-    - Update streak (current_streak, longest_streak, last_active_date)
+    Failures roll back only this event's savepoint and are logged. Does not
+    commit. Durable vocabulary writes use ``record_event`` instead.
     """
     if event_type not in VALID_EVENT_TYPES:
         logger.warning("Invalid learning event type: %s", event_type)
         return
+    if event_type == EVENT_TEACHING_ATTEMPT:
+        # Teaching facts require the business transaction's durable outbox and
+        # strict projection. The old best-effort emitter must not update streak.
+        raise ValueError("Teaching events must use teaching.events.deliver_pending_events")
+
+    try:
+        async with db.begin_nested():
+            await record_event(db, user_id, event_type, event_value, video_id, metadata, flow_id, source)
+    except Exception:
+        logger.exception("Failed to emit learning event: %s for user %s", event_type, user_id)
+
+
+async def record_event(
+    db: AsyncSession,
+    user_id: str,
+    event_type: str,
+    event_value: int = 1,
+    video_id: str | None = None,
+    metadata: dict | None = None,
+    flow_id: str | None = None,
+    source: str | None = None,
+) -> None:
+    """Record a required learning fact and its projections in the caller's transaction.
+
+    No commit, savepoint, or swallowed error: the owning use case must commit
+    the business change together with this fact, or roll both back. This also
+    keeps daily counters, goal transitions, streak and snapshot consistent.
+    ``flow_id`` correlates a server-side session with client intent; ``source``
+    is normalized by the existing event contract. It is not an idempotency key.
+    """
+    if event_type not in VALID_EVENT_TYPES:
+        raise ValueError(f"Invalid learning event type: {event_type}")
+    if event_type == EVENT_TEACHING_ATTEMPT:
+        # Teaching facts require the business transaction's durable outbox and
+        # strict projection. The old best-effort emitter must not update streak.
+        raise ValueError("Teaching events must use teaching.events.deliver_pending_events")
 
     from app.services.event_contract import LEARNING_EVENT_SCHEMA_VERSION, normalize_source
 
-    try:
-        # Savepoint: a mid-way failure must roll back this event's writes (row,
-        # counters, streak, snapshot) without poisoning the caller's session —
-        # the caller commits right after and would otherwise persist a partial
-        # update or raise PendingRollbackError.
-        async with db.begin_nested():
-            # Determine user's local date for daily aggregation
-            today = await get_user_local_date(db, user_id)
+    # Determine user's local date for daily aggregation
+    today = await get_user_local_date(db, user_id)
 
-            # Insert event row
-            event = LearningEvent(
-                user_id=user_id,
-                event_type=event_type,
-                event_value=event_value,
-                video_id=video_id,
-                event_metadata=metadata,
-                event_date=today,
-                flow_id=flow_id,
-                source=normalize_source(source),
-                schema_version=LEARNING_EVENT_SCHEMA_VERSION,
+    # Insert event row
+    event = LearningEvent(
+        user_id=user_id,
+        event_type=event_type,
+        event_value=event_value,
+        video_id=video_id,
+        event_metadata=metadata,
+        event_date=today,
+        flow_id=flow_id,
+        source=normalize_source(source),
+        schema_version=LEARNING_EVENT_SCHEMA_VERSION,
+    )
+    db.add(event)
+
+    # Update profile counters
+    profile = await _get_or_create_profile(db, user_id)
+    await _update_daily_progress(db, profile, event_type, event_value, today)
+    await _update_streak(db, profile, today)
+
+    # Check daily goal (only for learning events, not the meta-event).
+    # Claiming the transition with a conditional UPDATE means two
+    # concurrent events that cross the goal line emit exactly one
+    # met_daily_goal row.
+    if event_type != EVENT_MET_DAILY_GOAL:
+        goal_met = await _check_daily_goal(db, profile)
+        if goal_met and not profile.today_goal_met:
+            claimed = await db.execute(
+                update(UserLearningProfile)
+                .where(
+                    UserLearningProfile.id == profile.id,
+                    UserLearningProfile.today_goal_met.is_(False),
+                )
+                .values(today_goal_met=True)
             )
-            db.add(event)
+            if claimed.rowcount:
+                await db.refresh(profile)
+                # Emit meta-event (recursive but guarded by today_goal_met flag)
+                meta_event = LearningEvent(
+                    user_id=user_id,
+                    event_type=EVENT_MET_DAILY_GOAL,
+                    event_value=1,
+                    event_date=today,
+                )
+                db.add(meta_event)
 
-            # Update profile counters
-            profile = await _get_or_create_profile(db, user_id)
-            await _update_daily_progress(db, profile, event_type, event_value, today)
-            await _update_streak(db, profile, today)
+    # Sprint 4: Write daily mastery snapshot (once per day)
+    from app.services.milestone_service import ensure_today_snapshot
 
-            # Check daily goal (only for learning events, not the meta-event).
-            # Claiming the transition with a conditional UPDATE means two
-            # concurrent events that cross the goal line emit exactly one
-            # met_daily_goal row.
-            if event_type != EVENT_MET_DAILY_GOAL:
-                goal_met = await _check_daily_goal(db, profile)
-                if goal_met and not profile.today_goal_met:
-                    claimed = await db.execute(
-                        update(UserLearningProfile)
-                        .where(
-                            UserLearningProfile.id == profile.id,
-                            UserLearningProfile.today_goal_met.is_(False),
-                        )
-                        .values(today_goal_met=True)
-                    )
-                    if claimed.rowcount:
-                        await db.refresh(profile)
-                        # Emit meta-event (recursive but guarded by today_goal_met flag)
-                        meta_event = LearningEvent(
-                            user_id=user_id,
-                            event_type=EVENT_MET_DAILY_GOAL,
-                            event_value=1,
-                            event_date=today,
-                        )
-                        db.add(meta_event)
-
-            # Sprint 4: Write daily mastery snapshot (once per day)
-            from app.services.milestone_service import ensure_today_snapshot
-
-            await ensure_today_snapshot(db, user_id, today, profile.mastery_by_level)
-
-    except Exception:
-        logger.exception("Failed to emit learning event: %s for user %s", event_type, user_id)
+    await ensure_today_snapshot(db, user_id, today, profile.mastery_by_level)
+    await db.flush()
 
 
 async def _get_or_create_profile(db: AsyncSession, user_id: str) -> UserLearningProfile:

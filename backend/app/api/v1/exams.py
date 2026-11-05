@@ -170,7 +170,8 @@ async def get_attempt(
         q = a.question or {}
         results.append(
             {
-                "question_id": a.question_id,
+                "exam_answer_id": a.id if session.submitted_at else None,
+                "question_id": a.question_id or q.get("id"),
                 "number": q.get("number"),
                 "section": q.get("section"),
                 "question_type": q.get("question_type"),

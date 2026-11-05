@@ -105,6 +105,19 @@ services:
       COMMANDCODE_MODEL: ${COMMANDCODE_MODEL:-minimax/minimax-m3.1-flash:free}
       COMMANDCODE_ZDR: ${COMMANDCODE_ZDR:-false}
       LLM_CALL_TIMEOUT: ${LLM_CALL_TIMEOUT:-90}
+      TEACHING_ENABLED: ${TEACHING_ENABLED:-false}
+      TEACHING_RUNS_ENABLED: ${TEACHING_RUNS_ENABLED:-false}
+      TEACHING_ALLOWED_USER_IDS: ${TEACHING_ALLOWED_USER_IDS:-}
+      MCP_READ_ENABLED: ${MCP_READ_ENABLED:-false}
+      MCP_WRITE_ENABLED: ${MCP_WRITE_ENABLED:-false}
+      MCP_SDK_ENABLED: ${MCP_SDK_ENABLED:-false}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
+      LLM_GATEWAY_BASE_URL: ${LLM_GATEWAY_BASE_URL:-http://llm-gateway-adapter:4000}
+      LLM_GATEWAY_API_KEY: ${LLM_GATEWAY_API_KEY:-${LITELLM_MASTER_KEY:-}}
+      LLM_GATEWAY_ADMIN_KEY: ${LLM_GATEWAY_ADMIN_KEY:-${LITELLM_MASTER_KEY:-}}
+      LLM_GATEWAY_V2_TEAM_ID: ${LLM_GATEWAY_V2_TEAM_ID:-}
+      LLM_GATEWAY_GOVERNANCE_VERIFIED: ${LLM_GATEWAY_GOVERNANCE_VERIFIED:-false}
       LLM_MODEL_TRANSLATION: ${LLM_MODEL_TRANSLATION:-}
       LLM_MODEL_WORD_NOTES: ${LLM_MODEL_WORD_NOTES:-}
       LLM_MODEL_CLASSIFICATION: ${LLM_MODEL_CLASSIFICATION:-}
@@ -283,6 +296,140 @@ services:
     # would always fail and wrongly mark it unhealthy. Disable the inherited probe.
     healthcheck:
       disable: true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  teaching:
+    profiles: [teaching]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.cloud
+    command: celery -A app.tasks.celery_app worker -Q teaching --concurrency=2 --loglevel=warning
+    environment:
+      RUN_MIGRATIONS: "0"
+      ENV: production
+      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      REDIS_URL: redis://cloud:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      TRANSCRIPTION_CALLBACK_SECRET: ${TRANSCRIPTION_CALLBACK_SECRET:-}
+      TEACHING_ENABLED: ${TEACHING_ENABLED:-false}
+      TEACHING_RUNS_ENABLED: ${TEACHING_RUNS_ENABLED:-false}
+      TEACHING_ALLOWED_USER_IDS: ${TEACHING_ALLOWED_USER_IDS:-}
+      LLM_GATEWAY_BASE_URL: ${LLM_GATEWAY_BASE_URL:-http://llm-gateway-adapter:4000}
+      LLM_GATEWAY_API_KEY: ${LLM_GATEWAY_API_KEY:-${LITELLM_MASTER_KEY:-}}
+      LLM_GATEWAY_ADMIN_KEY: ${LLM_GATEWAY_ADMIN_KEY:-${LITELLM_MASTER_KEY:-}}
+      LLM_GATEWAY_V2_TEAM_ID: ${LLM_GATEWAY_V2_TEAM_ID:-}
+      LLM_GATEWAY_GOVERNANCE_VERIFIED: ${LLM_GATEWAY_GOVERNANCE_VERIFIED:-false}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+    mem_limit: 1g
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --- V2 model gateway (opt-in profile `llm-gateway`) ----------------------
+  # The gateway is internal-only; the adapter is the caller-facing entry and
+  # LiteLLM remains the single usage/cost ledger. Provider keys live here and
+  # in the backend only until E3d removes the backend copies.
+  llm-gateway-db-init:
+    profiles: [llm-gateway]
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+    command:
+      - sh
+      - -c
+      - >-
+        until pg_isready -h db -U ${DB_USER}; do sleep 1; done;
+        psql -h db -U ${DB_USER} -d ${DB_NAME} -c 'CREATE SCHEMA IF NOT EXISTS litellm;'
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  llm-gateway:
+    profiles: [llm-gateway]
+    image: ghcr.io/berriai/litellm:v1.106.6@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+    entrypoint: ["/bin/sh", "/spike/entrypoint-gateway.sh"]
+    environment:
+      COMMANDCODE_API_KEY: ${COMMANDCODE_API_KEY:?COMMANDCODE_API_KEY is required for the gateway}
+      COMMANDCODE_MODEL: ${COMMANDCODE_MODEL:-minimax/minimax-m3.1-flash:free}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required for the gateway}
+      LITELLM_DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?schema=litellm
+      REDIS_GATEWAY_PASSWORD: ${REDIS_GATEWAY_PASSWORD:?REDIS_GATEWAY_PASSWORD is required for the gateway}
+      GATEWAY_REDIS_HOST: redis
+      GATEWAY_REDIS_PORT: "6379"
+      GATEWAY_REDIS_DB: "2"
+      V2_INPUT_COST_PER_TOKEN: ${V2_INPUT_COST_PER_TOKEN:-0}
+      V2_OUTPUT_COST_PER_TOKEN: ${V2_OUTPUT_COST_PER_TOKEN:-0}
+      V2_MAX_INPUT_TOKENS: ${V2_MAX_INPUT_TOKENS:-4096}
+      V2_MAX_OUTPUT_TOKENS: ${V2_MAX_OUTPUT_TOKENS:-128}
+      TZ: UTC
+    volumes:
+      - ./deploy/v2-gateway/config.prod.template.yaml:/spike/config.prod.template.yaml:ro
+      - ./deploy/v2-gateway/render_config.py:/spike/render_config.py:ro
+      - ./deploy/v2-gateway/entrypoint-gateway.sh:/spike/entrypoint-gateway.sh:ro
+    ports:
+      # Admin/dashboard only on host loopback; use an SSH tunnel from the operator.
+      - "127.0.0.1:4001:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      llm-gateway-db-init:
+        condition: service_completed_successfully
+      llm-gateway-shim:
+        condition: service_started
+    mem_limit: 1g
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  llm-gateway-shim:
+    profiles: [llm-gateway]
+    image: ghcr.io/berriai/litellm:v1.106.6@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+    entrypoint: ["python", "-m", "uvicorn", "app:shim_app", "--host", "0.0.0.0", "--port", "4100"]
+    working_dir: /adapter
+    environment:
+      # Must include the provider's /v1 suffix.
+      UPSTREAM_BASE_URL: ${COMMANDCODE_BASE_URL:-https://api.commandcode.ai/provider/v1}
+      MODEL_MAX_OUTPUT_TOKENS: ${V2_MAX_OUTPUT_TOKENS:-128}
+      ADAPTER_TIMEOUT_SECONDS: "30"
+    volumes:
+      - ./deploy/v2-gateway/adapter:/adapter:ro
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  llm-gateway-adapter:
+    profiles: [llm-gateway]
+    image: ghcr.io/berriai/litellm:v1.106.6@sha256:37e2dafb088a7723beb998590682957386dfc83ffea1848486f8e0e5cfac0b06
+    entrypoint: ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "4000"]
+    working_dir: /adapter
+    environment:
+      LITELLM_BASE_URL: http://llm-gateway:4000
+      MODEL_MAX_OUTPUT_TOKENS: ${V2_MAX_OUTPUT_TOKENS:-128}
+      ADAPTER_TIMEOUT_SECONDS: "30"
+    volumes:
+      - ./deploy/v2-gateway/adapter:/adapter:ro
+    depends_on:
+      - llm-gateway
     restart: unless-stopped
     logging:
       driver: json-file

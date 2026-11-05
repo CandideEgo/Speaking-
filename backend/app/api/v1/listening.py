@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
-from app.core.errors import UnprocessableEntityError
 from app.core.limiter import rate_limit
 from app.models.listening import ListeningSession
 from app.models.user import User
@@ -25,13 +24,13 @@ router = APIRouter(prefix="/listening", tags=["listening"])
 
 class Start(BaseModel):
     video_id: str = Field(min_length=1, max_length=36)
-    count: int = Field(default=5, ge=1, le=10)
+    count: int = Field(default=5, ge=1, le=service.MAX_QUESTIONS)
     restart: bool = False
 
 
 class Draft(BaseModel):
-    answers: dict[str, str] = Field(default_factory=dict, max_length=10)
-    current_index: int = Field(default=0, ge=0, le=9)
+    answers: dict[str, str] = Field(default_factory=dict, max_length=service.MAX_QUESTIONS)
+    current_index: int = Field(default=0, ge=0, le=service.MAX_QUESTIONS - 1)
 
 
 @router.get("/videos", response_model=PaginatedResponse[ListeningVideoCard])
@@ -111,10 +110,7 @@ async def draft(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if any(len(a) > 2000 for a in body.answers.values()):
-        raise UnprocessableEntityError("每句答案最多 2000 个字符")
-    session = await service.owned_session(db, session_id, user.id, lock=True)
-    await service.save(db, session, body.answers, body.current_index)
+    session = await service.save(db, session_id, user.id, body.answers, body.current_index)
     await db.commit()
     return {"saved": True, "updated_at": session.updated_at.isoformat()}
 
@@ -126,7 +122,6 @@ async def draft(
 async def submit(
     request: Request, session_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    session = await service.owned_session(db, session_id, user.id, lock=True)
-    await service.submit(db, session)
+    session = await service.submit(db, session_id, user.id)
     await db.commit()
     return await service.payload(db, session, user)

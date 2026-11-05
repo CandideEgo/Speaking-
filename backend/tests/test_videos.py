@@ -58,7 +58,7 @@ async def _seed_video_rows(db, *, count=1, status="ready", is_official=True, is_
     for i in range(count):
         v = Video(
             title=title or f"Admin Test {i}",
-            source_url=f"https://www.youtube.com/watch?v=vidid{i:011d}",
+            source_url=f"https://www.youtube.com/watch?v=vidid{i:06d}",
             video_source="imported",
             status=VideoStatus(status),
             is_official=is_official,
@@ -362,7 +362,7 @@ class TestAdminLocalizeVideo:
         # The conftest _mock_celery fixture records dispatches on the request's
         # monkeypatch — assert localize_video was called.
         calls = getattr(monkeypatch, "_celery_calls", [])
-        assert any(name.endswith("localize_video") and args == (vid,) for name, args, _ in calls)
+        assert any(name.endswith("localize_video") and args == (vid, True) for name, args, _ in calls)
 
     async def test_localize_conflict_when_processing(self, client: AsyncClient, admin_headers: dict):
         from tests.conftest import TestSessionLocal
@@ -394,7 +394,7 @@ class TestAdminLocalizeVideo:
             return [
                 call
                 for call in getattr(monkeypatch, "_celery_calls", [])
-                if call[0].endswith("localize_video") and call[1] == (vid,)
+                if call[0].endswith("localize_video") and call[1] == (vid, True)
             ]
 
         assert len(_localize_dispatches()) == 1
@@ -404,7 +404,7 @@ class TestAdminLocalizeVideo:
 
     async def test_localize_guard_is_a_conditional_update(self, client: AsyncClient, admin_headers: dict):
         """The double-dispatch guard is the UPDATE's rowcount, not a Python status
-        read: the emitted statement must carry a ``status != processing`` predicate,
+        read: the emitted statement must carry a ``status IN (ready, error)`` predicate,
         otherwise two requests that both read ``ready`` would both dispatch."""
         from sqlalchemy import event
 
@@ -431,7 +431,7 @@ class TestAdminLocalizeVideo:
         normalized = " ".join(updates[0].lower().split())
         assert " set " in normalized
         assert " where " in normalized
-        assert "status" in normalized and "!=" in normalized
+        assert "videos.status in (" in normalized
 
 
 class TestAdminDemoVideoSerialization:

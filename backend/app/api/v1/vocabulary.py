@@ -522,28 +522,11 @@ async def review_word(
     clean ladder (3→7→16→35) or the error ladder (2→5→12→25, capped at 7 days
     once ``wrong_count >= 3``). ``ease_factor`` is no longer part of the math.
     """
-    result = await db.execute(
-        select(Vocabulary).where(
-            Vocabulary.id == word_id,
-            Vocabulary.user_id == current_user.id,
-        )
-    )
-    vocab = result.scalar_one_or_none()
-    if not vocab:
+    review = await vocabulary_service.record_review(db, current_user.id, word_id, quality)
+    if review is None:
         raise HTTPException(status_code=404, detail="Word not found")
-
-    next_interval, next_review_at = vocabulary_service.apply_review(vocab, quality)
-
+    vocab, next_interval, next_review_at = review
     await db.commit()
-
-    # Emit learning event (ADR-0012 learning plan integration), non-blocking
-    try:
-        from app.services.learning_event_service import EVENT_REVIEWED_WORDS, emit_event
-
-        await emit_event(db, current_user.id, EVENT_REVIEWED_WORDS, 1, source="vocabulary")
-        await db.commit()
-    except Exception:
-        pass  # Non-blocking
 
     return {
         "id": vocab.id,
@@ -570,31 +553,10 @@ async def mark_word_mastered(
     set directly (no SM-2 grading) and ``next_review_at`` is cleared so due
     queues never resurface the word.
     """
-    result = await db.execute(
-        select(Vocabulary).where(
-            Vocabulary.id == word_id,
-            Vocabulary.user_id == current_user.id,
-        )
-    )
-    vocab = result.scalar_one_or_none()
-    if not vocab:
+    vocab = await vocabulary_service.mark_mastered(db, current_user.id, word_id)
+    if vocab is None:
         raise HTTPException(status_code=404, detail="Word not found")
-
-    already_mastered = vocab.mastery_level == "mastered"
-    vocab.mastery_level = "mastered"
-    vocab.next_review_at = None
-    vocab.last_reviewed_at = datetime.now(UTC)
     await db.commit()
-
-    # Emit learning event (ADR-0012 learning plan integration), non-blocking
-    if not already_mastered:
-        try:
-            from app.services.learning_event_service import EVENT_LEARNED_WORDS, emit_event
-
-            await emit_event(db, current_user.id, EVENT_LEARNED_WORDS, 1, source="vocabulary")
-            await db.commit()
-        except Exception:
-            pass  # Non-blocking
 
     return {
         "id": vocab.id,

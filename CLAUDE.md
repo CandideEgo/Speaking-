@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 目的                | 命令                                                                                   | 工作目录    |
 | ------------------- | -------------------------------------------------------------------------------------- | ----------- |
-| compose dev 栈      | `docker compose up -d`（db/redis/backend/celery/frontend；无 beat、无 GPU worker）      | 根          |
+| compose dev 栈      | `docker compose up -d`（db/redis/backend/celery/frontend；无 beat、无 GPU worker；V2 教学 worker 只在 `--profile teaching` 下起） | 根          |
 | 轻量本地启动        | `.\Start-Redesign.ps1`（只起 API+前端+DB/Redis，无 Celery/GPU）                        | 根          |
 | 只起 DB + Redis     | `docker compose -f docker-compose.dev.yml up -d`                                       | 根          |
 | 后端 API            | `uvicorn app.main:app --reload --port 8000`                                            | `backend/`  |
@@ -92,7 +92,7 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 - engine 与 session maker 都 `@lru_cache` **懒建**，不在 import 时建。历史动因是让没有 `DATABASE_URL` 的 GPU worker 也能 import 这些模块；GPU 段已拆进独立组件 `gpu-worker/`（不再 import `app.*`），懒建继续服务脚本与测试。
 - FastAPI 路由用 `get_db()` 依赖；Celery 任务等非依赖场景用 `get_async_session_maker()`——后者同时是测试 monkeypatch 的缝。
 
-模型在 `backend/app/models/`，必须由 `app/models/__init__.py` 按依赖序 re-export（`create_app` 会先 import 它们，好让 SQLAlchemy 在任何 `create_all`／Alembic autogenerate 前把 `Base.metadata` 填全）。迁移 84 个 revision 在 `backend/migrations/versions/`。
+模型在 `backend/app/models/`，必须由 `app/models/__init__.py` 按依赖序 re-export（`create_app` 会先 import 它们，好让 SQLAlchemy 在任何 `create_all`／Alembic autogenerate 前把 `Base.metadata` 填全）。迁移在 `backend/migrations/versions/`：HEAD 上 89 个 revision，工作区另有 4 个未提交的 V2 迁移。数量会漂，别把它当契约。
 
 核心实体：`User` 拥有 `Video` / `Vocabulary` / `LearningRecord` / `Order` / `UserFavorite` / `UserNote` / `UserVideoUnlock` / `Notification`；`Video` 拥有 `Subtitle`（按 `sentence_index` 排序，含 `text_en` / `text_zh` / 逐词时间戳 `words` / `word_levels`），并冗余 `like_count` / `favorite_count` / `view_count` / `score`，以及管线状态 `status` + `processing_step` + `step_started_at`。`ListeningSession` 保存听力练习的冻结题面、草稿答案与判分结果（见下）。
 
@@ -121,7 +121,7 @@ head 与 tail 在 `backend/app/tasks/video_processing.py`，**中间的 GPU 段�
 
 ### Celery
 
-`backend/app/tasks/celery_app.py` 定义 `celery_app` 与常量 `GPU_TRANSCRIBE_TASK`（值是**保留的旧任务名** `app.tasks.video_processing.transcribe_video_gpu`，task_routes 用它），两个队列：云端默认的 `celery` 与远端 `transcription_gpu`。**只有 `GPU_TRANSCRIBE_TASK` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。GPU 侧的 Celery 应用与任务在 `gpu-worker/gpu_worker/celery_app.py` / `tasks.py`，只声明、只消费 `transcription_gpu`。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、**管线派发补发（每 60 秒，`app.services.pipeline_dispatch` 的 outbox）**、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理。**Pro/兑换码 beat 与周报空任务壳已在 2026-10-26 清理中删除**（兑换码任务文件一并删除，已入队的旧消息会以 unregistered task 结束，影响面可忽略）；`reminder_tasks.send_pro_expiring_reminders` 的任务体保留但无调度，供未来恢复付费到期提醒时复用。
+`backend/app/tasks/celery_app.py` 定义 `celery_app` 与常量 `GPU_TRANSCRIBE_TASK`（值是**保留的旧任务名** `app.tasks.video_processing.transcribe_video_gpu`，task_routes 用它），HEAD 上两个队列：云端默认的 `celery` 与远端 `transcription_gpu`（工作区的 V2 试做另加了 `teaching` 队列与每 10 秒的 `sweep-teaching-runs`，见「V2 后端重构标准」）。**只有 `GPU_TRANSCRIBE_TASK` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。GPU 侧的 Celery 应用与任务在 `gpu-worker/gpu_worker/celery_app.py` / `tasks.py`，只声明、只消费 `transcription_gpu`。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、**管线派发补发（每 60 秒，`app.services.pipeline_dispatch` 的 outbox）**、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理。**Pro/兑换码 beat 与周报空任务壳已在 2026-10-26 清理中删除**（兑换码任务文件一并删除，已入队的旧消息会以 unregistered task 结束，影响面可忽略）；`reminder_tasks.send_pro_expiring_reminders` 的任务体保留但无调度，供未来恢复付费到期提醒时复用。
 
 Windows 上这些以 NSSM 服务托管：云端与 beat 用 `backend/scripts/run_celery_worker.ps1`；GPU worker 用 `gpu-worker/scripts/run_gpu_worker.ps1`，隧道用 `gpu-worker/scripts/gpu_worker_tunnel.ps1`（服务名见 [`gpu-worker/README.md`](gpu-worker/README.md)）。
 
@@ -196,6 +196,12 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 页面截图与交互走查脚本在 `frontend/scripts/design-shots.mjs`（`--tag` / `--routes`），输出到 `docs/evidence/design-redo/`。
 
 ## 常驻规则
+
+### V2 后端重构标准（2026-11-04）
+
+后端框架与重构验收入口见 [`refactor-blueprint/README.md`](refactor-blueprint/README.md)，包括审查结论、代码现状、模块与数据归属、接口契约、迁移任务及验收条件。按用户最新要求已开始后端渐进重构，当前范围和实际验证统一见该目录的实施记录；工作区 V2 试做不强制保留，不保留交互原型和前端设计材料。具体标准只维护在该目录，其余现有事务、安全、退役功能与发布门继续有效；本地重构不代表已经部署。
+
+**工作区里的 V2 代码是未提交试做，不是已上线能力。** `teaching` / `teaching_runs` / `external_connections` / `admin_teaching_content` 路由、`models/teaching.py`、`v2_runtime.py`、`content_publication.py`、`question_exposure.py`、`services/teaching/`、`services/teaching_gateway.py`、`services/v2_access.py`、`integrations/mcp/` 与 4 个未提交迁移都只存在于工作区；`TEACHING_*` / `MCP_*` 开关默认全关，用户侧 HTTP 入口经 `v2_access.require_access` 返回 503（`/admin/teaching-content` 只走管理员鉴权，不看这组开关）；MCP 是 `/api/v1/mcp` 上的 mount，`MCP_SDK_ENABLED=false` 时同一路径返回 503。但这层开关**不能隔离新表依赖**：beat 的 `sweep-teaching-runs` 每 10 秒直接查 `AgentRun` 等 V2 表、不检查开关，在没有应用 V2 迁移的库上会报错（REV06）。改这批代码前先读 `refactor-blueprint/docs/current-state.md` 与 `review.md`，不要把「文件存在」当成契约或已验收。
 
 - 与用户交流用中文。
 - **代码是事实源。** 注释、文档、快照都可能过期；冲突时以代码为准。

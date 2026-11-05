@@ -147,7 +147,13 @@ export function AccountLifecycleSettings() {
             </p>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={startExport} disabled={exportPreparing}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={startExport}
+          disabled={exportPreparing}
+          className="shrink-0 whitespace-nowrap"
+        >
           导出
         </Button>
       </div>
@@ -164,7 +170,13 @@ export function AccountLifecycleSettings() {
                 冷静期内仍可正常登录。到期后将删除个人数据与上传媒体，手机号随之释放。
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={cancelDeletion} disabled={busy}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={cancelDeletion}
+              disabled={busy}
+              className="shrink-0 whitespace-nowrap"
+            >
               撤销注销
             </Button>
           </div>
@@ -182,7 +194,7 @@ export function AccountLifecycleSettings() {
               icon={Trash2}
               onClick={() => setConfirmOpen(true)}
               disabled={busy}
-              className="text-error-text border-error/40 hover:bg-red-soft"
+              className="shrink-0 whitespace-nowrap text-error-text border-error/40 hover:bg-red-soft"
             >
               注销
             </Button>

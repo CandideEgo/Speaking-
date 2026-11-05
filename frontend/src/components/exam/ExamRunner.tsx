@@ -15,6 +15,7 @@ import { SCROLL_CONTAINER_ID } from "@/lib/scrollMemory";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/common/Modal";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { ExamAnswerOptions } from "@/components/exam/ExamAnswerOptions";
 export interface ExamQuestionPublic {
   id: string;
   number: number;
@@ -26,6 +27,7 @@ export interface ExamQuestionPublic {
 }
 
 export interface ExamSubmitResultItem {
+  exam_answer_id?: string | null;
   question_id: string;
   number: number;
   section: string;
@@ -379,26 +381,16 @@ export default function ExamRunner({
               <h3 className="text-copy font-semibold leading-relaxed text-ink">
                 {q.number}. {q.question ?? "请选择答案"}
               </h3>
-              <div className="mt-3 space-y-2" role="group" aria-label={`第 ${q.number} 题选项`}>
-                {Object.entries(q.options ?? group.derived?.options ?? {}).map(([key, text]) => (
-                  <button
-                    type="button"
-                    key={key}
-                    data-testid="exam-option"
-                    aria-pressed={answers[q.id] === key}
-                    disabled={submitting}
-                    onClick={() => {
-                      setAnswers((prev) => ({ ...prev, [q.id]: key }));
-                      setActiveId(q.id);
-                    }}
-                    className={`flex w-full items-start gap-3 rounded-sm border p-3 text-left text-copy leading-relaxed text-ink ${answers[q.id] === key ? "border-brand-500 bg-brand-50" : "border-hairline bg-canvas hover:border-hairline-strong"}`}
-                  >
-                    <span className="font-semibold">{key}</span>
-                    <span>{text}</span>
-                    <span className="sr-only">{answers[q.id] === key ? "已选择" : "未选择"}</span>
-                  </button>
-                ))}
-              </div>
+              <ExamAnswerOptions
+                options={q.options ?? group.derived?.options ?? {}}
+                value={answers[q.id] ?? ""}
+                disabled={submitting}
+                label={`第 ${q.number} 题选项`}
+                onChange={(answer) => {
+                  setAnswers((prev) => ({ ...prev, [q.id]: answer }));
+                  setActiveId(q.id);
+                }}
+              />
             </section>
           ))}
         </div>
