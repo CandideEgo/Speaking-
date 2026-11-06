@@ -37,8 +37,10 @@ async def test_probe_classifies_sign_in_as_cookies_invalid():
 
     import sys
 
-    sys.modules.setdefault("yt_dlp", type("m", (), {"YoutubeDL": _FakeYDL}))
     with (
+        # patch.dict (not setdefault): a previous test may already have
+        # imported the real yt_dlp, which would make this test hit the network.
+        patch.dict(sys.modules, {"yt_dlp": type("m", (), {"YoutubeDL": _FakeYDL})}),
         patch.object(ycs, "_cookies_file", return_value="cookies.txt"),
         patch.object(ycs, "_build_opts", return_value={}),
     ):
@@ -64,8 +66,8 @@ async def test_probe_other_error_classified_as_error():
 
     import sys
 
-    sys.modules["yt_dlp"] = type("m", (), {"YoutubeDL": _FakeYDL})
     with (
+        patch.dict(sys.modules, {"yt_dlp": type("m", (), {"YoutubeDL": _FakeYDL})}),
         patch.object(ycs, "_cookies_file", return_value="cookies.txt"),
         patch.object(ycs, "_build_opts", return_value={}),
     ):

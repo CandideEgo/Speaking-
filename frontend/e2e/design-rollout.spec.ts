@@ -317,11 +317,15 @@ test("用户页面三档视口、亮暗主题均无横向溢出", async ({ page 
   page.on("requestfinished", completed);
   page.on("requestfailed", completed);
   page.on("response", (response) => {
-    if (
-      response.url().includes("/api/v1/") &&
-      [401, 429, 500, 502, 503].includes(response.status())
-    )
-      errors.push(`${response.status()} ${new URL(response.url()).pathname}`);
+    if (!response.url().includes("/api/v1/")) return;
+    const status = response.status();
+    if (![401, 429, 500, 502, 503].includes(status)) return;
+    const path = new URL(response.url()).pathname;
+    // Teaching is default-off (TEACHING_* gates): its private catalog/session
+    // endpoints intentionally return 503. The UI treats that as "closed gate"
+    // and renders nothing, so this documented response is not a page error.
+    if (status === 503 && path.startsWith("/api/v1/teaching/")) return;
+    errors.push(`${status} ${path}`);
   });
   page.on("pageerror", (error) => errors.push(error.message));
   for (const viewport of [

@@ -14,7 +14,6 @@ import type {
   HomeContentDraft,
   HomeContentGeneration,
   HomeContentVideoState,
-  HomeLayoutIssue,
   HomeLayoutPlacement,
   HomeLayoutPreview,
   HomeLayoutState,
@@ -117,16 +116,6 @@ export function emptyLayout(): HomeLayoutPlacement {
 /** 生成任务是否还在跑（queued/running）——轮询与按钮 disabled 共用这一条。 */
 export function isGenerationActive(generation: HomeContentGeneration | null | undefined): boolean {
   return generation?.status === "queued" || generation?.status === "running";
-}
-
-/** 某字段路径下的字段级问题（布局 slot 用 `lead` / `secondary[0]` 等形式）。 */
-export function issuesForField(issues: HomeLayoutIssue[], field: string): HomeLayoutIssue[] {
-  return issues.filter((issue) => issue.field === field || issue.field.startsWith(`${field}[`));
-}
-
-/** 草稿新旧是否一致（用于「未保存」提示与发布前阻塞）。 */
-export function isSameDraft(a: HomeContentDraft | null, b: HomeContentDraft | null): boolean {
-  return JSON.stringify(a ?? emptyDraft()) === JSON.stringify(b ?? emptyDraft());
 }
 
 // ---------------------------------------------------------------------------

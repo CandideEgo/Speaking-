@@ -399,7 +399,9 @@ test("会员页展示深色状态卡、图标权益与常见问题", async ({ pa
 
   await page.goto("/upgrade");
   await expect(page.getByText("当前状态", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "会员能做什么" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "现在所有人都能免费用", exact: true })
+  ).toBeVisible();
   // 权益改为图标 + 标题 + 说明（V-21）。
   await expect(page.getByText("逐词点读", { exact: true })).toBeVisible();
   await expect(page.getByText("多端同步", { exact: true })).toBeVisible();

@@ -434,7 +434,7 @@
 交付：
 
 - 新增 [`frontend/src/components/ui/ToggleGroup.tsx`](../frontend/src/components/ui/ToggleGroup.tsx)：Base UI Toggle Group 的薄封装（`ToggleGroup` / `ToggleGroupItem`），沿用原 `.chip` 的视觉：移动端 44px 触控基线、桌面 32px、pill 描边、选中为墨色底。
-- 替换全部 6 处 `TabPills variant="chips"`：[`HomeFeed`](../frontend/src/components/home/HomeFeed.tsx) 分类、[`channels`](../frontend/src/app/(main)/channels/page.tsx) 学习方向、[`contact`](../frontend/src/app/(main)/contact/page.tsx) 反馈类型、[`practice/exams/result/[id]`](../frontend/src/app/(main)/practice/exams/result/[id]/page.tsx) 错题筛选、[`vocabulary/sets`](../frontend/src/app/(main)/vocabulary/sets/page.tsx) 状态筛选、[`vocabulary/sets/[id]`](../frontend/src/app/(main)/vocabulary/sets/[id]/page.tsx) 词表范围。
+- 替换全部 6 处 `TabPills variant="chips"`：[`HomeFeed`](../frontend/src/components/home/HomeFeed.tsx) 分类、[`channels`](../frontend/src/app/(main)/channels/page.tsx) 学习方向、[`contact`](../frontend/src/app/(main)/contact/page.tsx) 反馈类型、[`practice/exams/result/[id]`](<../frontend/src/app/(main)/practice/exams/result/[id]/page.tsx>) 错题筛选、[`vocabulary/sets`](../frontend/src/app/(main)/vocabulary/sets/page.tsx) 状态筛选、[`vocabulary/sets/[id]`](<../frontend/src/app/(main)/vocabulary/sets/[id]/page.tsx>) 词表范围。
 - [`ui/TabPills`](../frontend/src/components/ui/TabPills.tsx) 删除 `variant="chips"`：筛选 chip 只保留一个实现。分段控件（`default`）与 ghost 版本不变。
 
 实现细节（都写进了组件注释）：
@@ -731,7 +731,7 @@
 代码事实（2026-11-02）：
 
 - [`admin/DataTable.tsx`](../frontend/src/components/admin/DataTable.tsx) 是纯展示外壳，只有
-  1 个调用点 [`VideoManager`](../frontend/src/app/(admin)/admin/(shell)/videos/VideoManager.tsx:438)。
+  1 个调用点 [`VideoManager`](../frontend/src/app/(admin)/admin/(shell)/videos/VideoManager.tsx)（`:438`）。
 - 视频、用户、反馈、付款列表都已经是**服务端分页 20 行 + 页级筛选 + 关键词**；
   频道是表单维护的行，统计是报表表格，没有列排序、批量选择或虚拟滚动需求。
 - 后台列表接口只有 `page` / `page_size`（外加少量业务筛选），没有 `sort` / `order`。

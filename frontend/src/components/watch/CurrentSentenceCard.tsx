@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -54,8 +54,8 @@ const SUBTITLE_LINE_HEIGHT = 1.5;
  *   · 所以相邻行之间量到的热区是 21–29px 量级，**做不到 44px** —— 做得到就意味着两行
  *     的热区互相重叠、点上面一行会命中下面一行。触控基线那 44px 是按键的标准，不是正文。
  *
- * 卡内不放按钮（移动端跟读在底栏/抽屉）——例外有两条，且都不与"点卡片空白 = 播放/暂停"撞车：
- * ① S5 的桌面动作带（`desktopActions`，在字幕块之外）；② 移动端带的展开开关（自己 stopPropagation）。
+ * 卡内不放按钮（移动端跟读在底栏/抽屉）——例外只有一条，且不与"点卡片空白 = 播放/暂停"撞车：
+ * 移动端带的展开开关（自己 stopPropagation）。
  */
 export function CurrentSentenceCard({
   textEn,
@@ -69,7 +69,6 @@ export function CurrentSentenceCard({
   onTogglePlay,
   counter,
   className,
-  desktopActions,
   variant = "card",
   expandable = false,
   expanded = false,
@@ -102,14 +101,6 @@ export function CurrentSentenceCard({
   expandable?: boolean;
   expanded?: boolean;
   onToggleExpand?: () => void;
-  /**
-   * S5：桌面动作带（跟读/录音/历史），整块塞进卡片下方，消掉「画面下一个框、
-   * 跟读又一个框」。**移动端不传 → 渲染零变化**；容器上的 `hidden lg:flex` 是
-   * 第二条保险（误传也不在移动端显示——移动端的跟读入口在壳底栏的跟读抽屉）。
-   * 注意它在英文/中文两个块**之外**：动作带不参与「英文 2 行 + 中文 1 行」的高度预算
-   * （DEC-074 之后那段预算由两个块各自的 clamp 保证，不再靠 `max-h` 容器）。
-   */
-  desktopActions?: ReactNode;
 }) {
   const showEn = subtitleMode !== "chinese" && subtitleMode !== "hidden";
   const showZh = subtitleMode === "bilingual" || subtitleMode === "chinese";
@@ -257,8 +248,6 @@ export function CurrentSentenceCard({
               </div>
             )}
           </div>
-          {/* 「点带下划线的词看释义」不在卡内单独占一行：它作为桌面动作行的行内后缀
-              渲染（page.tsx 的 desktopActions），句卡高度回到预算内。 */}
           {/* 计数和展开开关独占一行，不覆盖原句或译文。 */}
           {(counter || canExpand) && (
             <div className="mt-0.5 flex h-6 items-center justify-end gap-1.5">
@@ -295,13 +284,6 @@ export function CurrentSentenceCard({
             </div>
           )}
         </>
-      )}
-      {/* S5：桌面动作带 —— 在英文/中文两个块之外（不占那两行的高度预算）。
-          分隔线 + 上边距是「同一张卡里的一段」，不是又一个盒子。 */}
-      {desktopActions && (
-        <div className="hidden min-[1025px]:flex flex-col border-t border-hairline mt-1.5 pt-1.5">
-          {desktopActions}
-        </div>
       )}
     </div>
   );

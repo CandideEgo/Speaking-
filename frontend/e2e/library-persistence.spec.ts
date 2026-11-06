@@ -28,10 +28,10 @@ test("真实收藏与订阅在观看、频道和收藏页保持一致", async ({
   await favorite.click();
   expect((await favorited).ok()).toBeTruthy();
   await expect(page.getByRole("button", { name: "取消收藏", exact: true })).toBeVisible();
-  await expect(source).toContainText(`${(video.favorite_count ?? 0) + 1} 次收藏`);
+  await expect(source.getByLabel(`收藏 ${(video.favorite_count ?? 0) + 1} 次`)).toBeVisible();
   await page.reload();
   await expect(page.getByRole("button", { name: "取消收藏", exact: true })).toBeVisible();
-  await expect(source).toContainText(`${(video.favorite_count ?? 0) + 1} 次收藏`);
+  await expect(source.getByLabel(`收藏 ${(video.favorite_count ?? 0) + 1} 次`)).toBeVisible();
   await source.getByRole("button", { name: "订阅频道", exact: true }).click();
   await expect(source.getByRole("button", { name: "已订阅 · 取消", exact: true })).toBeVisible();
   // design-rollout 的「频道订阅」用例会并行切同一个种子频道的订阅，共享计数
@@ -65,7 +65,7 @@ test("真实收藏与订阅在观看、频道和收藏页保持一致", async ({
   await page.getByRole("button", { name: "取消收藏", exact: true }).click();
   expect((await unfavorited).ok()).toBeTruthy();
   await expect(page.getByRole("button", { name: "收藏视频", exact: true })).toBeVisible();
-  await expect(source).toContainText(`${video.favorite_count ?? 0} 次收藏`);
+  await expect(source.getByLabel(`收藏 ${video.favorite_count ?? 0} 次`)).toBeVisible();
   await page.goto("/favorites");
   await expect(page.locator(`main a[href*="/watch/${video.id}"]`)).toHaveCount(0);
   expect(errors).toEqual([]);

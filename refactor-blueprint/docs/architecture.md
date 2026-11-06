@@ -24,7 +24,7 @@ V2 的产品出口是可信学习与跨入口连续性，具体实施顺序统�
 
 采用**模块化单体 + 独立 GPU worker + 独立模型网关**。继续使用 FastAPI、SQLAlchemy async、PostgreSQL、Redis、Celery。重构的目标是减少职责混杂与重复实现，不是增加微服务数量或套一层通用 Agent 框架。
 
-这是目标能力边界，不是对未提交 V2 代码的保留承诺。试做可以舍弃；选型与实现是否采用，以 [审查结论](review.md) 和后续真实验证为准。已实施切片见[实施记录](implementation.md)，尚未建设新网关或新领域目录。
+这是目标能力边界，不是对已提交 V2 试做的保留承诺。试做可以舍弃；选型与实现是否采用，以 [审查结论](review.md) 和后续真实验证为准。已实施切片见[实施记录](implementation.md)；已有候选网关目录 `deploy/v2-gateway/`，但尚未采用或验收，也未创建 `backend/app/domains`。
 
 ```mermaid
 flowchart TB

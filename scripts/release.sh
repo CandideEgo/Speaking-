@@ -39,6 +39,14 @@ fi
 echo "Next version:     $NEXT"
 [ "$CUR" = "$NEXT" ] && { echo "No version change."; exit 1; }
 
+# Guard first: the CHANGELOG target was removed on 2026-10-15. Without this
+# check the script bumps package.json and only then fails, leaving a dirty
+# half-release in the worktree.
+[ -f knowledge/CHANGELOG.md ] || {
+  echo "knowledge/CHANGELOG.md 不存在（2026-10-15 已删除）。先决定 CHANGELOG 新位置，再运行发布脚本。" >&2
+  exit 1
+}
+
 # Bump frontend/package.json.
 python -c "
 import json

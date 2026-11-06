@@ -113,7 +113,11 @@ jobs:
 
       - name: Run tests
         working-directory: backend
-        timeout-minutes: 10
+        # The full suite is ~1500 tests and takes 27+ minutes locally (coverage
+        # included). The previous 10-minute cap killed the job mid-run and was
+        # the actual CI failure, not a test assertion. Per-test hangs still fail
+        # fast: backend/pytest.ini sets --timeout=60.
+        timeout-minutes: 60
         env:
           DATABASE_URL: postgresql+asyncpg://seeword:seeword_test@localhost:5432/seeword_test
           REDIS_URL: redis://localhost:6379/0
@@ -262,6 +266,10 @@ jobs:
     # has no proxy and there is no nginx in this job). Hard gate - failures
     # block the PR.
     runs-on: ubuntu-latest
+    # 238 Chromium specs against `next dev`; CI retries failures twice. The
+    # job legitimately runs ~45 minutes. Keep a hard ceiling so a hung
+    # browser cannot occupy a runner for the 6-hour default.
+    timeout-minutes: 75
     services:
       postgres:
         image: postgres:16-alpine

@@ -624,19 +624,6 @@ async def prune_media_cleanup(db: Any, *, older_than_days: int = 30, now: dateti
     return int(getattr(result, "rowcount", 0) or 0)
 
 
-async def pending_media_cleanup_count(db: Any) -> int:
-    from sqlalchemy import func
-
-    from app.models.media_cleanup import MediaCleanupTask
-
-    return int(
-        (
-            await db.execute(select(func.count(MediaCleanupTask.id)).where(MediaCleanupTask.status == "pending"))
-        ).scalar_one()
-        or 0
-    )
-
-
 async def anonymize_payment_ledger(db: Any, user_id: str) -> None:
     """Keep the financial record, drop the account identifiers.
 

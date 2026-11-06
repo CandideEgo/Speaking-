@@ -1,16 +1,12 @@
 """Celery beat tasks for study reminders (产品设计规划-2026-08 §4-D6).
 
-Three reminder families, all delivered as in-app notifications via
+Two reminder families, all delivered as in-app notifications via
 ``notification_service.create_notification`` + ``commit_and_push``:
 
 - ``send_hourly_reminders``: hourly sweep. Sends the vocabulary-review
   reminder when the user's local clock hits their ``vocabulary_reminder_time``
-  hour and they have due words; sends the streak-at-risk warning at local
-  21:00 when the streak is ≥2 and the last active day was *yesterday* (the
-  only day the streak is genuinely at risk). Streaks already broken (last
-  activity before yesterday) are reset to 0 in the same sweep instead of
-  being nagged about — ``current_streak`` is otherwise updated lazily only
-  when the user next learns, so stale values would linger indefinitely.
+  hour and they have due words. The former streak-at-risk warning was
+  retired; ``sent["streak_warning"]`` stays at 0 for compatibility.
 - ``send_pro_expiring_reminders``: daily sweep for Pro (incl. trial) that
   expires in 3 / 1 days.
 
@@ -36,9 +32,6 @@ from app.tasks.async_helpers import run_async
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger()
-
-_STREAK_WARNING_HOUR = 21
-_STREAK_MIN = 2
 
 
 def _to_local(now_utc: datetime, tz_name: str | None) -> datetime:
@@ -104,7 +97,6 @@ def send_hourly_reminders(now: datetime | None = None):
 
         now_utc = now or datetime.now(UTC)
         sent = {"vocabulary_reminder": 0, "streak_warning": 0}
-        streak_resets = 0
 
         async with async_session() as db:
             rows = (
@@ -144,9 +136,9 @@ def send_hourly_reminders(now: datetime | None = None):
                                 )
                                 sent["vocabulary_reminder"] += 1
 
-            if sent["vocabulary_reminder"] or sent["streak_warning"] or streak_resets:
+            if sent["vocabulary_reminder"] or sent["streak_warning"]:
                 await commit_and_push(db, notifications)
-            logger.info("hourly_reminders_sent", streak_resets=streak_resets, **sent)
+            logger.info("hourly_reminders_sent", **sent)
             return sent
 
     try:

@@ -113,7 +113,7 @@ celery_app.conf.update(
             "task": "app.tasks.home_content_tasks.sweep_home_content_generations",
             "schedule": 600,  # every 10 minutes
         },
-        # D6 学习提醒：每小时扫一次，按用户本地时间匹配词汇复习提醒点与 21:00 断签警告。
+        # D6 学习提醒：每小时扫一次，按用户本地时间匹配词汇复习提醒点（断签警告已退役）。
         "send-hourly-reminders": {
             "task": "app.tasks.reminder_tasks.send_hourly_reminders",
             "schedule": crontab(minute=0),  # every hour on the hour

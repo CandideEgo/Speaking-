@@ -12,9 +12,16 @@ export default defineConfig({
   // page visit (CI e2e runs against `next dev` so the /api rewrite proxy is
   // active - see .github/workflows/ci.yml and next.config.ts rewrites).
   timeout: 60000,
+  // CI runners are slower than local machines; 5s (Playwright's default) is
+  // tight for Next dev's on-demand compilation and for media readiness.
+  expect: { timeout: 10000 },
 
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000",
+    // The app supports prefers-reduced-motion. Disabling motion keeps dialog
+    // and drawer elements stable for clicks; otherwise Playwright can spend
+    // the whole test timeout waiting for an animating element to settle.
+    contextOptions: { reducedMotion: "reduce" },
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },

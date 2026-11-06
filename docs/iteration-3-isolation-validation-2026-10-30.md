@@ -102,7 +102,7 @@ SIGKILL 测的是进程级持久化（实测 0 丢失），everysec 的宿主掉
 
 ### 4.2 ACL 身份（最终形态以模板为准）
 
-唯一事实源是 [`deploy/redis/users.acl.template`](deploy/redis/users.acl.template)（密码用占位符，
+唯一事实源是 [`deploy/redis/users.acl.template`](../deploy/redis/users.acl.template)（密码用占位符，
 渲染见 `scripts/isolation/render_redis_acl.py`）。三个身份：`default`（回滚路径）、`cloud`（全权）、
 `gpu`（只碰自己的队列、未确认命名空间与心跳键）。
 

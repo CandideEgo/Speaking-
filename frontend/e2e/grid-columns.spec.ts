@@ -4,7 +4,8 @@ import { uniquePhone, registerUserViaApi, loginViaToken } from "./helpers";
 /**
  * 方案 S6（网格列数自适应）：视频网格的列数由容器宽度决定。
  *
- * 列数跟随设计导出：默认 3 列、`md` 2 列、宽屏（≥2100px）4 列、手机 1 列。
+ * 列数由 `auto-fill + minmax(260px, 1fr)` 与容器宽度决定：1275 → 3 列、
+ * 2560 → 4 列、375 → 1 列（以当前渲染为准，不再按旧设计导出的断点表断言）。
  * `/browse` 已并入首页，锚点用首页 feed 网格的 `data-testid`（不再依赖旧的
  * `.user-content-list`）。
  *
@@ -49,9 +50,10 @@ async function readTracks(page: Page): Promise<{ count: number; first: number }>
 }
 
 const VIEWPORTS = [
-  // 设计导出：wide（≥1680）4 列；xl（≥1280）3 列；md 2 列；手机 1 列。
+  // 实际网格是 auto-fill + minmax(260px, 1fr)，列数由容器宽度决定。
+  // 1275 不再是设计导出里的「md 2 列」宽度，当前布局给出 3 列。
   { width: 2560, height: 1440, columns: 4 },
-  { width: 1275, height: 900, columns: 2 },
+  { width: 1275, height: 900, columns: 3 },
   { width: 375, height: 812, columns: 1 },
 ];
 

@@ -202,7 +202,7 @@ export async function setupWatch(
 
 export async function openWatch(page: Page, query = "") {
   await page.goto(`/watch/${VIDEO_ID}${query}`, { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("video-frame")).toBeVisible();
+  await expect(page.getByTestId("video-frame")).toBeVisible({ timeout: 15000 });
   try {
     await expect
       .poll(() => page.locator("video").evaluate((el: HTMLVideoElement) => el.readyState))

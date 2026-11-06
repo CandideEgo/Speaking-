@@ -13,6 +13,8 @@ gpu-worker/
 │   ├── tasks.py                 # transcribe_video_gpu + 回调投递 + 告警
 │   ├── alerts.py                # send_alert()：DingTalk/通用 webhook 签名 POST
 │   ├── logging.py               # configure_logging() / get_logger()（structlog + request_id）
+│   ├── broker_recovery.py       # 启动时恢复 gpu_unacked 孤儿消息
+│   ├── broker_settings.py       # GPU 私有 broker 键与 ACL 身份配置
 │   ├── sources.py               # VideoSource 枚举（复制自 backend 模型，值即协议）
 │   ├── ytdlp_cookies.py         # disposable_cookiefile()（复制自 backend cookies 服务）
 │   └── transcription/           # 转录业务逻辑（从 backend 原样搬出，只改 import）
@@ -22,6 +24,7 @@ gpu-worker/
 │   └── gpu_worker_tunnel.ps1     # SSH 隧道 keepalive：本机 16379 → 云端 Redis
 ├── tests/                       # pytest（不装 whisperx 模型、不连 Redis）
 │   ├── test_contracts.py        # 任务名/队列/心跳/回调头等跨机契约
+│   ├── test_broker_settings.py  # 私有 broker 键 / ACL 身份
 │   ├── test_security_guard.py   # 无 DB/OSS 凭据边界（子进程断言 exit code）
 │   ├── test_callback_delivery.py
 │   ├── test_whisperx_oom_retry.py
@@ -121,7 +124,7 @@ gpu-worker/
 | `TRANSCRIPTION_TEMP_DIR` | `./media/transcription_temp` | 临时音频目录 |
 | `HTTP_PROXY` | 空 | yt-dlp / 下载 / Ping 用的代理 |
 | `YOUTUBE_COOKIES_PATH` | 空 | yt-dlp cookies 文件（本机路径） |
-| `YOUTUBE_POT_BASE_URL` | 空 | bgutil POT provider（解 YouTube n-challenge） |
+| `YOUTUBE_POT_BASE_URL` | `http://127.0.0.1:4416` | bgutil POT provider（解 YouTube n-challenge）；显式给值，避免插件走 loopback 默认后经 `http_proxy` 不可达 |
 | `ALERT_WEBHOOK_URL` | 空 | 告警 webhook；空则只写日志（**无 DB fallback**） |
 | `ALERT_WEBHOOK_SECRET` | 空 | DingTalk 签名密钥 |
 

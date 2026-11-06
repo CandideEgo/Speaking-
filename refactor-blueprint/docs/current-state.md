@@ -1,6 +1,6 @@
 # 后端代码现状
 
-核查日期：2026-11-05；本页登记代码落点，不代表实现已通过验收或必须保留。HEAD 与未提交 V2 的区别、处置建议见 [审查结论](review.md)；开始重构后的切片与验证见[实施记录](implementation.md)。本地 HEAD 不等于生产部署版本。
+核查日期：2026-11-05；本页登记代码落点，不代表实现已通过验收或必须保留。HEAD 已提交 V2 与生产部署状态的区别、处置建议见 [审查结论](review.md)；开始重构后的切片与验证见[实施记录](implementation.md)。本地 HEAD 不等于生产部署版本。
 
 ## 装配和运行组件
 
@@ -9,10 +9,10 @@
 | HTTP API | `backend/app/main.py::create_app` | FastAPI 装配、统一错误、鉴权消费者、健康检查与观测 |
 | 数据会话 | `backend/app/core/database.py` | 懒建 async engine/session maker；请求依赖与 worker 会话来源 |
 | 默认 worker / beat | `backend/app/tasks/celery_app.py` | 默认 `celery` 队列、调度、视频 head/tail、运营与生命周期任务 |
-| 教学 worker（未提交试做） | 同一 Celery 应用的 `teaching` 队列 | `execute_teaching_run`；run 巡检与恢复 |
+| 教学 worker（已提交、默认关闭） | 同一 Celery 应用的 `teaching` 队列 | `execute_teaching_run`；run 巡检与恢复 |
 | 独立 GPU worker | `gpu-worker/gpu_worker/` | 只消费转录队列，回调云端；不 import `app.*` |
-| 模型网关（未提交试做） | `deploy/v2-gateway/`、`docker-compose.v2-gateway.yml` | 锁版 LiteLLM、薄适配、模板与验证工具；是否采用需重新评估 |
-| 网关业务适配（未提交试做） | `backend/app/services/teaching_gateway.py` | 教学网关准入、控制面/数据面调用与错误归一 |
+| 模型网关（已提交候选、未验收） | `deploy/v2-gateway/`、`docker-compose.v2-gateway.yml` | 锁版 LiteLLM、薄适配、模板与验证工具；是否采用需重新评估 |
+| 网关业务适配（已提交、默认关闭） | `backend/app/services/teaching_gateway.py` | 教学网关准入、控制面/数据面调用与错误归一 |
 
 网关版本和镜像只引用 `deploy/v2-gateway/image-lock.json`，不在此复制数字。该锁文件的治理标记为 false；不能从模板或合成测试推断当前真实供应商、容量或生产治理已经通过。
 
@@ -44,11 +44,11 @@
 | 档案与统计 | `services/learning_event_service.py`、`event_contract.py`、`profile_service.py`、`admin_stats.py` | LearningEvent、用户聚合、后台读模型；record_event 供必达事实，emit_event 保留旧生产者的容错入口；不能反写正式成绩 |
 | 导出与注销 | `services/account_data.py`、`tasks/account_tasks.py` | 个人数据披露、删除编排与网关生命周期意图 |
 
-## V2 工作区试做与待补能力
+## V2 已提交试做与待补能力
 
 已存在的内容模型包括 `ExamAnalysisRevision`、`ExamEvidence`；教学事实包括 `TeachingSession`、`TeachingItem`、`TeachingAttempt`、`UserQuestionDisclosure`、`TeachingOperation`、`TeachingFeedback` 和 `LearningEventOutbox`。定义见 `models/teaching.py`。
 
-运行/接入模型包括 `TeachingAccessGrant`、`ExternalConnection`、`ExternalCredential`、`AgentRun`、`AgentStep`、`AgentRunEvent`、`GatewayLifecycleIntent`。定义见 `models/v2_runtime.py`。以上均为未提交试做；可以整体替换，不强制保留表和实现。如果存在已迁移数据库或外部消费者，先处理其数据与兼容，不并存两套同义事实源。
+运行/接入模型包括 `TeachingAccessGrant`、`ExternalConnection`、`ExternalCredential`、`AgentRun`、`AgentStep`、`AgentRunEvent`、`GatewayLifecycleIntent`。定义见 `models/v2_runtime.py`。以上均已提交在 HEAD；仍可整体替换，不强制保留表和实现。如果存在已迁移数据库或外部消费者，先处理其数据与兼容，不并存两套同义事实源。
 
 - 已有教学 HTTP、run 创建/查询/取消/SSE、外部连接管理与 MCP 工具代码；不能写成“尚无后端”。
 - 当前教学题面 schema 的题型为 reading，不能把目录存在理解为听力/判断/视频教学均已支持。

@@ -3,9 +3,9 @@
 日期：2026-10-31
 状态：**协议已写，研究未执行**（没有招募用户、没有产生任何体验结论）
 依据：`docs/comprehensive-audit-2026-10-29/execution-plan.md` A14；排序原则见
-[`development-plan-2026-10-29.md` §1](../development-plan-2026-10-29.md)；事件口径见
-[`metrics.md`](../comprehensive-audit-2026-10-29/metrics.md) 与
-[`event_contract.py`](../../backend/app/services/event_contract.py)。
+[`development-plan-2026-10-29.md` §1](development-plan-2026-10-29.md)；事件口径见
+[`metrics.md`](comprehensive-audit-2026-10-29/metrics.md) 与
+[`event_contract.py`](../backend/app/services/event_contract.py)。
 
 本文件把 A14 的两部分拆开写清楚：
 
@@ -67,7 +67,7 @@
 - 主指标依赖的两个事件已于 2026-11-01 接线：`gloss_open` 在词卡打开时发一次并带本次词卡自己的
   `flow_id`；`replay` 在原句重听发起时发一次，若距该次查词 ≤10 秒且同一句就带同一个 `flow_id`。
   契约版本随之从 v2 升到 v3（`backend/app/services/event_contract.py`、前端
-  `frontend/src/lib/analytics.ts`、[`metrics.md`](../comprehensive-audit-2026-10-29/metrics.md) 三处同步）。
+  `frontend/src/lib/analytics.ts`、[`metrics.md`](comprehensive-audit-2026-10-29/metrics.md) 三处同步）。
 - 事件定义与版本必须同时更新 `backend/app/services/event_contract.py`、前端 `lib/analytics.ts` 与
   `metrics.md`；不得把新事件直接塞进 `MEANINGFUL_EVENT_TYPES` 改变旧分母。
 - 分析脚本与 SQL 随实验一起提交，结果与样本量一起报告；小样本不报百分比结论。

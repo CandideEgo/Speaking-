@@ -20,7 +20,6 @@ import type {
   Subtitle,
   SubtitleRevision,
   VideoAdmin,
-  VideoCard,
   VideoDetail,
 } from "@/types";
 
@@ -209,15 +208,6 @@ export function getVideoStatus(id: string): Promise<{
   return adminApi(`/api/v1/videos/admin/${id}/status`);
 }
 
-export async function seedVideo(source_url: string): Promise<void> {
-  // POST /seed returns VideoResponse (not VideoAdmin), but the caller
-  // reloads the list afterwards, so we don't need the response body.
-  await adminApi("/api/v1/videos/seed", {
-    method: "POST",
-    body: JSON.stringify({ source_url }),
-  });
-}
-
 /** One-click seed: ensure cookies, seed, auto-publish on ready. Returns the new video id. */
 export async function seedVideoFull(source_url: string): Promise<string> {
   const data = await adminApi<{ id: string }>("/api/v1/videos/seed-full", {
@@ -265,17 +255,6 @@ export async function takedownVideo(id: string): Promise<VideoAdmin> {
   return adminApi<VideoAdmin>(`/api/v1/videos/admin/${id}/takedown`, {
     method: "POST",
   });
-}
-
-/** 半自动下线的「建议下线」候选（阈值规则，管理员确认后执行）。
- *
- *  第六份手写卡片在这里。后端现在连这个端点也走共享 projector，返回的就是普通
- *  卡片 —— 管理员表格只用其中几列，但类型不必是另一份 8 字段的复写。 */
-export async function takedownSuggestions(limit = 20): Promise<VideoCard[]> {
-  const res = await adminApi<{ items: VideoCard[] }>(
-    `/api/v1/videos/admin/takedown-suggestions?limit=${limit}`
-  );
-  return res.items;
 }
 
 /** Re-run translation, optionally with a different engine. Use after a quality
@@ -382,24 +361,6 @@ export async function mergeSubtitle(videoId: string, subtitleId: string): Promis
   });
 }
 
-export interface SubtitleReorderItem {
-  id: string;
-  sentence_index: number;
-}
-
-/** Reorder subtitles (canvas editor drag-to-reorder). The payload must cover
- * all current subtitles with a contiguous 0..N-1 index sequence; timing is
- * re-validated against the new neighbor order. Admin only. */
-export async function reorderSubtitles(
-  videoId: string,
-  items: SubtitleReorderItem[]
-): Promise<Subtitle[]> {
-  return adminApi<Subtitle[]>(`/api/v1/videos/admin/${videoId}/subtitles/reorder`, {
-    method: "POST",
-    body: JSON.stringify({ items }),
-  });
-}
-
 export interface SubtitleCreatePayload {
   start_time: number;
   end_time: number;
@@ -473,16 +434,6 @@ export async function rollbackResegment(videoId: string): Promise<{ restored_cou
     `/api/v1/videos/admin/${videoId}/subtitles/resegment/rollback`,
     { method: "POST" }
   );
-}
-
-export async function updateSubtitlesBatch(
-  videoId: string,
-  updates: (SubtitlePatch & { id: string })[]
-): Promise<Subtitle[]> {
-  return adminApi<Subtitle[]>(`/api/v1/videos/admin/${videoId}/subtitles`, {
-    method: "PATCH",
-    body: JSON.stringify({ updates }),
-  });
 }
 
 export async function updateWordLevels(
@@ -619,14 +570,4 @@ export function updateChannel(
 
 export function deleteChannel(id: string): Promise<void> {
   return adminApi<void>(`/api/v1/channels/admin/${id}`, { method: "DELETE" });
-}
-
-export function attachVideosToChannel(
-  channelId: string,
-  videoIds: string[]
-): Promise<{ attached: number }> {
-  return adminApi<{ attached: number }>(`/api/v1/channels/admin/${channelId}/videos`, {
-    method: "POST",
-    body: JSON.stringify({ video_ids: videoIds }),
-  });
 }

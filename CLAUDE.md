@@ -92,7 +92,7 @@ SQLAlchemy 2.0 async。`backend/app/core/database.py` 里有两点值得知道�
 - engine 与 session maker 都 `@lru_cache` **懒建**，不在 import 时建。历史动因是让没有 `DATABASE_URL` 的 GPU worker 也能 import 这些模块；GPU 段已拆进独立组件 `gpu-worker/`（不再 import `app.*`），懒建继续服务脚本与测试。
 - FastAPI 路由用 `get_db()` 依赖；Celery 任务等非依赖场景用 `get_async_session_maker()`——后者同时是测试 monkeypatch 的缝。
 
-模型在 `backend/app/models/`，必须由 `app/models/__init__.py` 按依赖序 re-export（`create_app` 会先 import 它们，好让 SQLAlchemy 在任何 `create_all`／Alembic autogenerate 前把 `Base.metadata` 填全）。迁移在 `backend/migrations/versions/`：HEAD 上 89 个 revision，工作区另有 4 个未提交的 V2 迁移。数量会漂，别把它当契约。
+模型在 `backend/app/models/`，必须由 `app/models/__init__.py` 按依赖序 re-export（`create_app` 会先 import 它们，好让 SQLAlchemy 在任何 `create_all`／Alembic autogenerate 前把 `Base.metadata` 填全）。迁移在 `backend/migrations/versions/`：HEAD 上 93 个 revision（含 4 个 V2 迁移）。数量会漂，别把它当契约。
 
 核心实体：`User` 拥有 `Video` / `Vocabulary` / `LearningRecord` / `Order` / `UserFavorite` / `UserNote` / `UserVideoUnlock` / `Notification`；`Video` 拥有 `Subtitle`（按 `sentence_index` 排序，含 `text_en` / `text_zh` / 逐词时间戳 `words` / `word_levels`），并冗余 `like_count` / `favorite_count` / `view_count` / `score`，以及管线状态 `status` + `processing_step` + `step_started_at`。`ListeningSession` 保存听力练习的冻结题面、草稿答案与判分结果（见下）。
 
@@ -121,9 +121,9 @@ head 与 tail 在 `backend/app/tasks/video_processing.py`，**中间的 GPU 段�
 
 ### Celery
 
-`backend/app/tasks/celery_app.py` 定义 `celery_app` 与常量 `GPU_TRANSCRIBE_TASK`（值是**保留的旧任务名** `app.tasks.video_processing.transcribe_video_gpu`，task_routes 用它），HEAD 上两个队列：云端默认的 `celery` 与远端 `transcription_gpu`（工作区的 V2 试做另加了 `teaching` 队列与每 10 秒的 `sweep-teaching-runs`，见「V2 后端重构标准」）。**只有 `GPU_TRANSCRIBE_TASK` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。GPU 侧的 Celery 应用与任务在 `gpu-worker/gpu_worker/celery_app.py` / `tasks.py`，只声明、只消费 `transcription_gpu`。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、**管线派发补发（每 60 秒，`app.services.pipeline_dispatch` 的 outbox）**、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理。**Pro/兑换码 beat 与周报空任务壳已在 2026-10-26 清理中删除**（兑换码任务文件一并删除，已入队的旧消息会以 unregistered task 结束，影响面可忽略）；`reminder_tasks.send_pro_expiring_reminders` 的任务体保留但无调度，供未来恢复付费到期提醒时复用。
+`backend/app/tasks/celery_app.py` 定义 `celery_app` 与常量 `GPU_TRANSCRIBE_TASK`（值是**保留的旧任务名** `app.tasks.video_processing.transcribe_video_gpu`，task_routes 用它），三个队列：云端默认的 `celery`、远端 `transcription_gpu` 与教学 `teaching`（后两者随 V2 提交入库；teaching 队列默认没有 worker，V2 开关默认关闭，但 beat 的 `sweep-teaching-runs` 每 10 秒无条件排程，见「V2 后端重构标准」）。**只有 `GPU_TRANSCRIBE_TASK` 路由到 GPU 队列**，其余（管线首尾、本地化、订单过期等）都在云端跑。GPU 侧的 Celery 应用与任务在 `gpu-worker/gpu_worker/celery_app.py` / `tasks.py`，只声明、只消费 `transcription_gpu`。beat 里挂着订单过期与对账、金数据付款同步、管线看门狗（含首页草稿生成超时巡检）、**管线派发补发（每 60 秒，`app.services.pipeline_dispatch` 的 outbox）**、失败下载重试、评分（小时/天）、内容榜单快照、自愿开启的词汇复习提醒、注销账号清理。**Pro/兑换码 beat 与周报空任务壳已在 2026-10-26 清理中删除**（兑换码任务文件一并删除，已入队的旧消息会以 unregistered task 结束，影响面可忽略）；`reminder_tasks.send_pro_expiring_reminders` 的任务体保留但无调度，供未来恢复付费到期提醒时复用。
 
-Windows 上这些以 NSSM 服务托管：云端与 beat 用 `backend/scripts/run_celery_worker.ps1`；GPU worker 用 `gpu-worker/scripts/run_gpu_worker.ps1`，隧道用 `gpu-worker/scripts/gpu_worker_tunnel.ps1`（服务名见 [`gpu-worker/README.md`](gpu-worker/README.md)）。
+Windows 上这些以 NSSM 服务托管：云端 worker 用 `backend/scripts/run_celery_worker.ps1`（该脚本只起 worker；仓库没有 beat 的 NSSM 脚本，本地/生产 beat 需单独启动或由 prod compose 的 `celery-beat` 服务托管）；GPU worker 用 `gpu-worker/scripts/run_gpu_worker.ps1`，隧道用 `gpu-worker/scripts/gpu_worker_tunnel.ps1`（服务名见 [`gpu-worker/README.md`](gpu-worker/README.md)）。
 
 ### 听力练习（`/api/v1/listening` + `/practice/listening`）
 
@@ -169,7 +169,7 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 
 ### 配置
 
-`backend/app/core/config.py::Settings`（pydantic-settings，`get_settings()` 带 `@lru_cache`，读 `backend/.env`）。`model_post_init` **fail-closed**：`development` 给 localhost 与开发密钥默认值；其它环境强制要 `JWT_SECRET` + `DATABASE_URL`；`production` 还要 `REDIS_URL` + `TRANSCRIPTION_CALLBACK_SECRET`，且 `OPENAI_API_KEY` 与 `COMMANDCODE_API_KEY` 至少有一个（LLM 供应商二选一）。
+`backend/app/core/config.py::Settings`（pydantic-settings，`get_settings()` 带 `@lru_cache`，读 `backend/.env`）。`model_post_init` **fail-closed**：`development` 给 localhost 与开发密钥默认值；其它环境强制要 `JWT_SECRET` + `DATABASE_URL`；`production` 还要 `REDIS_URL` + `TRANSCRIPTION_CALLBACK_SECRET`，且 `OPENAI_API_KEY`、`COMMANDCODE_API_KEY`、内部 LLM 网关（`LLM_GATEWAY_BASE_URL` + `LLM_GATEWAY_API_KEY`）三选一。
 
 **GPU 转录配置已不在 backend**：`WHISPER_*` 与 `TRANSCRIPTION_TEMP_DIR` 已从 backend `Settings` 删除，改由 `gpu-worker/gpu_worker/config.py` 的独立 `Settings` 读 `.env.gpu-worker`（重叠字段的名字与默认值与云端保持一致）。backend 只保留云端侧的回调与队列旋钮：`TRANSCRIPTION_CALLBACK_URL` / `TRANSCRIPTION_CALLBACK_SECRET` / `TRANSCRIPTION_CALLBACK_TIMEOUT` / `TRANSCRIPTION_CALLBACK_MAX_RETRIES` / `TRANSCRIPTION_GPU_QUEUE_NAME`；`backend/.env.example` 也不再列 Whisper 变量。
 
@@ -199,9 +199,9 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 
 ### V2 后端重构标准（2026-11-04）
 
-后端框架与重构验收入口见 [`refactor-blueprint/README.md`](refactor-blueprint/README.md)，包括审查结论、代码现状、模块与数据归属、接口契约、迁移任务及验收条件。按用户最新要求已开始后端渐进重构，当前范围和实际验证统一见该目录的实施记录；工作区 V2 试做不强制保留，不保留交互原型和前端设计材料。具体标准只维护在该目录，其余现有事务、安全、退役功能与发布门继续有效；本地重构不代表已经部署。
+后端框架与重构验收入口见 [`refactor-blueprint/README.md`](refactor-blueprint/README.md)，包括审查结论、代码现状、模块与数据归属、接口契约、迁移任务及验收条件。按用户最新要求已开始后端渐进重构，当前范围和实际验证统一见该目录的实施记录；V2 试做已提交在 HEAD，但仍不强制保留（可整体取舍），不保留交互原型和前端设计材料。具体标准只维护在该目录，其余现有事务、安全、退役功能与发布门继续有效；本地重构不代表已经部署。
 
-**工作区里的 V2 代码是未提交试做，不是已上线能力。** `teaching` / `teaching_runs` / `external_connections` / `admin_teaching_content` 路由、`models/teaching.py`、`v2_runtime.py`、`content_publication.py`、`question_exposure.py`、`services/teaching/`、`services/teaching_gateway.py`、`services/v2_access.py`、`integrations/mcp/` 与 4 个未提交迁移都只存在于工作区；`TEACHING_*` / `MCP_*` 开关默认全关，用户侧 HTTP 入口经 `v2_access.require_access` 返回 503（`/admin/teaching-content` 只走管理员鉴权，不看这组开关）；MCP 是 `/api/v1/mcp` 上的 mount，`MCP_SDK_ENABLED=false` 时同一路径返回 503。但这层开关**不能隔离新表依赖**：beat 的 `sweep-teaching-runs` 每 10 秒直接查 `AgentRun` 等 V2 表、不检查开关，在没有应用 V2 迁移的库上会报错（REV06）。改这批代码前先读 `refactor-blueprint/docs/current-state.md` 与 `review.md`，不要把「文件存在」当成契约或已验收。
+**V2 代码已提交在 HEAD（`2a07e571`），但未部署生产、未对业务库执行迁移，不是已上线能力。** `teaching` / `teaching_runs` / `external_connections` / `admin_teaching_content` 路由、`models/teaching.py`、`v2_runtime.py`、`content_publication.py`、`question_exposure.py`、`services/teaching/`、`services/teaching_gateway.py`、`services/v2_access.py`、`integrations/mcp/` 与 4 个新迁移均已入库；`TEACHING_*` / `MCP_*` 开关默认全关，用户侧 HTTP 入口经 `v2_access.require_access` 返回 503（`/admin/teaching-content` 只走管理员鉴权，不看这组开关）；MCP 是 `/api/v1/mcp` 上的 mount，`MCP_SDK_ENABLED=false` 时同一路径返回 503。但这层开关**不能隔离新表依赖**：beat 的 `sweep-teaching-runs` 每 10 秒直接查 `AgentRun` 等 V2 表、不检查开关，在没有应用 V2 迁移的库上会报错（REV06）。改这批代码前先读 `refactor-blueprint/docs/current-state.md` 与 `review.md`，不要把「文件存在」当成契约或已验收。
 
 - 与用户交流用中文。
 - **代码是事实源。** 注释、文档、快照都可能过期；冲突时以代码为准。
@@ -211,6 +211,27 @@ Next.js 16 App Router，源码在 `frontend/src`。路由组 `(main)`（用户�
 - 一条事实只放一个家，不跨文件复制规则。
 - 用户授权只覆盖当前任务，不自动延伸到生产、删除、发布或额外系统。
 - 高影响改动（契约、迁移、部署配置、不可逆操作）先理清消费者与退路再动手。
+
+### 工作原则（2026-11-06）
+
+- 前端质感与丝滑动效是核心要求；涉及前端的改动可以多轮截图验收打磨。
+- **不重复造轮子**：优先参考对应成熟项目的源代码，而不是从零手写。
+- **不做过度开发**：以优雅为原则，以用户体验为第一性原理。
+
+### 前端文案与信息密度
+
+- 避免不必要的次要标签、说明文字、辅助文案、描述性文字与冗余微文案——让布局、视觉层级、间距和清晰的主操作自己完成解释。
+- 优先用强视觉层级与自解释的结构，而不是用文字去解释。默认不加 slogan 式文字、教学段落，也不给每个区块配「帮助说明」；确实需要补充信息时用 info 图标 + tooltip，而不是常驻的次要文字。
+- 保留必要的表单标签与可访问名称——界面清爽不能牺牲可访问性。
+- 危险或不可逆操作（删除、支付、提交永久性变更）必须保留清晰的后果提示。
+- 去掉说明文字后，第一次使用的人仍应能看懂下一步点哪里、点了会发生什么。
+- 重写已有界面时先删冗余标签与说明；若清晰度下降，再优化布局与按钮文案。
+- 本仓的具体落地形态见 [`frontend/DESIGN.md`](frontend/DESIGN.md) 第 6 节「状态与文案」；两处冲突时以本节的原则为准。
+
+### 收尾
+
+- 每轮涉及较大代码改动的会话，在最终交付前派一个**使用当前可用最强模型**的独立子代理做代码 review；随后由主代理接力修复有效问题并验证。一轮对话通常只 review 一次，确有必要才复审，避免重复迭代。
+- 有实质进展时，在根目录 `progress.txt`（不存在则创建）追加一行：`YYYY-MM-DD HH:mm（北京时间）| 工作概要`，保持简短。
 
 ## 失效指针：这些路径已不存在
 

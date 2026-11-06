@@ -1,5 +1,7 @@
 # SeeWord redesign 进度
 
+> 历史工作日志：正文记录改版逐轮验证，截至 Round 60（2026-10-29）。此后的 UI Phase 1–3 与 V2 后端切片不在本文件续写；现行记录见 `docs/frontend-ui-interaction-upgrade-2026-11.md` 与 `refactor-blueprint/docs/implementation.md`。
+
 ## 工作项清单
 
 - [x] 准备：定位真实项目、阅读仓库规则、建立 redesign 分支与现状快照

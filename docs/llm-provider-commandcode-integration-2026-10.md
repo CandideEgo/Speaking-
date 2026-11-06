@@ -45,7 +45,7 @@
 
 生产部署另有同名 passthrough：`docker-compose.prod.yml` 的 backend / celery / celery-beat
 三个服务都透传 `COMMANDCODE_*` 与 `LLM_MODEL_*`；`Settings.model_post_init` 的生产守卫
-从「必须有 `OPENAI_API_KEY`」改为「`OPENAI_API_KEY` 与 `COMMANDCODE_API_KEY` 至少一个」。
+从「必须有 `OPENAI_API_KEY`」改为「`OPENAI_API_KEY`、`COMMANDCODE_API_KEY`、内部 LLM 网关（`LLM_GATEWAY_BASE_URL` + `LLM_GATEWAY_API_KEY`）三选一」。
 
 ## 3. 任务路由
 

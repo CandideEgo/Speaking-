@@ -225,6 +225,8 @@ router `prefix="/admin/home-content"`，在 `main.py` 注册）。API 只解析�
 
 ## 6. 前端：公共首页（好奇心优先）
 
+> 历史实现说明（2026-11-06 核对）：本节描述的 `HomeVideoFeature` / `HomeQuickActions` / `HomeEditorialScenarios` 与「学前预览」已不在当前用户端；当前首页只渲染主推 `lead`、普通精选与 feed。后端契约与发布/回退规则仍有效。
+
 2026-10-20 第三轮视觉修正：采用「精简标题与集中按钮组 → 单视频精选 → 本期关联场景 → 视频列表」的紧凑首页。取消内容区右栏；次推只保留后端递补用途，不并排渲染，独立表达位不再单独展示。此次不改变发布、回退或来源校验契约。
 
 类型契约：`frontend/src/types/homeContent.ts`（**已由 Lead 建好，不改形状**）。
@@ -233,14 +235,14 @@ router `prefix="/admin/home-content"`，在 `main.py` 注册）。API 只解析�
   无 `cacheTtlMs`）与纯函数（媒体/片段可用性判定、收词参数、embed 文案），配单测。
 - 组件：
   - `HomeVideoFeature.tsx` 是单视频横卡的共同展示组件：封面、最多两行标题、来源、可选难度/时长/简述、开始观看；普通精选无需 AI 文案也能显示，缺字段则省略。
-  - `HomeEditorialHero.tsx` 只渲染主推的已发布内容，`FeaturedListening.tsx` 只取第一条可展示的普通精选；教学内容都放在默认收起的「学前预览」。
+  - `HomeEditorialHero.tsx` 只渲染主推的已发布内容，`FeaturedListening.tsx` 只取第一条可展示的普通精选；当前用户端没有「学前预览」，教学内容字段只随主推内容展示。
   - `HomeQuickActions.tsx`：紧凑的续学、最多 5 个到期词复习、找视频锚点。词汇深链 `review_count=5` 仍使用既有练习 API，不修改每日训练配额。
   - `HomeEditorialScenarios.tsx`：只读当前主推版本中有真实字幕锚点的场景；同版本编排只控制顺序，跨视频/跨版本引用不会混入。无场景时用当前视频的真实字幕做练一句（表达句去重，普通精选用 learning-metadata）；无可用字幕则隐藏，不补通用例句。桌面最多三卡，手机紧凑行，位于 `#feed` 前。
   - `frontend/src/components/home/EditorialPreview.tsx` 或同文件导出：后台预览复用同一渲染。
   - 失败/空：`editorial === null` 或请求失败/超时 → 内容用 `<FeaturedListening/>` 的真实精选与字幕，
     保留新版页头、学习横条和内容布局。加载中给骨架，不阻塞横条与下方 feed。
 - 交互（必须）：
-  - 开始观看始终直达完整视频；「学前预览」展开真实原句、可用片段、表达词条、固定反馈互动及跟读/文稿。无教学元数据时不显示预览入口。
+  - 开始观看始终直达完整视频；当前用户端没有「学前预览」入口（该交互为执行期历史实现）。无教学元数据时不显示预览入口。
   - 片段按钮按 `clip.duration` 显示真实秒数，**不得出现固定 90 秒文案**；无媒体时改为
     普通观看入口，不显示假的片段试听按钮。
   - 场景卡删除重复标签和截断长提示；完整情境移入「试一句」弹窗，可输入并查看固定参考表达（字幕练习显示「看看原句」），保留本次页面内的输入，不请求 AI 评分或写学习记录。有真实字幕锚点时才提供来源展开与跟读。手机以简短行展示，完整提示与译文在弹窗中可读；**不把 reply_en 冒充字幕原话**。
@@ -250,7 +252,7 @@ router `prefix="/admin/home-content"`，在 `main.py` 注册）。API 只解析�
   （`--canvas/--surface-*/--ink/--body/--muted-c/--hairline/--brand-*`），不用原始调色板类名、
   不写 `rounded-2xl`、不加阴影/独立设计变量；沿用全局导航与容器。
 - 参考（视觉与行为，不是数据）：`C:/Users/Administrator/.codex/visualizations/2026/10/19/
-  01a155fe-0cb5-7373-8dad-e6664a05586f/seeword-compact-home.html`。视频、时长、难度与进度必须来自真实数据；最终真实样式以当前组件为准；`lib/homeScenarios.ts` 只解析本期来源，不内置无关例句。
+  01a155fe-0cb5-7373-8dad-e6664a05586f/seeword-compact-home.html`。视频、时长、难度与进度必须来自真实数据；最终真实样式以当前组件为准（执行期引用的 `lib/homeScenarios.ts` 已删除；当前用户端不展示场景/通用例句）。
 
 ## 7. 前端：后台维护
 

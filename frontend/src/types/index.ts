@@ -232,22 +232,6 @@ export interface GradedResult {
   correctAnswer?: string;
 }
 
-export interface CreateOrderResponse {
-  order_id: string;
-  amount: number;
-  currency: string;
-  payment_url: string;
-}
-
-export interface OrderStatusResponse {
-  order_id: string;
-  status: string;
-  amount: number;
-  plan: string;
-  paid_at: string | null;
-  created_at: string;
-}
-
 /* ── Vocabulary ── */
 export type MasteryLevel = "new" | "learning" | "reviewing" | "mastered";
 
@@ -402,14 +386,6 @@ export interface VocabSieveState {
     part_of_speech: string | null;
     definition: string | null;
   } | null;
-}
-
-/** POST /api/v1/vocab-sets/{id}/words/{set_word_id}/sieve — judge result. */
-export interface VocabSieveJudgeResponse {
-  status: VocabSetWordStatus;
-  completed: boolean;
-  mastered_count: number;
-  total: number;
 }
 
 /* ── Admin ── */
@@ -596,21 +572,6 @@ export interface ExportStatus {
   download_expires_at: string | null;
 }
 
-/** POST /vocab-sets/{id}/celebrate — set-closure celebration card (P1-6). */
-export interface VocabSetCelebration {
-  first_time: boolean;
-  card: {
-    set_id: string;
-    video_id: string;
-    title: string | null;
-    thumbnail_url: string | null;
-    exam_level: string | null;
-    exam_label: string | null;
-    total: number;
-    mastered_count: number;
-  };
-}
-
 /* ── Exam vocabulary (CET/高考/考研) ── */
 
 /** Rich gloss for a clicked subtitle word (GET /api/v1/words/gloss). */
@@ -676,10 +637,6 @@ export interface PracticeResultItem {
 /** Vocabulary-page practice response (no exam_level wrapper). */
 export interface VocabularyPracticeSet {
   items: PracticeItem[];
-}
-
-export interface VocabPracticeSubmitRequest {
-  results: PracticeResultItem[];
 }
 
 // ---------------------------------------------------------------------------

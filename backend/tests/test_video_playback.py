@@ -1,5 +1,6 @@
 """Playback artifacts, supported fallback and durable localization outcomes."""
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -102,7 +103,9 @@ async def test_resume_restores_the_real_raw_path_for_both_sources(db_session, me
     monkeypatch.setattr(vp, "_download_video", download)
     ctx = PipelineCtx(db_session, video, video.id)
     await vp._skip_downloading(ctx)
-    assert ctx.video_path == str(raw)
+    # Windows may report the temp directory with different casing
+    # (pytest-of-fuwei vs pytest-of-Fuwei); compare resolved paths.
+    assert Path(ctx.video_path).resolve() == raw.resolve()
     download.assert_not_called()
 
 

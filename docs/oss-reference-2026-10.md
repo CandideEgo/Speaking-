@@ -4,7 +4,9 @@
 
 **本文性质**：一次性调研记录，**不是常驻规则**。规则类事实仍以三层 `CLAUDE.md` 与代码为准。
 
-**快照警告**：下文所有 star 数、open issue 数、最后提交时间均为 **2026-10-16** 的检索快照，会过期。许可（license）变动概率低，可长期引用；项目活跃度不可。
+**快照警告**：下文所有 star 数、open issue 数、最后提交时间均为 **2026-10-16** 的检索快照，会过期。
+
+> 代码引用已失效：文中把 `shadowing_attempts`、`backend/app/models/shadowing.py`、`app/services/shadowing_service.py` 当作现存代码；跟读功能与相关表已于 2026-10-26 退役，不要据此立项。许可（license）变动概率低，可长期引用；项目活跃度不可。
 
 **信息来源**：tavily 5 次 + exa 4 次搜索 + 8 篇正文抓取，全部经 MCP 工具，未使用内置 WebSearch。逐条 URL 见文末 §11。
 
